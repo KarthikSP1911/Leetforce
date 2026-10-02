@@ -2,7 +2,7 @@
 
 **Branch:** `phase/5-live-status-storage`
 **Range:** `phase-5-start..phase-5-done`
-**Status:** in progress
+**Status:** done (merged into main; see the closing entry)
 
 ## Units of work
 - [x] `feat/5-dev-host-docker`: Docker on the dev host, MinIO from `docker-compose.yml`, `trivy image`
@@ -83,3 +83,8 @@ Problem (from the Phase 4 summary): `POST /submissions` inserts the row and then
 5. Regression runs on the host after all units: `make test-crash` (Phase 3): PASS, "runner killed mid-job; job reclaimed and judged once", no nsjail left. `make test-api-e2e` (Phase 4): first failed with "Permission denied" because the script was committed from Windows with mode 100644 (a Phase 4 defect, not caused by this phase); `git update-index --chmod=+x` on `scripts/test-api-e2e.sh`, `scan-staged.sh`, `setup-dev-host.sh` (commit `fix(ci)`); then PASS (AC stored, duplicate verdict changed nothing, dead-lettered job became IE). Not run: `make test-sandbox` and `make test-adversarial`, because no sandbox or judge-engine code changed this phase (only `judge/problem` gained Pack/Unpack and the runner agent changed).
 6. The live e2e leaves nothing in the real tables (it deletes the ids it created). Neon test leftovers, counted on the host with `psql` at the end of the unit: 1 problem, 31 submissions, 30 verdicts. They come from earlier manual runs and from `make test-api-e2e`, which still writes 2 rows per run and does not clean up (Phase 4 behaviour, deferred). One row is not judged: `31b379ac-...` (`print(1)`, 15:52, from the Phase 4 manual try-out before this phase began); migration 00003 gave it `enqueued_at`, so the reaper ignores it. Decision B of the Phase 4 review (leave the rows) stands; now that `psql` exists a cleanup is easy if wanted.
 7. Trivy (host, Trivy 0.75.0, `git archive HEAD`): `trivy fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --exit-code 1`, exit 0. `make fmt lint`: 0 issues in all 5 modules.
+
+### Review and close (2026-10-02)
+1. Claude explained the phase in chat and asked 5 understanding questions and decisions A, B, C. Owner (Karthik) replied "skip": no answers, so nothing is recorded as a review answer; decisions A, B, C stay on Claude's defaults.
+2. Claude (repo): `docs/phases/phase-5-summary.md` Review Q&A and Handoff filled in; `docs/PROGRESS.md` set to done with resume point "start Phase 6"; this entry. Merge `docs/5-review` into the phase branch, then `phase/5-live-status-storage` into `main` with `--no-ff`, tags `phase-5-done` and `M2`, branches and tags pushed to `origin`.
+3. Not changed: the report's stats stay as of `d9549a1`; this commit only touches documents already listed.
