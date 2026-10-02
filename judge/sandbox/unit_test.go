@@ -21,6 +21,8 @@ func TestSpecValidate(t *testing.T) {
 		{"no wall time", func(s *Spec) { s.Limits.WallTime = 0 }, true},
 		{"no cpu time", func(s *Spec) { s.Limits.CPUTime = 0 }, true},
 		{"no output cap", func(s *Spec) { s.Limits.MaxOutputBytes = 0 }, true},
+		{"no memory limit", func(s *Spec) { s.Limits.MemoryBytes = 0 }, true},
+		{"no process limit", func(s *Spec) { s.Limits.MaxPIDs = 0 }, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -41,9 +43,10 @@ func TestNsjailArgs(t *testing.T) {
 		Limits: Limits{
 			WallTime: 1500 * time.Millisecond, CPUTime: 2 * time.Second,
 			MaxFileBytes: 3<<20 + 1, MaxOpenFiles: 16, MaxOutputBytes: 10, TmpfsBytes: 4096,
+			MemoryBytes: 1 << 20, MaxPIDs: 7, CPUMilliPerSec: 500,
 		},
 	}
-	args := spec.nsjailArgs()
+	args := spec.nsjailArgs("/sys/fs/cgroup/leetforce/job-x")
 	joined := " " + strings.Join(args, " ") + " "
 
 	for _, want := range []string{
@@ -51,7 +54,10 @@ func TestNsjailArgs(t *testing.T) {
 		" --log_fd 3 ", " --time_limit 2 ", " --rlimit_cpu 2 ",
 		" --rlimit_fsize 4 ", " --rlimit_nofile 16 ", " --rlimit_core 0 ",
 		" --disable_proc ", " -R /usr ", " -R /work ",
-		" -m none:/tmp:tmpfs:size=4096 ", " -E FOO=bar ", " -E PATH=/custom ", " -E HOME=/tmp ",
+		" -m none:/tmp:tmpfs:size=4096 ",
+		" --use_cgroupv2 ", " --cgroupv2_mount /sys/fs/cgroup/leetforce/job-x ",
+		" --cgroup_mem_max 1048576 ", " --cgroup_mem_swap_max 0 ", " --cgroup_pids_max 7 ", " --cgroup_cpu_ms_per_sec 500 ",
+		" -B /dev/null ", " -R /dev/urandom ", " -E FOO=bar ", " -E PATH=/custom ", " -E HOME=/tmp ",
 	} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("args missing %q\n%s", want, joined)

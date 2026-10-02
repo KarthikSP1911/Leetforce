@@ -23,6 +23,26 @@ func requireNsjail(t *testing.T) {
 	if _, err := exec.LookPath("nsjail"); err != nil {
 		t.Skip("nsjail not installed")
 	}
+	capHostCgroup(t)
+}
+
+// capHostCgroup puts a backstop on everything the tests run: all run cgroups
+// share 400 MiB with no swap, so even a broken per-run limit cannot exhaust the
+// 1 GiB dev host.
+func capHostCgroup(t *testing.T) {
+	t.Helper()
+	if err := os.MkdirAll(DefaultCgroupRoot, 0o750); err != nil {
+		t.Fatalf("create cgroup root: %v", err)
+	}
+	for file, value := range map[string]string{
+		"cgroup.subtree_control": cgroupControllers,
+		"memory.max":             "400M",
+		"memory.swap.max":        "0",
+	} {
+		if err := writeFile(DefaultCgroupRoot+"/"+file, value); err != nil {
+			t.Fatalf("set %s: %v", file, err)
+		}
+	}
 }
 
 func sh(script string) []string { return []string{"/bin/sh", "-c", script} }

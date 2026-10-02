@@ -8,7 +8,7 @@
 - [x] `docs/1-dev-environment`: ADR 0003, `scripts/setup-dev-host.sh`, README cost table
 - [x] `feat/1-go-workspace`: `go.work`, `judge/go.mod`, `.golangci.yml`, `Makefile`, `.env.example`
 - [x] `feat/1-nsjail-wrapper`: `judge/sandbox` Spec/Run, bounded output capture
-- [ ] `feat/1-cgroup-limits`: cgroup v2 memory/pids/cpu limits, whole-cgroup kill, measurements
+- [x] `feat/1-cgroup-limits`: cgroup v2 memory/pids/cpu limits, whole-cgroup kill, measurements
 - [ ] `feat/1-result-channel`: dedicated fd for the harness result
 - [ ] `test/1-adversarial`: `make test-adversarial` suite
 - [ ] `docs/1-adrs-report`: ADR 0004, phase report, phase summary
@@ -97,3 +97,25 @@ Steps that were performed earlier in the session but were not written down at th
 ### Slips
 - A `python3` heredoc on Windows hung and was stopped (logged above).
 - Two `sed` edits mangled a regex and a test table; I rewrote the files in full before committing (logged above).
+
+### `feat/1-cgroup-limits` (2026-10-02)
+Same workflow as unit 2: edit on Windows, `tar czf - Makefile judge | ssh leetforce-dev 'cd ~/Leetforce && tar xzf -'`, test on the host as root, commit only after everything passed.
+
+**Spike on the host (all bounded; nothing was run without a cap).**
+1. Read-only facts: `nsjail --help` lists `--use_cgroupv2`, `--cgroupv2_mount`, `--cgroup_mem_max`, `--cgroup_mem_swap_max`, `--cgroup_pids_max`, `--cgroup_cpu_ms_per_sec`. Root `cgroup.subtree_control` is already `cpu memory pids`. `memory.peak`, `memory.events`, `memory.oom.group` exist (kernel 6.17).
+2. Created `/sys/fs/cgroup/leetforce` and a job directory (`mkdir`, `echo "+memory +pids +cpu" > cgroup.subtree_control`), ran nsjail with `--cgroupv2_mount <job dir>` and a 64 MiB limit (script `/tmp/spike/cg1.sh`). nsjail created `NSJAIL.<pid>` inside the job directory and removed it at exit. The job directory kept the totals: `memory.peak` 42,967,040 for a 40 MiB allocation, `cpu.stat usage_usec 30781`. A 100 MiB allocation under the 64 MiB limit was OOM-killed (exit 137); the job directory showed `oom_kill 1` and `memory.peak` 67,387,392 (about 0.4% above the limit, so the peak can slightly overshoot `memory.max`).
+3. Process limit (`cg2.sh`): a program that forks in a loop under `--cgroup_pids_max 20` stopped with `fork failed after 19 children`; the job directory kept `pids.peak 20` and `pids.events max 1`. The forker was safe to run because of that cap, plus a 400 MiB `memory.max` backstop on the parent directory.
+4. Discovery: the sandbox had no `/dev/null`, so `sleep 60 &` in `sh` failed ("cannot open /dev/null"). Runtimes also need `/dev/urandom`. Added bind mounts for `/dev/null` (rw), `/dev/zero` and `/dev/urandom` (ro); verified in `cg3.sh`.
+5. `cgroup.kill` (`cg3.sh`): writing `1` to the job directory's `cgroup.kill` while a shell with three sleeps (one detached in a subshell) was running removed all four processes in about 2 ms; `cgroup.events` then showed `populated 0`; no sleep processes were left. The spike cgroups were removed with `rmdir` after each script.
+
+**Design decided from the spike.** The code owns a per-run directory; nsjail makes and limits its own child cgroup inside it. This keeps nsjail's supervisor outside the limited cgroup, so an OOM kill takes only the program and nsjail's log stays intact, while the directory we own keeps the measurements and can kill the whole run. The alternative (starting nsjail itself inside our cgroup with `CgroupFD`) would have the OOM killer able to take nsjail down with the program and lose its log. To be recorded in ADR 0004.
+
+**Code.** `cgroup.go` (job directory lifecycle, `kill`, `stats`, `remove` with a wait for `populated 0`, parsing helpers), `spec.go` (`MemoryBytes`, `MaxPIDs`, `CPUMilliPerSec`, `CgroupRoot`, and Result fields `PeakMemoryBytes`, `CPUTime`, `OOMKilled`, `PeakPIDs`, `PIDLimitHit`), `args.go` (cgroup flags with swap off, `/dev` nodes), `run.go` (`Run` owns the cgroup lifecycle around `runJob`; cancellation kills the whole cgroup; a cgroup that cannot be emptied becomes `ErrSandbox`), and tests `cgroup_test.go` (stats parsing and tree removal, no root needed) and `cgroup_run_test.go` (memory, process, whole-cgroup kill, CPU time).
+
+**Mistakes made and caught during the unit.**
+- A first `sed` edit of the removal loop produced an infinite loop with no exit; I replaced the block with a proper edit. The removal also briefly reused the first loop's deadline, which would have skipped removal and returned a nil error; it now has its own deadline.
+- Lint (`gosec`, `staticcheck`, `noctx`) flagged 8 items across two rounds (directory permissions, a uint64 to int64 conversion, file paths from variables, a subprocess without a context); fixed with `0o750` directories, a bounded conversion, and documented `//nolint:gosec` for fixed paths and test inputs.
+
+**Verification (EC2 host).** `make fmt lint`: `0 issues.` `make test`: ok. `make test-sandbox`: all PASS, including `TestRunMemoryLimit` (30 MiB runs clean with peak at least 30 MiB; 300 MiB under a 64 MiB limit is OOM-killed and the peak stays within 110% of the limit), `TestRunProcessLimit` (pid limit hit, peak at most 20, fork refused), `TestRunKillsWholeCgroup` (no process and no `job-*` cgroup left), `TestRunCPUTimeMeasured`. 25 repeated rounds of the cgroup tests passed in 34.7 s, leaving 0 job cgroups and 0 nsjail processes; host free memory stayed about 500 MiB available.
+
+**Open items.** The 400 MiB backstop on `/sys/fs/cgroup/leetforce` is set by the tests only; a production runner must set it itself (Phase 3 / Phase 12). The parent directory is created under the root cgroup outside systemd's tree; this works on the dev host, and Phase 6/12 should decide whether to run it under a systemd slice with `Delegate=yes`. The seccomp denylist's effect is still untested (unit `test/1-adversarial`).
