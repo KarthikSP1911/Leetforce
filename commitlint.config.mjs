@@ -30,6 +30,7 @@ export default {
         "brand",
         "db",
         "queue",
+        "storage",
         "infra",
         "packer",
         "ansible",

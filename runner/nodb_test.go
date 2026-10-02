@@ -22,6 +22,16 @@ var forbidden = []string{
 	"github.com/jmoiron/sqlx",
 }
 
+// interfaceOnly are standard-library packages under database/sql that hold
+// only interfaces and helper types (for example driver.Valuer, which
+// github.com/google/uuid and github.com/rs/xid implement, and which the S3
+// client pulls in). They cannot open a connection: database/sql itself, which
+// has Open, stays forbidden, and so does every driver.
+var interfaceOnly = map[string]bool{
+	"database/sql/driver":   true,
+	"database/sql/internal": true,
+}
+
 func TestRunnerHasNoDatabaseDependency(t *testing.T) {
 	mod, err := os.ReadFile("go.mod")
 	if err != nil {
@@ -44,6 +54,9 @@ func TestRunnerHasNoDatabaseDependency(t *testing.T) {
 		t.Fatalf("go list returned only %d packages; the check would prove nothing:\n%s", len(deps), out)
 	}
 	for _, dep := range deps {
+		if interfaceOnly[dep] {
+			continue
+		}
 		for _, f := range forbidden {
 			if dep == f || strings.HasPrefix(dep, f+"/") || (strings.HasSuffix(f, "/pgx") && strings.HasPrefix(dep, f)) {
 				t.Errorf("runner depends on %q", dep)

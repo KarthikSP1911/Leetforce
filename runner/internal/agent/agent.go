@@ -1,6 +1,7 @@
 // Package agent is the runner's main loop: pull a job from the queue, judge it,
 // report the verdict, acknowledge the job. It talks only to the queue (Redis);
-// it never connects to a database. Problems are read from a local directory.
+// it never connects to a database. Problems come from a problems.Source
+// (object storage in production, a local directory in development).
 package agent
 
 import (
@@ -8,8 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"path/filepath"
-	"regexp"
 	"sync/atomic"
 	"time"
 
@@ -17,14 +16,13 @@ import (
 	"leetforce/judge/problem"
 	"leetforce/judge/verdict"
 	"leetforce/queue"
+	"leetforce/runner/internal/problems"
 )
 
 // VerdictInternalError is reported when a job can never be judged (unknown
 // problem or language, oversized source) or the host kept failing on it. It is
 // not one of the judge's verdicts: it says the platform, not the program, failed.
 const VerdictInternalError = "IE"
-
-var slugRe = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
 // Judger judges one submission. *engine.Engine satisfies it; tests use fakes.
 type Judger interface {
@@ -42,11 +40,12 @@ type JobQueue interface {
 
 // Config configures an Agent.
 type Config struct {
-	ID             string        // unique consumer name
-	ProblemsDir    string        // directory holding problems/<slug>
-	PollBlock      time.Duration // how long Receive waits for a job (default 5s)
-	HeartbeatEvery time.Duration // claim refresh interval; must be well under the queue's MinIdle (default 10s)
-	MaxAttempts    int64         // deliveries before an IE verdict is reported (default 3)
+	ID             string          // unique consumer name
+	Problems       problems.Source // where tests come from; defaults to ProblemsDir
+	ProblemsDir    string          // directory holding problems/<slug>, used when Problems is nil
+	PollBlock      time.Duration   // how long Receive waits for a job (default 5s)
+	HeartbeatEvery time.Duration   // claim refresh interval; must be well under the queue's MinIdle (default 10s)
+	MaxAttempts    int64           // deliveries before an IE verdict is reported (default 3)
 	Logger         *slog.Logger
 }
 
@@ -68,6 +67,9 @@ func New(q JobQueue, j Judger, cfg Config) *Agent {
 	}
 	if cfg.MaxAttempts <= 0 {
 		cfg.MaxAttempts = 3
+	}
+	if cfg.Problems == nil {
+		cfg.Problems = problems.Dir{Root: cfg.ProblemsDir}
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
@@ -193,12 +195,9 @@ func (a *Agent) heartbeat(ctx context.Context, log *slog.Logger, id string, lost
 // judge loads the problem and runs the engine. permanent is true when no retry
 // could succeed (the job itself is bad).
 func (a *Agent) judge(ctx context.Context, j queue.Job) (res queue.Result, permanent bool, err error) {
-	if !slugRe.MatchString(j.Problem) {
-		return res, true, fmt.Errorf("invalid problem slug %q", j.Problem)
-	}
-	p, err := problem.Load(filepath.Join(a.cfg.ProblemsDir, j.Problem))
+	p, err := a.cfg.Problems.Load(ctx, j.Problem, j.TestSetVersion)
 	if err != nil {
-		return res, true, fmt.Errorf("load problem %q: %w", j.Problem, err)
+		return res, errors.Is(err, problems.ErrPermanent), fmt.Errorf("load problem %q: %w", j.Problem, err)
 	}
 	rep, err := a.judger.Judge(ctx, p, j.Language, []byte(j.Source), engine.Options{})
 	if err != nil {

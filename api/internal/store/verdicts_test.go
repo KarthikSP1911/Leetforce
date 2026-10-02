@@ -13,7 +13,7 @@ func TestRecordVerdictIsIdempotent(t *testing.T) {
 	if err := s.UpsertProblem(ctx, Problem{Slug: "sum", Title: "Sum", Difficulty: "easy"}, "v1"); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.InsertSubmission(ctx, id, "sum", "python", "print(1)"); err != nil {
+	if _, err := s.InsertSubmission(ctx, id, "sum", "python", "print(1)"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -65,7 +65,7 @@ func TestRecordVerdictEdgeCases(t *testing.T) {
 	if err := s.UpsertProblem(ctx, Problem{Slug: "sum", Title: "Sum", Difficulty: "easy"}, "v7"); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.InsertSubmission(ctx, id, "sum", "go", "x"); err != nil {
+	if _, err := s.InsertSubmission(ctx, id, "sum", "go", "x"); err != nil {
 		t.Fatal(err)
 	}
 
