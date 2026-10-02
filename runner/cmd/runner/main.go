@@ -3,6 +3,7 @@
 //
 //	LEETFORCE_REDIS_URL         required, redis:// or rediss:// URL
 //	LEETFORCE_PROBLEMS_DIR      problem directory (default "problems")
+//	LEETFORCE_QUEUE_PREFIX      key prefix (default "leetforce"; tests use a throwaway one)
 //	LEETFORCE_RUNNER_ID         consumer name (default "<hostname>-<pid>")
 //	LEETFORCE_JOB_MIN_IDLE      idle time before a job is reclaimed (default 30s)
 //	LEETFORCE_JOB_MAX_ATTEMPTS  deliveries before IE / dead letter (default 3)
@@ -60,7 +61,7 @@ func run() error {
 		problems = "problems"
 	}
 
-	q, err := queue.Open(url, queue.Config{MinIdle: minIdle, MaxDeliveries: int64(attempts)})
+	q, err := queue.Open(url, queue.Config{Prefix: os.Getenv("LEETFORCE_QUEUE_PREFIX"), MinIdle: minIdle, MaxDeliveries: int64(attempts)})
 	if err != nil {
 		return err
 	}
