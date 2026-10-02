@@ -45,7 +45,7 @@ type Result struct {
 	SubmissionID   string `json:"submission_id"`
 	Verdict        string `json:"verdict"`
 	RuntimeMS      int64  `json:"runtime_ms"`
-	MemoryKB       int64  `json:"memory_kb"`
+	MemoryKB       uint64 `json:"memory_kb"`
 	TestSetVersion string `json:"test_set_version"`
 	Passed         int    `json:"passed"`
 	Total          int    `json:"total"`

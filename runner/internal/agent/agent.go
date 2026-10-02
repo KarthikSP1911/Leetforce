@@ -215,7 +215,7 @@ func (a *Agent) judge(ctx context.Context, j queue.Job) (res queue.Result, perma
 		SubmissionID:   j.SubmissionID,
 		Verdict:        string(rep.Overall.Verdict),
 		RuntimeMS:      rep.Overall.Time.Milliseconds(),
-		MemoryKB:       int64(rep.Overall.Memory / 1024),
+		MemoryKB:       rep.Overall.Memory / 1024,
 		TestSetVersion: rep.TestSetVersion,
 		Passed:         passed,
 		Total:          len(p.Tests),
