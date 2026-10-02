@@ -4,7 +4,7 @@
 
 GO_MODULES := judge
 
-.PHONY: fmt lint test test-sandbox test-adversarial
+.PHONY: fmt lint test build-judge test-sandbox test-adversarial
 
 fmt:
 	@for m in $(GO_MODULES); do (cd $$m && golangci-lint fmt ./...) || exit 1; done
@@ -14,6 +14,12 @@ lint:
 
 test:
 	@for m in $(GO_MODULES); do (cd $$m && go test -count=1 ./...) || exit 1; done
+
+# Builds the local judge CLI to bin/judge. It needs root to run, for example:
+#   sudo -n bin/judge run problems/sample-sum problems/sample-sum/solutions/python/ac.py
+build-judge:
+	@mkdir -p bin
+	cd judge && go build -o ../bin/judge ./cmd/judge
 
 # Runs real programs inside nsjail (functional sandbox tests, including the
 # engine's verdict tests). Same host requirements as test-adversarial; plain
