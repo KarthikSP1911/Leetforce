@@ -194,3 +194,50 @@ All steps ran on the Windows repo except one read-only check on the host.
 5. Re-ran the git commands and cross-checked the report. Every one of the 28 changed files appears in the report. Two numbers had been written wrongly and were corrected from git: "25 files added" (it is 24) and the sandbox line counts, written as 1,862 lines and 1,030 test lines from memory (measured: 1,906 and 1,177). The Stats section now pins exact figures to commit `8d6cf8d`.
 6. Commits: ADR 0004, log move with the CLAUDE.md rule, report, summary with PROGRESS, stats correction. Each commit was checked with `git log --stat -1`; all messages passed commitlint. Pushed `docs/1-adrs-report`, merged it into `phase/1-sandbox-core` with a merge commit (`a6fc4d4`), deleted the branch locally and on `origin`.
 7. No host changes in this unit. The host checkout is still at the unit 5 merge commit (it does not contain the unit 6 documents); it can be updated with `git pull` when needed.
+
+## Appendix: file and path index (generated from git and from existence checks on 2026-10-02)
+
+Added so that every file and path touched in the phase, inside and outside the repo, is in one place. The repo section is from `git diff --name-status` of each merge (`<merge>^1..<merge>`) and of the direct commits; the other sections come from `test -e` checks run on the host and locally. No secrets, key contents or IP addresses are recorded.
+
+### A. Repo files by unit (A = added, M = modified)
+| Unit / commits | Files |
+|---|---|
+| Direct commits on the phase branch (`26dd278`, `8b96dc3`, `c0e8da1`, `823ecd1`, `5b33b03`, `9d96b3a`, `71c4936`) | M `docs/PLAN.md` (stray character), M `docs/PROGRESS.md`, A `docs/phases/phase-1.md` (the original working draft, later renamed), M `CLAUDE.md` (step-logging rule), M `docs/phases/phase-1.md` / `phase-1-log.md` (log entries) |
+| `docs/1-dev-environment` | M `README.md` (cost table), A `docs/adr/0003-dev-environment-ec2-x86.md`, A `scripts/setup-dev-host.sh` |
+| `feat/1-go-workspace` | A `.env.example`, A `.golangci.yml`, A `Makefile`, A `go.work`, A `judge/go.mod`, A `judge/sandbox/doc.go`, M `CLAUDE.md` (real commands), M `docs/phases/phase-1.md` |
+| `feat/1-nsjail-wrapper` | A `judge/sandbox/args.go`, `capture.go`, `log.go`, `run.go`, `spec.go`, `run_test.go`, `unit_test.go`; M `Makefile` (`test-sandbox`), M `CLAUDE.md`, M `docs/phases/phase-1.md` |
+| `feat/1-cgroup-limits` | A `judge/sandbox/cgroup.go`, `cgroup_test.go`, `cgroup_run_test.go`; M `args.go`, `run.go`, `spec.go`, `run_test.go`, `unit_test.go`; M `docs/PROGRESS.md`, M `docs/phases/phase-1.md`. Note: all of the code is inside commit `f1657fc` (see the process incident above). |
+| `feat/1-result-channel` | A `judge/sandbox/result_test.go`; M `args.go`, `run.go`, `spec.go`, `unit_test.go`; M `docs/PROGRESS.md`, M `docs/phases/phase-1.md` |
+| `test/1-adversarial` | A `judge/sandbox/adversarial_test.go`; M `judge/sandbox/cgroup_run_test.go`, M `Makefile` (`test-adversarial` in a systemd scope), M `CLAUDE.md`, M `docs/PROGRESS.md`, M `docs/phases/phase-1.md` |
+| `docs/1-adrs-report` | A `docs/adr/0004-sandbox-design.md`, A `docs/phases/phase-1-log.md` (moved from `phase-1.md`), A `docs/phases/phase-1.md` (the report), A `docs/phases/phase-1-summary.md`, M `CLAUDE.md` (log file named `phase-<N>-log.md`), M `docs/PROGRESS.md` (in review) |
+
+### B. Paths on the EC2 host `leetforce-dev` (all verified to exist unless noted)
+| Path | What / why |
+|---|---|
+| `/usr/local/go/` (and `PATH` line at line 118 of `~/.bashrc`) | Go toolchain installed by hand and by `scripts/setup-dev-host.sh` |
+| `/usr/local/bin/nsjail`, `~/nsjail/` | nsjail binary and its source checkout (built from `google/nsjail`) |
+| `~/go/bin/golangci-lint` | linter installed by the script |
+| `/swapfile` and its line in `/etc/fstab` | 2 GiB swap file |
+| `~/Leetforce/` | repo clone on branch `phase/1-sandbox-core` (at the unit 5 merge; the unit 6 documents are not pulled yet) |
+| `~/Leetforce/bin/sandbox-adversarial.test` | built adversarial test binary (git-ignored) |
+| `/sys/fs/cgroup/leetforce/` | cgroup parent for runs; created by the tests, empty between runs, lost on reboot |
+| `/var/tmp/lf-sandbox-*` | compiled C test programs; removed by the tests (0 left) |
+| `/tmp/apt.log`, `/tmp/nsjail-build.log`, `/tmp/go.tgz` | install logs and the Go tarball |
+| `/tmp/adv-full.log`, `/tmp/adv-1.log`, `/tmp/adv-2.log`, `/tmp/adv-3.log`, `/tmp/adv-final.log` | output of the five full adversarial runs (32 PASS each) |
+| `/tmp/spike/` (88 files) | spike scratch: scripts `fd4.sh`, `fsize.sh`, `fsize2.sh`, `cg1.sh`, `cg2.sh`, `cg3.sh`, `probe.sh`, `p2.sh`, `p3.sh`; C sources `alloc.c`, `forker.c`, `segv.c`, `abrt.c`, `wfd.c` and their binaries; about 70 nsjail log files (`l*.txt`, `nslog*.txt`, `fd4*.txt`). Safe to delete with `rm -rf /tmp/spike`. |
+
+### C. Paths on the owner's Windows machine (outside the repo)
+| Path | What / why |
+|---|---|
+| `C:\Users\karth\.ssh\config` | `leetforce-dev` host entry (created by the owner; first saved as `config.txt` and renamed) |
+| `C:\Users\karth\.ssh\leetforce.pem` | the SSH private key (owner); never copied into the repo or the docs |
+| `C:\Users\karth\.ssh\known_hosts` and `known_hosts.old` | host key memory; `known_hosts.old` is a backup that ssh itself writes when it updates `known_hosts` (I did not create it by hand) |
+| `C:\Users\karth\.claude\plans\continue-leetforce-read-claude-md-async-whale.md` | the Phase 1 session plan written in plan mode |
+| `C:\Users\karth\AppData\Local\Temp\` (Git Bash `/tmp`) | my local scratch files: `ed.sh`, `runpatch.sh`, `runpatch2.sh`, `runpatch3.sh`, `newhead.go`, `req.txt`, `loop.txt`, `p.go`, `edit.awk`, `ns.txt`; `rep.new` was moved into the report. None is part of the repo. |
+| `C:\Users\karth\Downloads\Leetforce\web\AGENTS.md` and `web\CLAUDE.md` | untracked files that predate this phase; never staged or committed; decision pending |
+
+### D. Review status at the time of writing
+- The Phase 1 report, summary, ADR 0003 and ADR 0004 are written and merged into `phase/1-sandbox-core`; `docs/PROGRESS.md` says `in review`.
+- The five understanding questions and decisions A, B and C were posted in chat. The owner did not answer them. At the owner's request ("ans") Claude wrote its own answers to the five understanding questions in chat as an explanation; these are not the owner's answers and are not recorded as such.
+- The owner also asked for explanations of what nsjail is, what the Go code does around it, and what each attack test means; those were chat explanations only and changed no files.
+- Not done yet: the Q&A record in `phase-1-summary.md`, setting `PROGRESS.md` to done, the merge into `main`, the `phase-1-done` tag, and the handoff message. They wait for the owner's answers or an explicit "skip".
