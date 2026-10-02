@@ -178,6 +178,36 @@ func TestJudgeVerdicts(t *testing.T) {
 	}
 }
 
+// A JVM refuses a big allocation with an error before the kernel sees the
+// memory, so Java needs its own rule (exit status 3) to report MLE.
+func TestJavaMemoryLimit(t *testing.T) {
+	requireSandbox(t)
+	p := loadSample(t)
+	e := &Engine{}
+	tests := []struct {
+		name string
+		body string
+		want verdict.Verdict
+	}{
+		{"one huge array", "long[] x = new long[1 << 28]; System.out.println(x.length);", verdict.MLE},
+		{"array over the heap", "long[] x = new long[50_000_000]; System.out.println(x.length);", verdict.MLE},
+		// Fits in the heap: it must not be reported as MLE (the output is wrong, so WA).
+		{"array within the limit", "long[] x = new long[10_000_000]; x[5] = 1; System.out.println(x.length);", verdict.WA},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			src := "public class Main { public static void main(String[] args) { " + tc.body + " } }"
+			rep, err := e.Judge(context.Background(), p, "java", []byte(src), Options{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if rep.Overall.Verdict != tc.want {
+				t.Fatalf("verdict = %s, want %s; cases %+v; compile output %q", rep.Overall.Verdict, tc.want, rep.Cases, rep.CompileOutput)
+			}
+		})
+	}
+}
+
 // Run may show details of failing sample tests; hidden tests never get any,
 // even when details are requested.
 func TestJudgeDetailOnlyForSamples(t *testing.T) {

@@ -27,8 +27,8 @@ func TestJavaRunArgv(t *testing.T) {
 	if argv[0] != javaHome+"/bin/java" {
 		t.Errorf("java must be run by its real path, got %q", argv[0])
 	}
-	if !slices.Contains(argv, "-Xmx512m") {
-		t.Errorf("heap should be twice the memory limit: %v", argv)
+	if !slices.Contains(argv, "-Xmx192m") || !slices.Contains(argv, "-XX:+ExitOnOutOfMemoryError") || l.OOMExitCode != 3 {
+		t.Errorf("heap should be 64 MiB under the limit and OOM should exit with 3: %v, %d", argv, l.OOMExitCode)
 	}
 	if argv[len(argv)-1] != "Main" || !slices.Contains(argv, "/var/tmp/job/bin/main") {
 		t.Errorf("classpath or main class missing: %v", argv)
@@ -36,8 +36,10 @@ func TestJavaRunArgv(t *testing.T) {
 	if !slices.Contains(l.Binds, "/etc/java-21-openjdk") {
 		t.Errorf("java needs the /etc configuration bind: %v", l.Binds)
 	}
-	if got := l.Run("/var/tmp/job", 1<<20); !slices.Contains(got, "-Xmx32m") {
-		t.Errorf("tiny limits still get a usable heap: %v", got)
+	for mb, want := range map[uint64]string{1: "-Xmx16m", 100: "-Xmx50m", 128: "-Xmx64m"} {
+		if got := l.Run("/var/tmp/job", mb<<20); !slices.Contains(got, want) {
+			t.Errorf("limit %d MiB: want %s in %v", mb, want, got)
+		}
 	}
 }
 

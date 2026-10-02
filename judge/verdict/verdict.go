@@ -1,4 +1,5 @@
-// Package verdict turns what the host measured about a sandboxed run into a
+case r.OOMKilled || r.PeakMemoryBytes > l.MemoryBytes ||
+		(l.OOMExitCode != 0 && r.Signal == 0 && r.ExitCode == l.OOMExitCode):// Package verdict turns what the host measured about a sandboxed run into a
 // verdict. It looks only at the host-side facts in sandbox.Result (exit
 // status, signal, CPU time, memory, output cap) and never at what the program
 // printed or wrote to the result fd.
@@ -32,12 +33,20 @@ const (
 type Limits struct {
 	Time        time.Duration // CPU time limit
 	MemoryBytes uint64
+	// OOMExitCode, if non-zero, is an exit status that means the language
+	// runtime itself ran out of memory (the JVM run with ExitOnOutOfMemoryError
+	// exits with 3). A runtime may refuse a large allocation with an error
+	// before the kernel ever sees the memory used, so the cgroup facts alone
+	// would call it a crash. A program could exit with the same status on
+	// purpose; that only turns its own RE into MLE.
+	OOMExitCode int
 }
 
 // Classify decides how a run ended, in this order:
 //
 //  1. OLE if an output cap was passed (the run was then killed by the host).
-//  2. MLE if the kernel OOM-killed the run or peak memory is over the limit.
+//  2. MLE if the kernel OOM-killed the run, peak memory is over the limit, or
+//     the run exited with the language's OOMExitCode.
 //  3. TLE if the wall-time limit fired, CPU time is over the limit, or the
 //     program got SIGXCPU. CPU-time kills arrive as SIGKILL, so the signal
 //     alone cannot tell them apart from a crash; the measured CPU time does.

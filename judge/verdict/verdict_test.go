@@ -45,6 +45,29 @@ func TestClassify(t *testing.T) {
 	}
 }
 
+func TestClassifyOOMExitCode(t *testing.T) {
+	java := Limits{Time: time.Second, MemoryBytes: 128 << 20, OOMExitCode: 3}
+	tests := []struct {
+		name string
+		r    sandbox.Result
+		l    Limits
+		want Verdict
+	}{
+		{"runtime out of memory", sandbox.Result{ExitCode: 3}, java, MLE},
+		{"same status without the setting", sandbox.Result{ExitCode: 3}, lim, RE},
+		{"other status", sandbox.Result{ExitCode: 1}, java, RE},
+		{"killed by a signal is not the exit code", sandbox.Result{ExitCode: -1, Signal: syscall.SIGKILL}, java, RE},
+		{"clean exit", sandbox.Result{}, java, Completed},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := Classify(tc.r, tc.l); got != tc.want {
+				t.Errorf("Classify = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 // The program's own words must not change the verdict.
 func TestClassifyIgnoresProgramOutput(t *testing.T) {
 	r := sandbox.Result{

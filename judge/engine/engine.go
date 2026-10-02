@@ -131,7 +131,7 @@ func (e *Engine) Judge(ctx context.Context, p *problem.Problem, language string,
 	}
 
 	limit := p.Spec.LimitFor(language)
-	vlimits := verdict.Limits{Time: limit.Time(), MemoryBytes: limit.MemoryBytes()}
+	vlimits := verdict.Limits{Time: limit.Time(), MemoryBytes: limit.MemoryBytes(), OOMExitCode: lg.OOMExitCode}
 	for _, t := range p.Tests {
 		cr, err := e.runTest(ctx, dir, lg, p.Spec.Checker, limit, vlimits, t, opts)
 		if err != nil {

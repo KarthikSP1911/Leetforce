@@ -42,6 +42,9 @@ type Language struct {
 	// RunPIDs is the process and thread cap for a run. Runtimes that start
 	// helper threads at launch need more than a native program.
 	RunPIDs uint64
+	// OOMExitCode is the exit status the runtime uses when it runs out of
+	// memory, or 0 if it has none (see verdict.Limits.OOMExitCode).
+	OOMExitCode int
 	// Binds are extra host paths mounted read-only in both the compile and run
 	// sandboxes (for example the JDK configuration the Debian package keeps in /etc).
 	Binds []string
@@ -151,20 +154,27 @@ var languages = map[string]Language{
 			MaxArtifactBytes: 8 << 20,
 		},
 		Run: func(dir string, memoryBytes uint64) []string {
-			// The heap may grow to twice the memory limit. The kernel's memory
-			// cgroup, not the JVM, decides when a program has used too much, so
-			// an allocation loop ends in an OOM kill (MLE, measured by the host)
-			// rather than a catchable OutOfMemoryError that would look like RE.
-			heapMB := max(memoryBytes>>20, 16) * 2
+			// The heap stays 64 MiB under the memory limit (or half of it for small
+			// limits) to leave room for the JVM's own memory. When the heap fills,
+			// ExitOnOutOfMemoryError ends the JVM with status 3, which the verdict
+			// code reads as MLE (Language.OOMExitCode). A program that grows past
+			// the limit before the heap fills is OOM-killed by the cgroup instead.
+			mb := memoryBytes >> 20
+			heapMB := max(mb/2, 16)
+			if mb >= 128 {
+				heapMB = mb - 64
+			}
 			return []string{
 				javaHome + "/bin/java",
 				fmt.Sprintf("-Xmx%dm", heapMB), "-Xms16m", "-Xss64m",
 				"-XX:+UseSerialGC", "-XX:-UsePerfData", "-XX:TieredStopAtLevel=1",
+				"-XX:+ExitOnOutOfMemoryError",
 				"-cp", ArtifactPath(dir), "Main",
 			}
 		},
 		// The Debian JDK keeps its configuration in /etc and links to it.
-		RunEnv:  []string{javaLibPath},
+		RunEnv:        []string{javaLibPath},
+		OOMExitCode: 3,
 		Binds:   []string{"/etc/java-21-openjdk"},
 		RunPIDs: 64,
 	},
