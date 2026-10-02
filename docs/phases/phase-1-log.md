@@ -11,7 +11,7 @@
 - [x] `feat/1-cgroup-limits`: cgroup v2 memory/pids/cpu limits, whole-cgroup kill, measurements
 - [x] `feat/1-result-channel`: dedicated fd for the harness result
 - [x] `test/1-adversarial`: `make test-adversarial` suite
-- [ ] `docs/1-adrs-report`: ADR 0004, phase report, phase summary
+- [x] `docs/1-adrs-report`: ADR 0004, phase report, phase summary
 
 ## Exit criteria (from PLAN.md)
 Fork bomb, memory bomb, infinite loop, output flood, network access, and file-system escape attempts are all contained; `make test-adversarial` passes.
@@ -184,3 +184,13 @@ Same workflow (edit on Windows, `tar | ssh` to the host, test as root, commit af
 **Not done / moved on.** Phase 2: CPU-limit classification from `CPUTime` (finding 3). Phase 6: a seccomp-only test (finding 5), per-job cgroup resource accounting for the runner, and reviewing running nsjail as root. The remaining Phase 1 work is unit 6 (ADR 0004, phase report, phase summary).
 
 **Carried over from unit 4 (missing from its entry).** After unit 4 was merged I ran `git checkout -- .` and `git clean -fdq judge Makefile` on the host to discard the files copied with `tar`, then `git fetch`, `git checkout phase/1-sandbox-core`, `git pull --ff-only` (host at the merge commit, clean working tree).
+
+### `docs/1-adrs-report` (2026-10-02)
+All steps ran on the Windows repo except one read-only check on the host.
+1. Gathered facts from git before writing the report: `git diff --name-status`, `--shortstat`, `--numstat phase-1-start..HEAD`, `git log --merges`, `git log --no-merges`, and a count of `func Test` per file (32 tests).
+2. Wrote ADR 0004 (`docs/adr/0004-sandbox-design.md`). Checked its numbers against the real logs on the host: an estimate of "about 22 s" per adversarial run was wrong, so I summed the per-test times in `/tmp/adv-full.log` and `/tmp/adv-final.log` (18.5 s and 18.9 s) and corrected it to about 19 s; confirmed the seccomp list matches `args.go`; confirmed five full suite runs, all 32 PASS.
+3. Moved the working log: `git mv docs/phases/phase-1.md docs/phases/phase-1-log.md`, updated its header, and changed the logging rule in CLAUDE.md to name `phase-<N>-log.md` (no stale links to the old path were found with `grep`).
+4. Wrote the report (`docs/phases/phase-1.md`) and the summary (`docs/phases/phase-1-summary.md`); set `docs/PROGRESS.md` to `in review`. Checked the disk claim on the host (`df -h /`: 6.5 GB used, 7.0 GB free) and corrected "about 8 GB" in the summary.
+5. Re-ran the git commands and cross-checked the report. Every one of the 28 changed files appears in the report. Two numbers had been written wrongly and were corrected from git: "25 files added" (it is 24) and the sandbox line counts, written as 1,862 lines and 1,030 test lines from memory (measured: 1,906 and 1,177). The Stats section now pins exact figures to commit `8d6cf8d`.
+6. Commits: ADR 0004, log move with the CLAUDE.md rule, report, summary with PROGRESS, stats correction. Each commit was checked with `git log --stat -1`; all messages passed commitlint. Pushed `docs/1-adrs-report`, merged it into `phase/1-sandbox-core` with a merge commit (`a6fc4d4`), deleted the branch locally and on `origin`.
+7. No host changes in this unit. The host checkout is still at the unit 5 merge commit (it does not contain the unit 6 documents); it can be updated with `git pull` when needed.
