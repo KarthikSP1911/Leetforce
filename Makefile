@@ -4,7 +4,7 @@
 
 GO_MODULES := judge queue runner api storage
 
-.PHONY: test-live-e2e test-api-e2e build-api migrate-up migrate-down migrate-status dev down fmt lint test build-judge build-runner test-crash test-matrix test-sandbox test-adversarial
+.PHONY: test-live-e2e test-api-e2e build-api migrate-up migrate-down migrate-status dev down fmt lint test build-judge build-runner test-crash test-matrix test-sandbox test-adversarial bench-sandbox
 
 # Local Redis and S3 (RustFS) (needs Docker and LEETFORCE_S3_SECRET_KEY in .env).
 dev:
@@ -94,3 +94,13 @@ migrate-up migrate-down migrate-status:
 	url="$${LEETFORCE_MIGRATE_DATABASE_URL:-$$DATABASE_URL}"; \
 	[ -n "$$url" ] || { echo "set DATABASE_URL in .env"; exit 1; }; \
 	goose -dir api/migrations postgres "$$url" $(patsubst migrate-%,%,$@)
+
+# Phase 6: nsjail vs gVisor (cold start, per-job overhead, CPU-bound, syscall-heavy,
+# memory overhead, Go/Java/C++ compile+run) with median and p95 over repeated,
+# interleaved runs. Needs root, nsjail, runsc (scripts/setup-gvisor.sh) and gcc.
+# Run it on an otherwise idle host; it drops the page cache once per backend for
+# the cold-start sample. Pass BENCH_ARGS="-reps 5 -skip-langs" for a quick pass.
+bench-sandbox:
+	@mkdir -p bin
+	cd judge && go build -o ../bin/sandbox-bench ./cmd/sandbox-bench
+	sudo -n env "PATH=$$PATH" ./bin/sandbox-bench $(BENCH_ARGS)
