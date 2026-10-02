@@ -82,14 +82,22 @@ func runJob(ctx context.Context, spec Spec, job *cgroupJob) (*Result, error) {
 	}
 	defer func() { _ = logR.Close() }()
 
+	resR, resW, err := os.Pipe()
+	if err != nil {
+		_ = logW.Close()
+		return nil, fmt.Errorf("create result pipe: %w", err)
+	}
+	defer func() { _ = resR.Close() }()
+	resultBuf := newCappedBuffer(spec.Limits.MaxResultBytes, cancel)
+
 	// The nsjail path is configuration and the arguments are built by
 	// nsjailArgs from a validated Spec, never from shell text.
 	cmd := exec.CommandContext(runCtx, bin, spec.nsjailArgs(job.dir)...) //nolint:gosec // see comment above
 	cmd.Stdin = spec.Stdin
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
-	// ExtraFiles[0] becomes fd 3 in nsjail, matching nsjailLogFD.
-	cmd.ExtraFiles = []*os.File{logW}
+	// ExtraFiles[0] becomes fd 3 (nsjailLogFD) and [1] fd 4 (ResultFD) in nsjail.
+	cmd.ExtraFiles = []*os.File{logW, resW}
 	cmd.Cancel = func() error {
 		_ = job.kill() // the whole run, not just nsjail
 		return cmd.Process.Signal(syscall.SIGTERM)
@@ -97,27 +105,24 @@ func runJob(ctx context.Context, spec Spec, job *cgroupJob) (*Result, error) {
 	cmd.WaitDelay = killDelay
 
 	logBuf := newCappedBuffer(maxLogBytes, nil)
-	logDone := make(chan struct{})
-	go func() {
-		defer close(logDone)
-		_, _ = io.Copy(logBuf, logR)
-	}()
+	logDone := copyAsync(logBuf, logR)
+	resultDone := copyAsync(resultBuf, resR)
 
 	start := time.Now()
 	if err := cmd.Start(); err != nil {
 		_ = logW.Close()
+		_ = resW.Close()
 		return nil, fmt.Errorf("start nsjail: %w", err)
 	}
-	_ = logW.Close() // the child holds the only write end now
+	// The child holds the only write ends now, so the readers see EOF when
+	// nsjail and everything inside it are gone.
+	_ = logW.Close()
+	_ = resW.Close()
 	waitErr := cmd.Wait()
 	wall := time.Since(start)
 
-	select {
-	case <-logDone:
-	case <-time.After(logDrainWait):
-		_ = logR.Close()
-		<-logDone
-	}
+	drain(logDone, logR)
+	drain(resultDone, resR)
 
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("run sandbox: %w", err)
@@ -144,12 +149,34 @@ func runJob(ctx context.Context, spec Spec, job *cgroupJob) (*Result, error) {
 	return &Result{
 		Stdout:         stdout.Bytes(),
 		Stderr:         stderr.Bytes(),
+		ResultData:     resultBuf.Bytes(),
 		ExitCode:       term.exitCode,
 		Signal:         term.signal,
 		TimedOut:       term.timedOut || errors.Is(runCtx.Err(), context.DeadlineExceeded),
-		OutputExceeded: stdout.Exceeded() || stderr.Exceeded(),
+		OutputExceeded: stdout.Exceeded() || stderr.Exceeded() || resultBuf.Exceeded(),
 		WallTime:       wall,
 	}, nil
+}
+
+// copyAsync copies r into dst until EOF in the background.
+func copyAsync(dst io.Writer, r io.Reader) <-chan struct{} {
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_, _ = io.Copy(dst, r)
+	}()
+	return done
+}
+
+// drain waits for a copyAsync to finish; if a stray holder of the write end
+// keeps the pipe open, it closes the read end after logDrainWait to unblock it.
+func drain(done <-chan struct{}, r *os.File) {
+	select {
+	case <-done:
+	case <-time.After(logDrainWait):
+		_ = r.Close()
+		<-done
+	}
 }
 
 func tail(lines []string, n int) []string {

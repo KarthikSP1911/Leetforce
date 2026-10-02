@@ -21,6 +21,7 @@ func TestSpecValidate(t *testing.T) {
 		{"no wall time", func(s *Spec) { s.Limits.WallTime = 0 }, true},
 		{"no cpu time", func(s *Spec) { s.Limits.CPUTime = 0 }, true},
 		{"no output cap", func(s *Spec) { s.Limits.MaxOutputBytes = 0 }, true},
+		{"no result cap", func(s *Spec) { s.Limits.MaxResultBytes = 0 }, true},
 		{"no memory limit", func(s *Spec) { s.Limits.MemoryBytes = 0 }, true},
 		{"no process limit", func(s *Spec) { s.Limits.MaxPIDs = 0 }, true},
 	}
@@ -42,7 +43,7 @@ func TestNsjailArgs(t *testing.T) {
 		ReadOnlyBinds: []string{"/work"},
 		Limits: Limits{
 			WallTime: 1500 * time.Millisecond, CPUTime: 2 * time.Second,
-			MaxFileBytes: 3<<20 + 1, MaxOpenFiles: 16, MaxOutputBytes: 10, TmpfsBytes: 4096,
+			MaxFileBytes: 3<<20 + 1, MaxOpenFiles: 16, MaxOutputBytes: 10, MaxResultBytes: 10, TmpfsBytes: 4096,
 			MemoryBytes: 1 << 20, MaxPIDs: 7, CPUMilliPerSec: 500,
 		},
 	}
@@ -51,7 +52,7 @@ func TestNsjailArgs(t *testing.T) {
 
 	for _, want := range []string{
 		" --user 65534:65534:1 ", " --group 65534:65534:1 ",
-		" --log_fd 3 ", " --time_limit 2 ", " --rlimit_cpu 2 ",
+		" --log_fd 3 ", " --pass_fd 4 ", " --time_limit 2 ", " --rlimit_cpu 2 ",
 		" --rlimit_fsize 4 ", " --rlimit_nofile 16 ", " --rlimit_core 0 ",
 		" --disable_proc ", " -R /usr ", " -R /work ",
 		" -m none:/tmp:tmpfs:size=4096 ",

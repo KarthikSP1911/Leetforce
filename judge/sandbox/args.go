@@ -16,6 +16,11 @@ const (
 	// before the sandboxed program starts, so user code cannot forge it.
 	nsjailLogFD = 3
 
+	// ResultFD is the descriptor a harness writes its result to. nsjail keeps
+	// it open for the program (--pass_fd) while closing every other
+	// inherited descriptor; the host reads it apart from stdout and stderr.
+	ResultFD = 4
+
 	jailTmp = "/tmp"
 )
 
@@ -50,6 +55,7 @@ func (s Spec) nsjailArgs(cgroupDir string) []string {
 		"--group", uidMap,
 		"--hostname", "sandbox",
 		"--log_fd", strconv.Itoa(nsjailLogFD),
+		"--pass_fd", strconv.Itoa(ResultFD),
 		"--time_limit", strconv.FormatInt(ceilSeconds(l.WallTime), 10),
 		"--cwd", jailTmp,
 		"--disable_proc",
