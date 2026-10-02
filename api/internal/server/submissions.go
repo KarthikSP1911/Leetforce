@@ -24,7 +24,7 @@ var languages = []string{"python", "cpp", "java", "go"}
 
 // SubmissionStore records submissions.
 type SubmissionStore interface {
-	InsertSubmission(ctx context.Context, id, problem, language, source string) error
+	InsertSubmission(ctx context.Context, id, problem, language, source string) (testSetVersion string, err error)
 	DeleteSubmission(ctx context.Context, id string) error
 	GetSubmission(ctx context.Context, id string) (store.Submission, error)
 }
@@ -69,7 +69,8 @@ func (d Deps) createSubmission(c *gin.Context) {
 
 	ctx := c.Request.Context()
 	id := uuid.NewString()
-	if err := d.Submissions.InsertSubmission(ctx, id, req.Problem, req.Language, req.Source); err != nil {
+	version, err := d.Submissions.InsertSubmission(ctx, id, req.Problem, req.Language, req.Source)
+	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "problem not found"})
 			return
@@ -77,7 +78,7 @@ func (d Deps) createSubmission(c *gin.Context) {
 		d.fail(c, "insert submission", err)
 		return
 	}
-	job := queue.Job{SubmissionID: id, Problem: req.Problem, Language: req.Language, Source: req.Source}
+	job := queue.Job{SubmissionID: id, Problem: req.Problem, Language: req.Language, Source: req.Source, TestSetVersion: version}
 	if _, err := d.Queue.Enqueue(ctx, job); err != nil {
 		// Do not leave a row that no runner will ever see. Use a fresh context:
 		// the request's may be the thing that failed.

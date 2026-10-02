@@ -5,6 +5,8 @@
 //	LEETFORCE_API_ADDR      listen address (default ":8080")
 //	LEETFORCE_PROBLEMS_DIR  problem directory (default "problems")
 //	LEETFORCE_QUEUE_PREFIX  queue key prefix (default "leetforce")
+//	LEETFORCE_S3_ENDPOINT   object storage host:port; when set, problem bundles are published
+//	                        to the bucket at startup (LEETFORCE_S3_ACCESS_KEY, _SECRET_KEY, _BUCKET, _USE_TLS)
 package main
 
 import (
@@ -23,6 +25,7 @@ import (
 	"leetforce/api/internal/server"
 	"leetforce/api/internal/store"
 	"leetforce/queue"
+	"leetforce/storage"
 )
 
 func main() {
@@ -70,6 +73,29 @@ func run() error {
 	}
 	log.Info("problems synced", "count", len(cat.Problems()))
 
+	ready := map[string]server.Pinger{"database": db}
+	s3cfg, useS3, err := storage.ConfigFromEnv()
+	if err != nil {
+		return err
+	}
+	if useS3 {
+		st, err := storage.Open(s3cfg)
+		if err != nil {
+			return err
+		}
+		if err := st.EnsureBucket(ctx); err != nil {
+			return fmt.Errorf("object storage: %w", err)
+		}
+		// Publish before accepting submissions, so every version a submission
+		// can be stamped with is already in the bucket.
+		n, err := cat.Publish(ctx, st)
+		if err != nil {
+			return fmt.Errorf("object storage: %w", err)
+		}
+		log.Info("problem bundles published", "bucket", s3cfg.Bucket, "written", n, "total", len(cat.Problems()))
+		ready["storage"] = st
+	}
+
 	q, err := queue.Open(redisURL, queue.Config{Prefix: os.Getenv("LEETFORCE_QUEUE_PREFIX")})
 	if err != nil {
 		return err
@@ -84,6 +110,7 @@ func run() error {
 	if err := q.SetupAPI(ctx); err != nil {
 		return err
 	}
+	ready["redis"] = q
 
 	host, _ := os.Hostname()
 	ing := ingest.New(q, db, log, ingest.Config{Consumer: fmt.Sprintf("api-%s-%d", host, os.Getpid())})
@@ -92,7 +119,7 @@ func run() error {
 
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           server.New(server.Deps{Logger: log, Ready: map[string]server.Pinger{"database": db, "redis": q}, Problems: db, Samples: cat, Submissions: db, Queue: q}),
+		Handler:           server.New(server.Deps{Logger: log, Ready: ready, Problems: db, Samples: cat, Submissions: db, Queue: q}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	errc := make(chan error, 1)
