@@ -4,7 +4,7 @@
 
 GO_MODULES := judge queue runner api storage
 
-.PHONY: test-api-e2e build-api migrate-up migrate-down migrate-status dev down fmt lint test build-judge build-runner test-crash test-matrix test-sandbox test-adversarial
+.PHONY: test-live-e2e test-api-e2e build-api migrate-up migrate-down migrate-status dev down fmt lint test build-judge build-runner test-crash test-matrix test-sandbox test-adversarial
 
 # Local Redis and S3 (RustFS) (needs Docker and LEETFORCE_S3_SECRET_KEY in .env).
 dev:
@@ -74,6 +74,13 @@ test-adversarial:
 # Phase 4 exit test: API, Redis, runner, ingest and Postgres end to end (needs DATABASE_URL and LEETFORCE_REDIS_URL in .env).
 test-api-e2e:
 	scripts/test-api-e2e.sh
+
+# Phase 5 exit test: queued, judging, verdict over SSE with tests read from the
+# S3 bucket (RustFS from make dev); nothing hidden in any response; the reaper
+# re-queues an orphaned submission. Needs psql, DATABASE_URL, LEETFORCE_REDIS_URL
+# and LEETFORCE_S3_* in .env; deletes the rows it creates. About two minutes.
+test-live-e2e:
+	scripts/test-live-e2e.sh
 
 # Builds bin/api (needs DATABASE_URL and LEETFORCE_REDIS_URL to run).
 build-api:
