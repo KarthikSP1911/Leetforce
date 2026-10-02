@@ -127,7 +127,16 @@ var verdictCases = []struct {
 	{"ce", verdict.CE, "compile"},
 }
 
-var extensions = map[string]string{"python": "py", "go": "go"}
+// ceMarkers is text each language's real compiler puts in the message for the
+// ce.* solutions.
+var ceMarkers = map[string]string{
+	"python": "SyntaxError",
+	"go":     "cannot use",
+	"cpp":    "error:",
+	"java":   "incompatible types",
+}
+
+var extensions = map[string]string{"python": "py", "go": "go", "cpp": "cpp", "java": "java"}
 
 func TestJudgeVerdicts(t *testing.T) {
 	requireSandbox(t)
@@ -155,8 +164,10 @@ func TestJudgeVerdicts(t *testing.T) {
 						t.Error("no peak memory recorded")
 					}
 				case verdict.CE:
-					if rep.CompileOutput == "" {
-						t.Error("compile error has no output")
+					// The message must come from the language's compiler: a missing
+					// tool or a broken sandbox would also end in CE.
+					if !strings.Contains(rep.CompileOutput, ceMarkers[language]) {
+						t.Errorf("compile output does not look like a %s compiler error: %q", language, rep.CompileOutput)
 					}
 					if strings.Contains(rep.CompileOutput, "leetforce-job") {
 						t.Errorf("host path leaked: %q", rep.CompileOutput)
@@ -164,6 +175,36 @@ func TestJudgeVerdicts(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// A JVM refuses a big allocation with an error before the kernel sees the
+// memory, so Java needs its own rule (exit status 3) to report MLE.
+func TestJavaMemoryLimit(t *testing.T) {
+	requireSandbox(t)
+	p := loadSample(t)
+	e := &Engine{}
+	tests := []struct {
+		name string
+		body string
+		want verdict.Verdict
+	}{
+		{"one huge array", "long[] x = new long[1 << 28]; System.out.println(x.length);", verdict.MLE},
+		{"array over the heap", "long[] x = new long[50_000_000]; System.out.println(x.length);", verdict.MLE},
+		// Fits in the heap: it must not be reported as MLE (the output is wrong, so WA).
+		{"array within the limit", "long[] x = new long[10_000_000]; x[5] = 1; System.out.println(x.length);", verdict.WA},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			src := "public class Main { public static void main(String[] args) { " + tc.body + " } }"
+			rep, err := e.Judge(context.Background(), p, "java", []byte(src), Options{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if rep.Overall.Verdict != tc.want {
+				t.Fatalf("verdict = %s, want %s; cases %+v; compile output %q", rep.Overall.Verdict, tc.want, rep.Cases, rep.CompileOutput)
+			}
+		})
 	}
 }
 

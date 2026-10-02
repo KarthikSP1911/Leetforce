@@ -32,12 +32,20 @@ const (
 type Limits struct {
 	Time        time.Duration // CPU time limit
 	MemoryBytes uint64
+	// OOMExitCode, if non-zero, is an exit status that means the language
+	// runtime itself ran out of memory (the JVM run with ExitOnOutOfMemoryError
+	// exits with 3). A runtime may refuse a large allocation with an error
+	// before the kernel ever sees the memory used, so the cgroup facts alone
+	// would call it a crash. A program could exit with the same status on
+	// purpose; that only turns its own RE into MLE.
+	OOMExitCode int
 }
 
 // Classify decides how a run ended, in this order:
 //
 //  1. OLE if an output cap was passed (the run was then killed by the host).
-//  2. MLE if the kernel OOM-killed the run or peak memory is over the limit.
+//  2. MLE if the kernel OOM-killed the run, peak memory is over the limit, or
+//     the run exited with the language's OOMExitCode.
 //  3. TLE if the wall-time limit fired, CPU time is over the limit, or the
 //     program got SIGXCPU. CPU-time kills arrive as SIGKILL, so the signal
 //     alone cannot tell them apart from a crash; the measured CPU time does.
@@ -49,7 +57,8 @@ func Classify(r sandbox.Result, l Limits) Verdict {
 	switch {
 	case r.OutputExceeded:
 		return OLE
-	case r.OOMKilled || r.PeakMemoryBytes > l.MemoryBytes:
+	case r.OOMKilled || r.PeakMemoryBytes > l.MemoryBytes ||
+		(l.OOMExitCode != 0 && r.Signal == 0 && r.ExitCode == l.OOMExitCode):
 		return MLE
 	case r.TimedOut || r.CPUTime > l.Time || r.Signal == syscall.SIGXCPU:
 		return TLE
