@@ -47,10 +47,26 @@ if ! command -v golangci-lint >/dev/null 2>&1; then
   go install "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${GOLANGCI_LINT_VERSION}"
 fi
 
+if ! command -v goose >/dev/null 2>&1; then
+  go install github.com/pressly/goose/v3/cmd/goose@latest
+fi
+
+if ! command -v trivy >/dev/null 2>&1; then
+  # Official Aqua Security apt repository (key is dearmored into a keyring, no piped installer).
+  sudo apt-get install -y -qq wget gnupg lsb-release apt-transport-https
+  wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key |
+    gpg --dearmor | sudo tee /usr/share/keyrings/trivy.gpg >/dev/null
+  echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" |
+    sudo tee /etc/apt/sources.list.d/trivy.list >/dev/null
+  sudo apt-get update -qq
+  sudo apt-get install -y -qq trivy
+fi
+
 echo "--- environment ---"
 go version
 command -v nsjail
 golangci-lint --version
+trivy --version | head -1
 echo "cgroup fs: $(stat -fc %T /sys/fs/cgroup) (want cgroup2fs)"
 echo "controllers: $(cat /sys/fs/cgroup/cgroup.controllers) (want cpu memory pids)"
 sudo -n true && echo "passwordless sudo: ok"

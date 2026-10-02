@@ -2,9 +2,9 @@
 # Go components are separate modules joined by go.work (ADR 0002); add each new
 # module (runner, api) to GO_MODULES when it is created.
 
-GO_MODULES := judge queue runner
+GO_MODULES := judge queue runner api
 
-.PHONY: dev down fmt lint test build-judge build-runner test-crash test-matrix test-sandbox test-adversarial
+.PHONY: test-api-e2e build-api migrate-up migrate-down migrate-status dev down fmt lint test build-judge build-runner test-crash test-matrix test-sandbox test-adversarial
 
 # Local Redis and MinIO (needs Docker and LEETFORCE_MINIO_PASSWORD in .env).
 dev:
@@ -70,3 +70,20 @@ test-adversarial:
 	go test -tags adversarial -c -o $(ADV_BIN) ./judge/sandbox
 	sudo -n systemd-run --scope --quiet -p MemoryMax=600M -p MemorySwapMax=0 -p TasksMax=1500 \
 		./$(ADV_BIN) -test.v -test.count=1 -test.run '$(RUN)'
+
+# Phase 4 exit test: API, Redis, runner, ingest and Postgres end to end (needs DATABASE_URL and LEETFORCE_REDIS_URL in .env).
+test-api-e2e:
+	scripts/test-api-e2e.sh
+
+# Builds bin/api (needs DATABASE_URL and LEETFORCE_REDIS_URL to run).
+build-api:
+	@mkdir -p bin
+	cd api && go build -o ../bin/api ./cmd/api
+
+# Database migrations (goose, SQL files in api/migrations). The URL comes from
+# .env: LEETFORCE_MIGRATE_DATABASE_URL (Neon direct endpoint) or DATABASE_URL.
+migrate-up migrate-down migrate-status:
+	@set -a; [ -f .env ] && . ./.env; set +a; \
+	url="$${LEETFORCE_MIGRATE_DATABASE_URL:-$$DATABASE_URL}"; \
+	[ -n "$$url" ] || { echo "set DATABASE_URL in .env"; exit 1; }; \
+	goose -dir api/migrations postgres "$$url" $(patsubst migrate-%,%,$@)

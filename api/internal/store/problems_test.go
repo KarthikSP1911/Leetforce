@@ -1,0 +1,44 @@
+package store
+
+import (
+	"context"
+	"errors"
+	"reflect"
+	"testing"
+)
+
+func TestProblems(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+
+	if _, err := s.GetProblem(ctx, "missing"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("GetProblem(missing) err = %v, want ErrNotFound", err)
+	}
+	b := Problem{Slug: "b-two", Title: "B", Difficulty: "hard"}
+	a := Problem{Slug: "a-one", Title: "A", Difficulty: "easy", Tags: []string{"math"}}
+	for _, p := range []Problem{b, a} {
+		if err := s.UpsertProblem(ctx, p, "v1"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Upserting again changes the title, not the number of rows.
+	a.Title = "A renamed"
+	if err := s.UpsertProblem(ctx, a, "v2"); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.ListProblems(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Problem{a, {Slug: "b-two", Title: "B", Difficulty: "hard", Tags: []string{}}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("ListProblems = %+v, want %+v", got, want)
+	}
+	one, err := s.GetProblem(ctx, "a-one")
+	if err != nil || one.Title != "A renamed" {
+		t.Fatalf("GetProblem = %+v, %v", one, err)
+	}
+	if err := s.UpsertProblem(ctx, Problem{Slug: "x", Title: "X", Difficulty: "bogus"}, "v1"); err == nil {
+		t.Fatal("difficulty outside easy/medium/hard must be rejected by the schema")
+	}
+}

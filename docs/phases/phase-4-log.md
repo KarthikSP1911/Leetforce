@@ -1,0 +1,120 @@
+# Phase 4 working log: API and database
+
+**Branch:** `phase/4-api-database`
+**Range:** `phase-4-start..phase-4-done`
+**Status:** done (merged into main; see the closing entry)
+
+## Units of work
+- [x] `feat/4-migrations`: schema (`problems`, `submissions`, `verdicts`), migration tool, `make migrate-up`
+- [x] `feat/4-api-skeleton`: `api/` module (Gin, pgx), config, `/healthz`, pool settings
+- [x] `feat/4-problems-endpoints`: `GET /problems`, `GET /problems/:slug`
+- [x] `feat/4-submissions`: `POST /submissions`, `GET /submissions/:id`, enqueue with the test-set version
+- [x] `feat/4-verdict-ingest`: results-stream consumer writing idempotent verdicts; dead-letter watcher marks `IE`
+- [x] `test/4-idempotency`: duplicate verdicts change nothing; API to runner end-to-end
+- [x] `docs/4-adr-report`: ADR, `docs/FLOW.md`, report, summary, `PROGRESS.md` to in review
+- [x] review ended at the owner's request, merge to `main`, tag `phase-4-done`
+
+## Decisions (2026-10-02)
+- Recap question: not answered by the owner; the owner replied with the Neon connection string and "remaining all okay", so the defaults of the session plan apply. Who decided: Claude, on the owner's delegation.
+- Migration tool: goose (SQL files). Compile errors on Submit (Phase 2 decision B): only the `CE` label, no compiler text. Development and end-to-end tests on the EC2 dev host.
+- Neon: the owner supplied one connection string (pooler endpoint, database `neondb`). No separate test branch exists yet, so tests use a throwaway schema per run (to be recorded in unit 1), never the real tables.
+
+## Session log
+
+### Start of session (2026-10-02)
+1. Claude read `CLAUDE.md`, `docs/PROGRESS.md`, `phase-3-summary.md`, and the Phase 4 section of `docs/PLAN.md`. Repo matched: branch `main` at `7773a7d`, tags `phase-0..3-start|done`, only `web/AGENTS.md` and `web/CLAUDE.md` untracked.
+2. Claude (repo): `git checkout -b phase/4-api-database`, `git tag phase-4-start`.
+3. Claude (read-only): `ssh leetforce-dev` works; Go 1.27.1; the host checkout is on `phase/3-queue-runner`; no `psql` or `goose` installed yet.
+4. Owner: pasted the Neon connection string in chat. Claude wrote it as `DATABASE_URL` into `.env` on the Windows checkout and into `~/Leetforce/.env` on the host (mode 600), both git-ignored; added `DATABASE_URL` and `LEETFORCE_MIGRATE_DATABASE_URL` (blank) to `.env.example`. The secret is in no commit or doc. Because it was pasted in chat, rotating the Neon password in the console after the phase is advisable.
+
+### Unit 1: `feat/4-migrations` (2026-10-02)
+1. Claude (host): `go install github.com/pressly/goose/v3/cmd/goose@latest` on `leetforce-dev` (goose v3.28.0 in `~/go/bin`). The compile was slow on the 1 GB host (several minutes), so the first command timed out locally and finished in the background. Added to `scripts/setup-dev-host.sh`.
+2. Claude (repo): `api/migrations/00001_init.sql` creates `problems` (slug PK, difficulty check, tags, `test_set_version`), `submissions` (uuid PK, language and status checks, `test_set_version` recorded at accept time) and `verdicts` (`submission_id` PK referencing submissions, verdict check AC/WA/TLE/MLE/RE/CE/OLE/IE, runtime, memory, passed, total, `test_set_version` it was judged against, runner id). No compiler text, test data or stderr is stored (decision B). The primary key is what makes a duplicate verdict write a no-op.
+3. Claude (repo): `make migrate-up|migrate-down|migrate-status`, goose over `api/migrations`, URL from `LEETFORCE_MIGRATE_DATABASE_URL` or else `DATABASE_URL` in `.env`.
+4. Mistake and fix: the first `make migrate-status` on the host said "set DATABASE_URL in .env". Cause: the Neon URL contains `&`, and an unquoted `.env` line is sourced by the shell, which ran the first part as a background command so the variable was never set. Fix: the value is now single-quoted in both `.env` files, and `.env.example` carries a comment saying so. (Any script that sources `.env` is affected by an unquoted `&`.)
+5. Verified on the host against the real Neon database (pooler endpoint, which worked for goose, so no direct endpoint was needed): `make migrate-status` showed `Pending 00001_init.sql` (database empty), `make migrate-up` applied it (about 340 ms), `make migrate-down` then `make migrate-up` again worked, final status "Applied 00001_init.sql", version 1. `LEETFORCE_MIGRATE_DATABASE_URL` stays an optional override.
+6. Claude (host): installed Trivy from the official Aqua apt repository (key dearmored into `/usr/share/keyrings/trivy.gpg`, source file `/etc/apt/sources.list.d/trivy.list`, package `trivy`), version 0.75.0. The same steps are in `scripts/setup-dev-host.sh`. The `apt-get install` also printed the usual "services need restarting" notice; nothing was restarted.
+7. Claude (repo): `scripts/scan-staged.sh` runs `trivy fs --scanners secret --exit-code 1` on the staged tree (`git archive $(git write-tree)` piped to the host), because scanning the working directory would see the git-ignored `.env`. Result for this unit: clean, exit 0.
+
+### Unit 2: `feat/4-api-skeleton` (2026-10-02)
+1. Claude (repo): new module `api/` (`leetforce/api`, dependencies gin v1.12.0 and pgx v5.11.0), added to `go.work` and to `GO_MODULES`. `go.mod` also has `replace leetforce/queue => ../queue` so `go mod tidy` works (the runner module relies on `go.work` alone; both work).
+2. `api/internal/store/store.go`: pgx pool for Neon: `MaxConnIdleTime` 30 s (idle connections close long before Neon suspends the compute), `MaxConnLifetime` 30 min, `MaxConns` 10, health check 30 s, and `QueryExecModeCacheDescribe` because the Neon pooler is pgbouncer in transaction mode where named prepared statements are unreliable.
+3. `api/internal/server/server.go`: Gin router with request logging and recovery. `/healthz` does no I/O; `/readyz` pings the database and Redis and returns 503 with `down` per failing dependency, without the error text (it can name hosts; the text goes to the log). `api/cmd/api/main.go`: config from env (`DATABASE_URL`, `LEETFORCE_REDIS_URL`, `LEETFORCE_API_ADDR` default `:8080`, `LEETFORCE_QUEUE_PREFIX`), graceful shutdown. `make build-api`.
+4. Test: `TestHealthAndReady` (healthz ignores a down dependency; readyz 200 when all up; 503 and no error text when one is down).
+5. Mistake and fix: `make lint` on the host flagged `httptest.NewRequest` (noctx); changed to `NewRequestWithContext`. The first host run was also lost because the SSH command moved to the background; rerunning with the output saved to `/tmp/p4-unit2.log` on the host worked. The first compile of gin and pgx on the 1 GB host took several minutes.
+6. Verified on the host: `make fmt lint test` all green (0 issues in every module); `bin/api` started with the real `DATABASE_URL` and Upstash URL (queue prefix `p4smoke`): `/healthz` 200, `/readyz` 200 with `database: ok, redis: ok` (326 ms), SIGTERM gave "api stopped". `bin/lfq destroy` removed the `p4smoke` keys. Trivy staged secret scan: see the commit step (clean).
+
+### Unit 3: `feat/4-problems-endpoints` (2026-10-02)
+1. Claude (repo): `api/internal/catalog/catalog.go` loads `LEETFORCE_PROBLEMS_DIR` (default `problems`) with the judge's `problem.Load` (so validation and the test-set version are the judge's own), refuses a slug that differs from its directory, and exposes `Samples(slug)`, which returns only tests the problem marks as samples. `api` now depends on `leetforce/judge` (`require` plus `replace ../judge` in `api/go.mod`).
+2. `api/internal/store/problems.go`: `UpsertProblem` (insert or update, stores the current `test_set_version`), `ListProblems`, `GetProblem` (`ErrNotFound`). At startup `cmd/api/main.go` syncs every catalog problem into Postgres; a broken problem stops startup.
+3. `api/internal/server/problems.go`: `GET /problems` (`{"problems": [...]}`, always an array) and `GET /problems/:slug` (metadata plus `samples`; 404 `problem not found`). The response does not include the test-set version. A database error returns a generic 500 and logs the real error. All problem and sample data goes through two small interfaces so handlers are tested with fakes.
+4. Tests: `catalog_test.go` (the repo's real `problems/` loads, `Samples` returns only samples while hidden tests exist, unknown slug and missing dir); `server/problems_test.go` (list, empty list is `[]`, detail has samples and no `test_set`, 404, DB error is a generic 500 without the host text); `store/problems_test.go` plus `store/testdb_test.go` (real Postgres).
+5. Test database design: each store test creates a throwaway schema `t_<random>` on Neon, applies the real `api/migrations/*.sql` Up sections into it, and drops it afterwards, so it also tests the migration. It uses the direct endpoint (the `-pooler` text removed from the URL, or `LEETFORCE_MIGRATE_DATABASE_URL`) and skips without a database.
+6. Mistake and fix: the first version set `search_path` as a connection startup parameter and it was ignored, so the test's migration ran against the real `public` schema and failed with `relation "problems" already exists` (the first statement failed, so nothing was changed; `make migrate-status` afterwards still showed only version 1). Fix: `SET search_path` in `AfterConnect`, plus a guard that checks `current_schema()` equals the throwaway schema and aborts the test otherwise, so a test can never touch the real tables.
+7. Verified on the host: `make fmt lint` 0 issues in all four modules; store and catalog tests pass with the real Neon database; `bin/api` against the real Neon and Upstash: `GET /problems` listed `sample-sum`, `GET /problems/sample-sum` returned two samples (tests 01 and 02) and not the three hidden ones, an unknown slug gave `404`. The real `problems` table now has the `sample-sum` row, written by the startup sync.
+
+### Unit 4: `feat/4-submissions` (2026-10-02)
+1. Claude (repo): `api/internal/store/submissions.go`: `InsertSubmission` is a single `INSERT ... SELECT ... FROM problems`, so the test-set version stamped on the submission is the one in force at that instant (returns `ErrNotFound` for an unknown problem); `DeleteSubmission`; `GetSubmission` joins the verdict if one exists (`s.id::text = $1`, so a malformed id is a clean "not found" instead of a Postgres cast error). `Submission` and `VerdictView` carry no source, test data or stderr, and the test-set version is `json:"-"`.
+2. `api/internal/server/submissions.go`: `POST /submissions` (`{problem, language, source}`): 400 not JSON, 422 missing problem or source or an unsupported language, 413 source over 64 KiB (`MaxSourceBytes` mirrors `judge/engine.MaxSourceBytes`; the API does not import the engine because it pulls in Linux-only sandbox code) or body over about 260 KiB (`http.MaxBytesReader`), 404 unknown problem, then the row is inserted with a new UUID and the job is enqueued; response `202 {"id", "status":"queued"}`. If the enqueue fails the row is deleted (using `context.WithoutCancel`) and the client gets 503, so no row waits for a job that was never queued. `GET /submissions/:id` returns status and, once judged, the verdict, runtime, memory and passed/total counts. Internal errors are logged and returned as a generic 500.
+3. Dependency: `github.com/google/uuid` for ids.
+4. Tests: `server/submissions_test.go` (accepted stores and queues the right job; every rejection stores and queues nothing; queue failure removes the row and does not leak the error text; DB failure is a generic 500; GET never contains the test-set version, source, stderr, expected or input), `store/submissions_test.go` (real Postgres: unknown problem, version stamped at accept time survives a later problem version change, malformed id, duplicate id, language outside the four rejected by the schema, delete).
+5. Verified on the host: `make fmt lint` 0 issues in all four modules; both store tests pass against Neon in throwaway schemas; live run of `bin/api` (Neon and Upstash, queue prefix `p4smoke`): `POST /submissions` for `sample-sum` returned 202, `GET` returned `status: queued` with no verdict, an unknown problem and a malformed id both gave 404. `bin/lfq destroy` removed the `p4smoke` keys.
+6. Left behind: that live run inserted one real `submissions` row (id `31b379ac-3721-468b-84b1-d2b39bc098a7`, status `queued`, no verdict, its job was destroyed with the throwaway queue). It is harmless dev data; there is no cleanup script yet.
+7. Known gap (deferred): a crash between the insert and the enqueue leaves a `queued` row with no job; a reaper for stale queued rows belongs with the live-status work in Phase 5.
+
+### Unit 5: `feat/4-verdict-ingest` (2026-10-02)
+1. Claude (repo), queue side: `queue/ingest.go` adds the API's own consumer group `api` (`APIGroup`) on the results stream and on the dead-letter stream: `SetupAPI` (idempotent, reads from the start so earlier verdicts are not lost), `ReceiveResult`/`AckResult`, `ReceiveDead`/`AckDead`. Reading is "reclaim entries idle for `MinIdle` (a crashed API instance), then new entries", the same pattern as the runners' jobs. Acknowledging only clears the API group's pending record and does not delete the entry, so `lfq results` and the crash test still see every verdict. Tests (`queue/ingest_test.go`, real Redis): verdict delivered once and kept in the stream, an unacknowledged verdict is reclaimed by a second consumer, an undecodable entry is flagged, a dead-lettered job reaches the API, an undecodable dead letter has no job.
+2. Claude (repo), database side: `api/internal/store/verdicts.go`, `RecordVerdict`, is one SQL statement: a CTE `INSERT INTO verdicts ... SELECT ... FROM submissions WHERE id = $1::uuid ON CONFLICT (submission_id) DO NOTHING RETURNING submission_id`, then `UPDATE submissions SET status = 'judged'` only for the rows the CTE inserted. This is the idempotency mechanism: the verdicts primary key plus `DO NOTHING` means a second write (even with a different verdict, runner or version) changes nothing, and the status flips only on the insert that really happened, atomically. It returns `true` only for the call that stored the verdict. An empty test-set version (internal errors) falls back to the submission's own version. `IsPermanent` classifies Postgres data and constraint errors (class 22 and 23) as "retrying cannot work".
+3. `api/internal/ingest/ingest.go`: the loop. Each poll takes one verdict (5 s block), stores it and acknowledges it. A duplicate or unknown submission is acknowledged and ignored. A transient database error leaves the entry pending, and it is redelivered after `MinIdle` (30 s). A permanent error, an undecodable entry or an invalid submission id (a non-UUID never reaches the database) is logged and acknowledged so it cannot block the stream. Every 30 s it drains the dead-letter stream and writes an `IE` verdict (runner id `dead-letter`) for each dead-lettered job, which closes the Phase 3 gap "a poison job ends with no verdict". `cmd/api/main.go` starts it after `SetupAPI` and waits for it on shutdown.
+4. Cost note: polling is the main Upstash command spend. The results poll is `XAUTOCLAIM` plus `XREADGROUP BLOCK 5s` per 5 s (about 35,000 commands per day while idle) and the dead-letter check is about 2 commands per 30 s. The runners already poll the same way. Not measured against the Upstash bill yet; if the count matters, the block time and `DeadEvery` are the knobs.
+5. Tests: `store/verdicts_test.go` `TestRecordVerdictIsIdempotent` (the exit criterion: after a first AC, a repeat of it, a conflicting WA and an IE leave the submission, verdict, runner id, test-set version and created time unchanged, and exactly one row exists) and `TestRecordVerdictEdgeCases` (unknown submission stores nothing and is not an error, a bad UUID and a bad verdict string are permanent errors and change nothing, an IE takes the submission's version, a timeout is not permanent); `ingest/ingest_test.go` with fakes (every failure class: acknowledged or left pending as designed, field mapping, dead letter to IE, `Run` handles both streams and stops on cancel).
+6. Verified on the host: `make fmt lint` 0 issues in all modules; store tests (4) pass against Neon; ingest tests pass; `queue` tests (including the Phase 3 ones) pass against the host's Redis.
+
+### Unit 6: `test/4-idempotency` (2026-10-02)
+1. Claude (repo): `scripts/test-api-e2e.sh` and `make test-api-e2e`. It starts `bin/api` and a root `bin/runner` on a throwaway queue prefix against the real Neon and Upstash, then: (1) POSTs the sample-sum Python solution and waits for `status: judged`, expecting AC with all five tests passed and no test-set version in the response; (2) injects a conflicting WA verdict (runner `impostor`, version `bogus`) straight into the results stream with `redis-cli`, waits until the API's group has read 2 entries with none pending (`XINFO GROUPS`), and requires the `GET /submissions/:id` body to be byte-identical to before; (3) kills the runner, submits again, injects a dead-lettered job for that submission into the dead-letter stream, and expects an IE verdict within 90 s (the dead-letter stream is drained every 30 s).
+2. Result on the host: PASS in about 51 s (twice, the second time after the dependency upgrade below).
+3. Mutation check (to be sure the test can fail): on the host copy only, `ON CONFLICT (submission_id) DO NOTHING` was changed to `DO UPDATE SET verdict = EXCLUDED.verdict`. `TestRecordVerdictIsIdempotent` failed ("duplicate AC record = true, want false") and the end-to-end test failed with the stored verdict flipping from AC to WA. The file was restored from a copy afterwards (`grep` confirmed `DO NOTHING` is back) and the real tree was never edited.
+4. Side effect: every run of the script writes two real rows to the `submissions` and `verdicts` tables on Neon (there is no cleanup command yet). Measured at the end of the phase with a throwaway `go run` against the real database (file removed afterwards): 1 problem, 6 submissions (1 from the unit 4 smoke test with no verdict, 2 from each full e2e run, 1 from the mutation run that failed at step 2), 5 verdicts, and 0 leftover `t_*` test schemas.
+5. Trivy, first full scan (I had only run the secret scan on earlier units; the full scan is required before merging a unit): `scripts/scan-staged.sh full` (new mode: `trivy fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --exit-code 1` on the staged tree, Trivy 0.75.0). Finding: 16 HIGH CVEs in `api/go.mod`, all in transitive dependencies of gin and pgx: `golang.org/x/crypto` v0.48.0 (10), `golang.org/x/net` v0.51.0 (5), `golang.org/x/text` v0.34.0 (1); nothing in the other modules, no secrets, no misconfigurations. Fix: `go get golang.org/x/crypto@latest golang.org/x/net@latest golang.org/x/text@latest` and `go mod tidy` (crypto v0.57.0, net v0.59.0, text v0.42.0, plus sync and sys). Rescan: clean. `make fmt lint test` (0 issues, all ok) and `make test-api-e2e` (PASS) re-run on the upgraded dependencies. No `.trivyignore` needed.
+5a. `Dockerfile`, Terraform and Kubernetes scans (`trivy config`, `trivy image`) do not apply yet: none exist.
+6. Mistake: the commit `feat(queue): let the API consume results and dead letters` (`60ccd05`) has the footer `Refs: phase-3`; it is Phase 4 work. It was already pushed, and branch history is not rewritten, so it stays and is recorded here (`git log --grep` by footer will attribute it to the wrong phase).
+7. Note on `make fmt`: files written on Windows have CRLF line endings, which the host's formatter and bash scripts reject; the sync step to the host strips them (`sed -i 's/$//'` for shell scripts). Git normalises line endings on commit (`CRLF will be replaced by LF` warnings), so the repository content is LF.
+
+### Unit 7: `docs/4-adr-report` (2026-10-02)
+1. Claude (repo): ADRs `docs/adr/0009-idempotent-verdict-ingest.md` and `0010-neon-access-migrations-and-test-schemas.md`; `docs/FLOW.md` (Phase 4 ticked, as-built flow with file paths, "flow after" column); `CLAUDE.md` (current state, the new commands, Trivy now installed on the dev host); then the phase report `docs/phases/phase-4.md` (file list from `git diff --name-status phase-4-start..26e3779`, stats from `git diff` and `git log` over the same range) and the summary `docs/phases/phase-4-summary.md`. `PROGRESS.md` set to in review.
+2. Checks: every test count and commit count in the report was computed from the repository (14 top-level `api` tests, 17 `queue`, 10 `runner`, all passing and none skipped on the host with the database enabled; 16 non-merge commits, 6 merges, 36 files, +2530/-12 before the report). I corrected two things I had written in the summary before they were committed: "make loads .env" (it does not; the database tests skip without it) and a claim about the verdict for `print(1)` that I had not observed.
+3. Neon plan and limits were not checked (ADR 0010), so no cost-table row was added.
+
+### Review decisions (2026-10-02)
+1. Claude asked five understanding questions and decisions A, B, C in chat. The owner replied "a dont rotate , b and c your wish". Recorded in the summary under Review Q&A: A is the owner's answer (no rotation); B and C are Claude's choices on the owner's delegation (leave the test rows; MinIO in Docker on the dev host in Phase 5). The understanding questions were not answered, so they stay open until the owner answers or says to skip.
+
+### Closing entry (2026-10-02)
+1. Owner: wrote "end it if all done". Claude took it as ending the review: understanding questions recorded as unanswered, decisions as recorded above. `PROGRESS.md` set to done with resume point "start Phase 5".
+2. Claude (repo): `git checkout main`, `git merge --no-ff phase/4-api-database` (default message), `git tag phase-4-done`, pushed `main` and the tags. The phase branch is kept.
+3. Not done, by design: the EC2 instance was not stopped (billable, the owner's call).
+
+## File and path index
+- `docs/phases/phase-4-log.md`: this log
+- `api/migrations/00001_init.sql`: schema (problems, submissions, verdicts)
+- `Makefile`: `migrate-up`, `migrate-down`, `migrate-status`
+- `scripts/setup-dev-host.sh`: goose and Trivy install steps
+- `scripts/scan-staged.sh`: Trivy secret scan of the staged tree via the dev host
+- `api/go.mod`, `api/go.sum`: the API module (gin, pgx)
+- `api/cmd/api/main.go`: API entry point
+- `api/internal/store/store.go`: pgx pool for Neon
+- `api/internal/server/server.go`, `server_test.go`: router, health endpoints, test
+- `api/internal/catalog/catalog.go`, `catalog_test.go`: problems directory loader and samples-only view
+- `api/internal/store/problems.go`, `problems_test.go`, `testdb_test.go`: problem queries and the throwaway-schema test helper
+- `api/internal/server/problems.go`, `problems_test.go`: problem endpoints
+- `api/internal/store/submissions.go`, `submissions_test.go`: submission queries
+- `api/internal/server/submissions.go`, `submissions_test.go`: submission endpoints
+- `queue/ingest.go`, `queue/ingest_test.go`: the API's consumer groups on the results and dead-letter streams
+- `api/internal/store/verdicts.go`, `verdicts_test.go`: idempotent verdict write
+- `api/internal/ingest/ingest.go`, `ingest_test.go`: results and dead-letter loop
+- `scripts/test-api-e2e.sh`, `Makefile` (`test-api-e2e`): the Phase 4 end-to-end test
+- `scripts/scan-staged.sh`: now also has a `full` mode (vuln, secret, misconfig)
+- `api/go.mod`, `api/go.sum`: x/crypto, x/net, x/text upgraded for 16 HIGH CVEs
+- `docs/adr/0009-idempotent-verdict-ingest.md`, `docs/adr/0010-neon-access-migrations-and-test-schemas.md`: ADRs
+- `docs/phases/phase-4.md`, `docs/phases/phase-4-summary.md`: report and summary
+- `go.work`: `./api` added; `Makefile`: `api` in `GO_MODULES`, `build-api`
+- `.env.example`: added `DATABASE_URL`, `LEETFORCE_MIGRATE_DATABASE_URL`

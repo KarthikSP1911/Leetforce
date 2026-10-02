@@ -1,6 +1,6 @@
 # LeetForce flow, phase by phase
 
-This file shows how a submission flows through the system and which phase builds each part. It is updated at the end of every phase. Phases 0 to 3 are **as built** (section 3). Phases 4 to 16 are **planned**, taken from [PLAN.md](PLAN.md); the plan is firm only a phase or two ahead, the rest are outlines that get refined at the start of their session.
+This file shows how a submission flows through the system and which phase builds each part. It is updated at the end of every phase. Phases 0 to 4 are **as built** (section 3). Phases 5 to 16 are **planned**, taken from [PLAN.md](PLAN.md); the plan is firm only a phase or two ahead, the rest are outlines that get refined at the start of their session.
 
 ## 1. The end-to-end flow (the finished system)
 ```
@@ -32,7 +32,7 @@ Rules that shape the flow (from CLAUDE.md): runners never connect to the databas
 | 1 | Sandbox core `[x]` | Stage 6 and 7: run untrusted code in nsjail + cgroup and return host-measured facts | `Go test -> sandbox.Run -> nsjail box -> measured result` |
 | 2 | Judge engine (M1) `[x]` | Stage 5: drivers for Python, C++, Java, Go; compile step; checkers; verdicts; `problem.yaml`; test-set versions; `judge run` CLI | `judge CLI -> judge engine -> sandbox -> verdict` (local, one machine, no network) |
 | 3 | Queue and runner `[x]` | Stages 3-4 and 8: Redis Streams, runner module, crash recovery; the runner talks only to Redis and the API | `job in Redis -> runner -> judge -> sandbox -> verdict sent to the API` |
-| 4 | API and database | Stages 1-2 and 9: Gin API, Neon Postgres, migrations, idempotent verdict writes, test-set version recorded | `API <-> Postgres`, plus the runner reporting to the API |
+| 4 | API and database `[x]` | Stages 1-2 and 9: Gin API, Neon Postgres, migrations, idempotent verdict writes, test-set version recorded | `curl -> API -> Postgres + Redis -> runner -> Redis -> API ingest -> Postgres` (verdict idempotent; poll `GET /submissions/:id`) |
 | 5 | Live status and storage (M2) | Stage 10 and test data: SSE status stream, MinIO/S3 for tests, hidden-test redaction for Submit | `curl submit -> queue -> runner -> sandbox -> verdict -> SSE`, end to end on one machine |
 | 6 | Sandbox hardening | Inside stage 6: gVisor vs nsjail decision, seccomp tuning, bigger adversarial suite | same flow, stronger box |
 | 7 | Web: problems and workspace | Browser side of stage 1 with real data: problem list, split-pane workspace, Monaco | `browser shows real problems` |
@@ -46,7 +46,7 @@ Rules that shape the flow (from CLAUDE.md): runners never connect to the databas
 | 15 | Leaderboard | Rankings fed by verdicts, caching, penalty rules | rankings correct under concurrent submissions |
 | 16 | Launch readiness (M5) | Load test, security review, backup and restore drill | findings resolved or accepted in writing |
 
-Notes: the phase names, builds and exits come from `docs/PLAN.md`. In the "Flow after" column, Phases 3 to 16 are my reading of the plan's build lists, not a promise, and will be corrected when each phase is planned.
+Notes: the phase names, builds and exits come from `docs/PLAN.md`. In the "Flow after" column, Phases 5 to 16 are my reading of the plan's build lists, not a promise, and will be corrected when each phase is planned.
 
 ## 3. As built
 
@@ -148,6 +148,34 @@ What happens to a job today. There is no API yet, so `lfq` plays the API's part 
  lfq results                XRANGE <prefix>:results, one JSON line per verdict (the API reads this stream in Phase 4)
 ```
 Crash case (`make test-crash`, `scripts/test-crash-reclaim.sh`): runner A takes the job and starts judging, then `kill -9`. Its claim stops being refreshed; after `MinIdle` runner B's `XAUTOCLAIM` takes the job (delivery 2, `reclaimed: true`), judges it and publishes the only verdict. The module boundary keeps the runner away from the database: `runner/nodb_test.go` fails if `database/sql`, pgx, lib/pq, sqlx, gorm or Gin appear anywhere in the runner's dependency graph. Design reasoning: [ADR 0008](adr/0008-queue-reclaim-and-runner-privileges.md).
+
+### Phase 4: API and database (as built)
+The API now plays the part `lfq` played in Phase 3, and verdicts end up in Postgres. Binary `bin/api` (`make build-api`), code in `api/`:
+```
+ curl POST /submissions {problem, language, source}                          api/internal/server/submissions.go
+ 1. validate        language in python/cpp/java/go, source 1..64 KiB, body <= ~260 KiB (413), problem given (422)
+ 2. store           INSERT INTO submissions ... SELECT ... FROM problems WHERE slug = $2       store.InsertSubmission
+                    (stamps the problem's CURRENT test_set_version in the same statement; unknown problem -> 404)
+ 3. enqueue         queue.Enqueue -> XADD <prefix>:jobs {submission_id, problem, language, source}
+                    enqueue fails -> the row is deleted and the client gets 503 (no orphan queued row)
+ 4. respond         202 {"id": <uuid>, "status": "queued"}
+        |
+        v   runner (Phase 3, unchanged): receive, judge in the sandbox, Publish -> XADD <prefix>:results, Ack
+        |
+        v   API ingest loop (api/internal/ingest, started by api/cmd/api/main.go; consumer group "api")
+ 5. ReceiveResult   XAUTOCLAIM entries idle > MinIdle (a crashed API instance's), else XREADGROUP BLOCK 5 s     queue/ingest.go
+ 6. RecordVerdict   one statement: INSERT INTO verdicts ... ON CONFLICT (submission_id) DO NOTHING, and
+                    UPDATE submissions SET status = 'judged' only for the row just inserted      store/verdicts.go
+                    duplicate or unknown submission -> no change (acknowledged); transient DB error -> not acknowledged, redelivered;
+                    permanent error (class 22/23), undecodable entry or non-UUID id -> logged and acknowledged
+ 7. AckResult       XACK only (entries stay in the stream for lfq and debugging)
+ 8. every 30 s      drain <prefix>:jobs:dead: each dead-lettered job -> IE verdict, runner "dead-letter"   ingest.HandleDead
+ curl GET /submissions/:id        {id, problem, language, status: queued|judged, created_at, verdict?: {verdict, runtime_ms, memory_kb, passed, total}}
+                                  never the source, test data, stderr or test-set version                 server/submissions.go
+ curl GET /problems, /problems/:slug   metadata from Postgres; the detail adds only the sample tests (the hidden ones never leave the files)
+ GET /healthz (no I/O), GET /readyz (pings Postgres and Redis; 503 names the failing dependency, no error text)
+```
+At startup the API loads `LEETFORCE_PROBLEMS_DIR` (judge's `problem.Load`) and upserts each problem and its test-set version into Postgres. Database: Neon, schema from `api/migrations/00001_init.sql` (`make migrate-up`); pool settings and test isolation in [ADR 0010](adr/0010-neon-access-migrations-and-test-schemas.md); why the verdict write is idempotent and how dead letters become `IE`: [ADR 0009](adr/0009-idempotent-verdict-ingest.md). Exit test: `make test-api-e2e` (`scripts/test-api-e2e.sh`): AC through the whole chain, a conflicting WA injected into the results stream changes nothing, a dead-lettered job becomes IE. Not yet: SSE live status and the Judging state (Phase 5), authentication and rate limits (Phase 9), a reaper for rows queued but never enqueued after a crash (Phase 5).
 
 ## 4. Keeping this file true
 At the end of each phase: tick the phase in section 2, add its "as built" flow to section 3 (the detailed step list with file paths), and correct the "planned" rows if the plan changed.
