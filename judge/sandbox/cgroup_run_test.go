@@ -4,6 +4,7 @@ package sandbox
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -171,6 +172,7 @@ func requireNoProcess(t *testing.T, needle string) {
 	}
 }
 
+// Only this process's runs count: other processes may share the cgroup root.
 func requireNoRunCgroups(t *testing.T) {
 	t.Helper()
 	entries, err := os.ReadDir(DefaultCgroupRoot)
@@ -178,7 +180,7 @@ func requireNoRunCgroups(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, e := range entries {
-		if e.IsDir() && strings.HasPrefix(e.Name(), "job-") {
+		if e.IsDir() && strings.HasPrefix(e.Name(), fmt.Sprintf("job-%d-", os.Getpid())) {
 			t.Errorf("run cgroup leaked: %s", filepath.Join(DefaultCgroupRoot, e.Name()))
 		}
 	}
