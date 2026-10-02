@@ -136,7 +136,7 @@ var ceMarkers = map[string]string{
 	"java":   "incompatible types",
 }
 
-var extensions =map[string]string{"python": "py", "go": "go", "cpp": "cpp", "java": "java"}
+var extensions = map[string]string{"python": "py", "go": "go", "cpp": "cpp", "java": "java"}
 
 func TestJudgeVerdicts(t *testing.T) {
 	requireSandbox(t)

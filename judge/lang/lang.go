@@ -173,10 +173,10 @@ var languages = map[string]Language{
 			}
 		},
 		// The Debian JDK keeps its configuration in /etc and links to it.
-		RunEnv:        []string{javaLibPath},
+		RunEnv:      []string{javaLibPath},
 		OOMExitCode: 3,
-		Binds:   []string{"/etc/java-21-openjdk"},
-		RunPIDs: 64,
+		Binds:       []string{"/etc/java-21-openjdk"},
+		RunPIDs:     64,
 	},
 }
 
