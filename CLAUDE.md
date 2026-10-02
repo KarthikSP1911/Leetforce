@@ -14,7 +14,7 @@ Submission flow: browser → API (Gin, SSE for live status) → Redis Streams (c
 
 Planned layout: `judge/` (engine, drivers, checkers, adversarial suite), `runner/` (pulls jobs, judges, reports to API), `api/`, `web/` (Next.js + Monaco), `infra/` (Terraform: `infra/neon`, `infra/aws`), `packer/`, `ansible/`, `k8s/`, `problems/` (`problem.yaml` + tests), `docs/` (`PLAN.md`, `PROGRESS.md`, `adr/`, `phases/`).
 
-Stack: Go for judge/runner/API; Neon Postgres via pgx; MinIO locally and S3 in the cloud; Docker Compose, k3s, Prometheus/Grafana/Loki.
+Redis is hosted on Upstash; the connection string comes from `LEETFORCE_REDIS_URL` (a `rediss://` TLS URL), provided by the owner, never committed, and listed without a value in `.env.example`. Stack: Go for judge/runner/API; Neon Postgres via pgx; MinIO locally and S3 in the cloud; Docker Compose, k3s, Prometheus/Grafana/Loki.
 
 Naming: `LeetForce` in UI copy, docs and titles; lowercase `leetforce` in Go module paths, image/db/k8s/Terraform names, and metric prefixes; `LEETFORCE_` prefix for project-specific env vars.
 
@@ -66,7 +66,7 @@ Add real targets here as they are created, including how to run a single test.
 
 - Never run `terraform apply`, `terraform destroy`, `arena.sh up`, or anything billable without explicit confirmation in chat.
 - `terraform destroy` on `infra/aws` must never touch `infra/neon`.
-- Record any new recurring cost (VPC endpoints, public IPv4, EBS) in the README cost table.
+- No custom VPC, VPC endpoints, or NAT gateway: AWS resources use the account's default VPC with locked-down security groups. Record any new recurring cost (public IPv4, EBS) in the README cost table.
 - Config via env vars; `DATABASE_URL` etc. come from git-ignored `.env` locally (with committed `.env.example`) and SSM in the cloud.
 
 ## Go and frontend standards
