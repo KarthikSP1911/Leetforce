@@ -19,6 +19,8 @@ coverage/
 *.exe
 *.test
 *.out
+# Expected outputs of problem tests are source files, not build output.
+!problems/**/tests/*.out
 go.work.sum
 bin/
 
