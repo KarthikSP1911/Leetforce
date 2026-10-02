@@ -129,10 +129,15 @@ Decisions for you:
 - **C.** Phase 5 needs MinIO (object storage for test data). Docker is still not installed on the EC2 host and Docker Desktop was off on your PC. Where should MinIO run for Phase 5: Docker on the EC2 host (I install it), Docker Desktop on your PC, or skip MinIO until S3 in the cloud?
 
 ## Review Q&A
-(To be filled in after the review.)
+**Understanding questions 1 to 5: not answered yet** (the owner answered only the decisions below; recorded 2026-10-02).
+
+**Decisions (the owner's words: "dont rotate, b and c your wish"):**
+- **A (owner):** do not rotate the Neon password or the Upstash token. The secrets stay as they are; they remain only in the git-ignored `.env` files. The owner did not say which Neon plan is in use, so the plan and its limits remain unchecked, and no separate Neon test branch was requested, so tests keep using throwaway schemas.
+- **B (delegated to Claude, decided by Claude):** leave the test rows (1 problem, 6 submissions, 5 verdicts) and add no cleanup command now. They are small and harmless; a cleanup target is worth adding once the e2e test runs often or Phase 5 adds more writes.
+- **C (delegated to Claude, decided by Claude):** run MinIO in Docker on the EC2 dev host in Phase 5, installed from Docker's official apt repository (a host change, logged and added to `scripts/setup-dev-host.sh`). Reason: the runner, API and Redis already live there, and the end-to-end flow must work on one machine (the Phase 5 exit criterion); Docker Desktop on the owner's PC would add a network hop and depend on the PC being on. It adds no new cloud cost. The `docker-compose.yml` from Phase 3 is finally verified then. Changeable at the start of Phase 5.
 
 ## Open decisions
-- Review decisions A, B, C above (A matters now for security; C matters at the start of Phase 5).
+- Decided at the review (see Review Q&A): A no rotation (owner), B leave the rows, C MinIO in Docker on the dev host (Claude). Still open: the Neon plan and limits.
 - Phase 2 decisions A (problem format; Phases 7 and 8) and C (Go and Java compile speed; Phases 6 and 13) stay on their defaults. Decision B (compile errors on Submit) is settled for now: only the `CE` label is stored and returned.
 - Runner privilege model: Phase 6.
 

@@ -3,7 +3,7 @@
 **Current phase:** 4 - API and database
 **Status:** in review
 **Resume point:** end-of-phase review with the owner (questions asked in chat), then merge Phase 4 to main
-**Open decisions:** Phase 2 A (problem format), B (compile errors on Submit; Phase 4 needs it) and C (Go/Java compile speed) and the Phase 3 review decisions (Upstash token rotation and a separate test database, job-folder cleanup) were not answered because the reviews were skipped; defaults stay. Carried over: runner privilege model (Phase 6); dead-lettered jobs need an `IE` verdict from the API (Phase 4); `web/AGENTS.md` and `web/CLAUDE.md` stay untracked
+**Open decisions:** Phase 4 review: understanding questions 1 to 5 unanswered; the Neon plan and limits are unchecked (the owner chose not to rotate secrets). Decided: MinIO in Docker on the dev host in Phase 5 (Claude, delegated). Phase 2 decisions A and C on defaults. Carried over: runner privilege model (Phase 6); `web/AGENTS.md` and `web/CLAUDE.md` stay untracked
 
 | Phase | Name | Status | Sessions | Summary |
 |---|---|---|---|---|

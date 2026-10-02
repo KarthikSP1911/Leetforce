@@ -85,6 +85,9 @@
 2. Checks: every test count and commit count in the report was computed from the repository (14 top-level `api` tests, 17 `queue`, 10 `runner`, all passing and none skipped on the host with the database enabled; 16 non-merge commits, 6 merges, 36 files, +2530/-12 before the report). I corrected two things I had written in the summary before they were committed: "make loads .env" (it does not; the database tests skip without it) and a claim about the verdict for `print(1)` that I had not observed.
 3. Neon plan and limits were not checked (ADR 0010), so no cost-table row was added.
 
+### Review decisions (2026-10-02)
+1. Claude asked five understanding questions and decisions A, B, C in chat. The owner replied "a dont rotate , b and c your wish". Recorded in the summary under Review Q&A: A is the owner's answer (no rotation); B and C are Claude's choices on the owner's delegation (leave the test rows; MinIO in Docker on the dev host in Phase 5). The understanding questions were not answered, so they stay open until the owner answers or says to skip.
+
 ## File and path index
 - `docs/phases/phase-4-log.md`: this log
 - `api/migrations/00001_init.sql`: schema (problems, submissions, verdicts)
