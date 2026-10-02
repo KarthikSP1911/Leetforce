@@ -115,4 +115,4 @@ None.
 ## Stats
 - Commits: 18 (excluding merges; 16 before this report and the summary)
 - Files: 17 added, 6 modified, 1 deleted
-- Lines: see the final check in the log (regenerated after the last commit)
+- Lines: +2047 / -10 (`git diff --shortstat phase-3-start..HEAD` at the summary commit; the later commits that record this and the review add a few lines of documentation)

@@ -2,7 +2,7 @@
 
 **Branch:** `phase/3-queue-runner`
 **Range:** `phase-3-start..phase-3-done`
-**Status:** in progress
+**Status:** in review (report and summary written; waiting for the owner's review answers)
 
 ## Units of work
 - [x] `feat/3-compose`: Compose file for Redis and MinIO, `.env.example`, Redis on the dev host for tests
@@ -10,7 +10,9 @@
 - [x] `feat/3-runner-module`: `runner/` module, agent loop calling `engine.Judge`, verdict reporting to the `results` stream (idempotent by submission ID). This also covers the planned `feat/3-runner-reporting`: reporting is one `Publish` call in the agent, so it was not worth a separate unit
 - [x] `feat/3-lfq-tool`: small `lfq` command (enqueue, results, destroy) and `LEETFORCE_QUEUE_PREFIX`; this branch also holds the crash-reclaim test (`scripts/test-crash-reclaim.sh`, `make test-crash`)
 - [x] `test/3-no-db-dependency`: fails if the runner's dependency graph contains a database package
-- [ ] `docs/3-adr-flow`, then the phase report and summary, and the review with the owner
+- [x] `docs/3-adr-flow`: ADR 0008, `docs/FLOW.md`, log for units 4 and 5
+- [x] `docs/3-report`: phase report and summary, `PROGRESS.md` set to in review
+- [ ] review with the owner (CLAUDE.md section 7.3), record the Q&A, merge to `main`, tag `phase-3-done`
 
 ## Decisions (2026-10-02)
 - Owner asked for the recap question and session plan; the recap question was not answered. The owner replied "upstash url i will provide you later, remaining you decide which is good", so Claude chose the defaults below. Who decided: Claude, on the owner's delegation.
@@ -61,7 +63,14 @@
 7. Host: `make fmt lint` 0 issues in judge, queue and runner; `go test ./queue/... ./runner/...` ok. The sandbox code was not changed in this phase, so the adversarial suite was not re-run.
 8. Claude (docs): ADR 0008 (`docs/adr/0008-queue-reclaim-and-runner-privileges.md`), `docs/FLOW.md` section 3 "Phase 3" and the phase 3 row ticked.
 
+### Final gates and documents (2026-10-02)
+1. Host (`~/Leetforce`, branch `phase/3-queue-runner` at `a43f833`): `make fmt lint test` 0 issues and all packages ok (queue 1.3 s, runner agent 5.3 s; the engine and sandbox tests that need root skip in `make test`); `make test-crash` PASS again (verdict AC from runner-b, one verdict). After it: `pgrep nsjail` 0, no runner process, 2 leftover `/var/tmp/leetforce-job-*` directories (one per crash run since my manual cleanup), left in place as evidence of the known issue.
+2. Claude (docs): phase report `docs/phases/phase-3.md` (file list from `git diff --name-status phase-3-start..HEAD`: 17 added, 6 modified, 1 deleted; 18 non-merge commits; +2047 / -10 at the summary commit), phase summary `docs/phases/phase-3-summary.md` with 5 understanding and 3 decision questions, `docs/PROGRESS.md` set to in review. The report and summary were checked against the code: test counts corrected once (agent tests are 9 functions, not 11).
+3. Exit criteria: both met (crash reclaim, no database dependency). Partly met or unverified, stated in the report: the runner reports to the Redis results stream because the API does not exist yet; `docker-compose.yml` was never run.
+4. Not done on purpose: no merge to `main`, no `phase-3-done` tag, until the owner has answered the review or said to skip it. The EC2 instance was not stopped (billable, owner's call).
+
 ## File and path index
+- `docs/phases/phase-3.md`, `phase-3-summary.md`: report and summary
 - `queue/cmd/lfq/main.go`, `main_test.go`: queue tool (`bin/lfq`, git-ignored)
 - `scripts/test-crash-reclaim.sh`, `Makefile` (`test-crash`): crash-reclaim exit test
 - `runner/nodb_test.go`: no-database dependency test
