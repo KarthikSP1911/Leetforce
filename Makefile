@@ -6,7 +6,7 @@ GO_MODULES := judge queue runner api
 
 .PHONY: test-api-e2e build-api migrate-up migrate-down migrate-status dev down fmt lint test build-judge build-runner test-crash test-matrix test-sandbox test-adversarial
 
-# Local Redis and MinIO (needs Docker and LEETFORCE_MINIO_PASSWORD in .env).
+# Local Redis and S3 (RustFS) (needs Docker and LEETFORCE_S3_SECRET_KEY in .env).
 dev:
 	docker compose --env-file .env up -d
 

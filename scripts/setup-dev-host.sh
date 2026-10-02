@@ -62,11 +62,25 @@ if ! command -v trivy >/dev/null 2>&1; then
   sudo apt-get install -y -qq trivy
 fi
 
+if ! command -v docker >/dev/null 2>&1; then
+  # Official Docker apt repository (Phase 5, for MinIO); no piped installer.
+  sudo apt-get install -y -qq ca-certificates curl
+  sudo install -m 0755 -d /etc/apt/keyrings
+  sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  sudo chmod a+r /etc/apt/keyrings/docker.asc
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" |
+    sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
+  sudo apt-get update -qq
+  sudo apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-compose-plugin
+  sudo usermod -aG docker "$USER"
+fi
+
 echo "--- environment ---"
 go version
 command -v nsjail
 golangci-lint --version
 trivy --version | head -1
+docker --version
 echo "cgroup fs: $(stat -fc %T /sys/fs/cgroup) (want cgroup2fs)"
 echo "controllers: $(cat /sys/fs/cgroup/cgroup.controllers) (want cpu memory pids)"
 sudo -n true && echo "passwordless sudo: ok"
