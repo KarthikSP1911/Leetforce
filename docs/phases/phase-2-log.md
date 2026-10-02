@@ -32,9 +32,6 @@
 ### Host checkout moved (2026-10-02)
 Owner said "retry". Claude (host): `git checkout -- judge/sandbox/run.go` (discarded the whitespace-only gofmt edit), `git fetch`, `git checkout phase/2-judge-engine`, `git pull --ff-only`. Result: clean, at `a7dddac`, tracking `origin/phase/2-judge-engine`. Resolves the blocked step above.
 
-### Host checkout moved (2026-10-02)
-Owner said "retry". Claude (host): `git checkout -- judge/sandbox/run.go` (discarded the whitespace-only gofmt edit), `git fetch`, `git checkout phase/2-judge-engine`, `git pull --ff-only`. Result: clean, at `a7dddac`, tracking `origin/phase/2-judge-engine`. Resolves the blocked step above.
-
 ## File and path index
 - `docs/phases/phase-2-log.md`: this log
 - `scripts/setup-dev-host.sh`: now also installs the JDK
