@@ -79,16 +79,16 @@ Expect: the problem table in light and dark themes, a logo middle bar that turns
 
 Decision questions:
 - A. Go layout: one module per component (`judge/`, `runner/`, `api/`) or a single `go.work` workspace?
-- B. Should `docs/PLAN.md` be written by you, or should I draft it from CLAUDE.md for your approval?
-- C. Commit style: change commitlint to allow `merge:`, or change CLAUDE.md to use `chore(...)` for merges?
+- B. `docs/PLAN.md`: answered, Claude drafts it (done, awaiting your review).
+- C. Commit style: answered, use the industry standard (git's default merge message); CLAUDE.md updated.
 
 ## Review Q&A
 _To be filled in after the review._
 
 ## Open decisions
 - ~~Go module layout~~: decided, one module per component with `go.work` ([ADR 0002](../adr/0002-go-module-layout.md)).
-- Source of `docs/PLAN.md` (needed before Phase 1).
-- Merge commit message format.
+- Owner review of the draft `docs/PLAN.md` (needed before Phase 1).
+- ~~Merge commit message format~~: decided, git's default `Merge ...` message (industry standard, ignored by commitlint); CLAUDE.md updated.
 
 ## Handoff
 - **State:** branch `phase/0-foundation`, tag `phase-0-start`; `main` already contains the code. `phase-0-done` is not set until the review finishes. Nothing is running.
