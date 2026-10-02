@@ -7,7 +7,7 @@
 ## Units of work
 - [x] `feat/4-migrations`: schema (`problems`, `submissions`, `verdicts`), migration tool, `make migrate-up`
 - [x] `feat/4-api-skeleton`: `api/` module (Gin, pgx), config, `/healthz`, pool settings
-- [ ] `feat/4-problems-endpoints`: `GET /problems`, `GET /problems/:slug`
+- [x] `feat/4-problems-endpoints`: `GET /problems`, `GET /problems/:slug`
 - [ ] `feat/4-submissions`: `POST /submissions`, `GET /submissions/:id`, enqueue with the test-set version
 - [ ] `feat/4-verdict-ingest`: results-stream consumer writing idempotent verdicts; dead-letter watcher marks `IE`
 - [ ] `test/4-idempotency`: duplicate verdicts change nothing; API to runner end-to-end
@@ -44,6 +44,15 @@
 5. Mistake and fix: `make lint` on the host flagged `httptest.NewRequest` (noctx); changed to `NewRequestWithContext`. The first host run was also lost because the SSH command moved to the background; rerunning with the output saved to `/tmp/p4-unit2.log` on the host worked. The first compile of gin and pgx on the 1 GB host took several minutes.
 6. Verified on the host: `make fmt lint test` all green (0 issues in every module); `bin/api` started with the real `DATABASE_URL` and Upstash URL (queue prefix `p4smoke`): `/healthz` 200, `/readyz` 200 with `database: ok, redis: ok` (326 ms), SIGTERM gave "api stopped". `bin/lfq destroy` removed the `p4smoke` keys. Trivy staged secret scan: see the commit step (clean).
 
+### Unit 3: `feat/4-problems-endpoints` (2026-10-02)
+1. Claude (repo): `api/internal/catalog/catalog.go` loads `LEETFORCE_PROBLEMS_DIR` (default `problems`) with the judge's `problem.Load` (so validation and the test-set version are the judge's own), refuses a slug that differs from its directory, and exposes `Samples(slug)`, which returns only tests the problem marks as samples. `api` now depends on `leetforce/judge` (`require` plus `replace ../judge` in `api/go.mod`).
+2. `api/internal/store/problems.go`: `UpsertProblem` (insert or update, stores the current `test_set_version`), `ListProblems`, `GetProblem` (`ErrNotFound`). At startup `cmd/api/main.go` syncs every catalog problem into Postgres; a broken problem stops startup.
+3. `api/internal/server/problems.go`: `GET /problems` (`{"problems": [...]}`, always an array) and `GET /problems/:slug` (metadata plus `samples`; 404 `problem not found`). The response does not include the test-set version. A database error returns a generic 500 and logs the real error. All problem and sample data goes through two small interfaces so handlers are tested with fakes.
+4. Tests: `catalog_test.go` (the repo's real `problems/` loads, `Samples` returns only samples while hidden tests exist, unknown slug and missing dir); `server/problems_test.go` (list, empty list is `[]`, detail has samples and no `test_set`, 404, DB error is a generic 500 without the host text); `store/problems_test.go` plus `store/testdb_test.go` (real Postgres).
+5. Test database design: each store test creates a throwaway schema `t_<random>` on Neon, applies the real `api/migrations/*.sql` Up sections into it, and drops it afterwards, so it also tests the migration. It uses the direct endpoint (the `-pooler` text removed from the URL, or `LEETFORCE_MIGRATE_DATABASE_URL`) and skips without a database.
+6. Mistake and fix: the first version set `search_path` as a connection startup parameter and it was ignored, so the test's migration ran against the real `public` schema and failed with `relation "problems" already exists` (the first statement failed, so nothing was changed; `make migrate-status` afterwards still showed only version 1). Fix: `SET search_path` in `AfterConnect`, plus a guard that checks `current_schema()` equals the throwaway schema and aborts the test otherwise, so a test can never touch the real tables.
+7. Verified on the host: `make fmt lint` 0 issues in all four modules; store and catalog tests pass with the real Neon database; `bin/api` against the real Neon and Upstash: `GET /problems` listed `sample-sum`, `GET /problems/sample-sum` returned two samples (tests 01 and 02) and not the three hidden ones, an unknown slug gave `404`. The real `problems` table now has the `sample-sum` row, written by the startup sync.
+
 ## File and path index
 - `docs/phases/phase-4-log.md`: this log
 - `api/migrations/00001_init.sql`: schema (problems, submissions, verdicts)
@@ -54,5 +63,8 @@
 - `api/cmd/api/main.go`: API entry point
 - `api/internal/store/store.go`: pgx pool for Neon
 - `api/internal/server/server.go`, `server_test.go`: router, health endpoints, test
+- `api/internal/catalog/catalog.go`, `catalog_test.go`: problems directory loader and samples-only view
+- `api/internal/store/problems.go`, `problems_test.go`, `testdb_test.go`: problem queries and the throwaway-schema test helper
+- `api/internal/server/problems.go`, `problems_test.go`: problem endpoints
 - `go.work`: `./api` added; `Makefile`: `api` in `GO_MODULES`, `build-api`
 - `.env.example`: added `DATABASE_URL`, `LEETFORCE_MIGRATE_DATABASE_URL`
