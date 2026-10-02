@@ -260,19 +260,19 @@ func buildC(ctx context.Context, dir, name, src string) string {
 }
 
 func dropPageCache() {
-	_ = exec.Command("sync").Run()
+	_ = exec.CommandContext(context.Background(), "sync").Run()
 	_ = os.WriteFile("/proc/sys/vm/drop_caches", []byte("3"), 0o200)
 }
 
 func hostInfo() string {
 	var parts []string
-	if b, err := exec.Command("uname", "-sr").Output(); err == nil {
+	if b, err := exec.CommandContext(context.Background(), "uname", "-sr").Output(); err == nil {
 		parts = append(parts, strings.TrimSpace(string(b)))
 	}
-	if b, err := exec.Command("runsc", "--version").Output(); err == nil {
+	if b, err := exec.CommandContext(context.Background(), "runsc", "--version").Output(); err == nil {
 		parts = append(parts, strings.Fields(string(b))[0]+" "+strings.Fields(string(b))[2])
 	}
-	if b, err := exec.Command("nproc").Output(); err == nil {
+	if b, err := exec.CommandContext(context.Background(), "nproc").Output(); err == nil {
 		parts = append(parts, strings.TrimSpace(string(b))+" vCPU")
 	}
 	if b, err := os.ReadFile("/proc/loadavg"); err == nil {

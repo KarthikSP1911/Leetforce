@@ -42,7 +42,7 @@ func PrepareDelegatedRoot() (string, error) {
 		parent = filepath.Dir(cur)
 	} else {
 		leaf := filepath.Join(cur, leafName)
-		if err := os.MkdirAll(leaf, 0o750); err != nil {
+		if err := os.MkdirAll(leaf, 0o750); err != nil { //nolint:gosec // leaf is derived from our own delegated cgroup path, not user input
 			return "", fmt.Errorf("create runner leaf cgroup (is the cgroup delegated?): %w", err)
 		}
 		if err := writeFile(filepath.Join(leaf, "cgroup.procs"), strconv.Itoa(os.Getpid())); err != nil {

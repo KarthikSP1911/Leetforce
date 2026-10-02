@@ -247,7 +247,7 @@ func runGVisor(ctx context.Context, spec Spec, job *cgroupJob) (*Result, error) 
 	if err != nil {
 		return nil, err
 	}
-	cgFile, err := os.Open(runCgroup)
+	cgFile, err := os.Open(runCgroup) //nolint:gosec // runCgroup is the per-job cgroup directory we just created
 	if err != nil {
 		return nil, fmt.Errorf("open run cgroup: %w", err)
 	}
