@@ -7,7 +7,7 @@
 ## Units of work
 - [x] `docs/2-runtimes`: JDK on the dev host, setup script updated
 - [x] `feat/2-problem-format`: `problem.yaml`, loader, test-set version hash, sample problem
-- [ ] `feat/2-verdicts`: verdict classification from host-measured facts
+- [x] `feat/2-verdicts`: verdict classification from host-measured facts
 - [ ] `feat/2-checkers`: host-side output comparison
 - [ ] `feat/2-drivers-python-go`
 - [ ] `feat/2-drivers-cpp-java`
@@ -46,7 +46,15 @@ Design: [ADR 0005](../adr/0005-problem-format-and-test-set-version.md). Decision
 5. Checks on the host: `make fmt lint test` clean (0 issues, `judge/problem` and `judge/sandbox` ok); `make test-adversarial` PASS after the `run.go` whitespace change, `pgrep nsjail` prints 0.
 6. Commits on the branch: `61e3ac5` loader, `1219187` sample problem, `4000ac6` run.go alignment, `d673221` gofmt; ADR and log in a docs commit.
 
+### Unit 3: `feat/2-verdicts` (2026-10-02)
+1. Claude (repo): created `judge/verdict/verdict.go` (`Verdict` constants AC/WA/TLE/MLE/RE/CE/OLE, `Completed` for "ran cleanly, compare output", `Limits`, `Classify`, `Case`, `Overall`, `Summarize`) and `judge/verdict/verdict_test.go`.
+2. Rules in `Classify`, in order: OLE if `OutputExceeded`; MLE if `OOMKilled` or peak memory over the limit; TLE if `TimedOut`, CPU time over the limit, or `SIGXCPU`; RE for any other signal, non-zero exit or `PIDLimitHit`; otherwise `Completed`. A plain SIGKILL with low CPU time and memory is RE (a crash), not TLE; the CPU time decides TLE, as the Phase 1 handoff required.
+3. `Summarize`: first non-AC case gives the verdict and `Failed` name; time and memory are the maxima. `Failed` is documented as not to be shown for hidden tests on Submit.
+4. Tests (table-driven, 17 classify cases, one test that stdout/stderr/result-fd text cannot change the verdict, 4 summarize cases). Host: `make fmt lint` 0 issues, `go test ./judge/verdict` ok. No sandbox code changed, so the adversarial suite was not re-run for this unit (it runs at the end of the phase).
+5. Note: the package imports `syscall.SIGXCPU`, so it builds on Linux only, like the sandbox.
+
 ## File and path index
+- `judge/verdict/verdict.go`, `verdict_test.go`: verdict classification and summary
 - `docs/phases/phase-2-log.md`: this log
 - `scripts/setup-dev-host.sh`: now also installs the JDK
 - `judge/problem/problem.go`, `version.go`, `problem_test.go`: problem loader, validation, test-set version, tests
