@@ -98,7 +98,7 @@ func Unpack(data []byte, dest string) error {
 		if err != nil || int64(len(body)) != h.Size {
 			return fmt.Errorf("unpack problem: entry %q is truncated", h.Name)
 		}
-		if err := os.WriteFile(filepath.Join(dest, filepath.FromSlash(h.Name)), body, 0o640); err != nil {
+		if err := os.WriteFile(filepath.Join(dest, filepath.FromSlash(h.Name)), body, 0o600); err != nil {
 			return fmt.Errorf("unpack problem: %w", err)
 		}
 	}
