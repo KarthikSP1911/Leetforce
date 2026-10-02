@@ -116,6 +116,9 @@ func run() error {
 	ing := ingest.New(q, db, log, ingest.Config{Consumer: fmt.Sprintf("api-%s-%d", host, os.Getpid())})
 	ingestDone := make(chan struct{})
 	go func() { ing.Run(ctx); close(ingestDone) }()
+	watcher := ingest.NewStatusWatcher(q, db, log, ingest.StatusConfig{})
+	statusDone := make(chan struct{})
+	go func() { watcher.Run(ctx); close(statusDone) }()
 
 	srv := &http.Server{
 		Addr:              addr,
@@ -138,6 +141,7 @@ func run() error {
 	}
 	stop()
 	<-ingestDone
+	<-statusDone
 	log.Info("api stopped")
 	return nil
 }
