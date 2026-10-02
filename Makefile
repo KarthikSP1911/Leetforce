@@ -23,7 +23,7 @@ build-judge:
 
 # Phase 2 exit criterion: judges the sample problem with one solution per
 # verdict (AC, WA, TLE, MLE, RE, OLE, CE) in each of Python, C++, Java and Go
-# (28 runs, about 4 minutes on the dev host, mostly cold Go and Java compiles).
+# (28 runs, about 3 minutes on the dev host, mostly cold Go and Java compiles).
 test-matrix:
 	sudo -n env "PATH=$$PATH" go test -p 1 -timeout 20m -count=1 -v -run 'TestVerdictMatrixIsComplete|TestJudgeVerdicts' ./judge/engine/
 
