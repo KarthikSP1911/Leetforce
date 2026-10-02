@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	"leetforce/api/internal/catalog"
 	"leetforce/api/internal/server"
 	"leetforce/api/internal/store"
 	"leetforce/queue"
@@ -52,6 +53,22 @@ func run() error {
 	}
 	defer db.Close()
 
+	problemsDir := os.Getenv("LEETFORCE_PROBLEMS_DIR")
+	if problemsDir == "" {
+		problemsDir = "problems"
+	}
+	cat, err := catalog.Load(problemsDir)
+	if err != nil {
+		return err
+	}
+	for _, p := range cat.Problems() {
+		sp := store.Problem{Slug: p.Spec.Slug, Title: p.Spec.Title, Difficulty: p.Spec.Difficulty, Tags: p.Spec.Tags}
+		if err := db.UpsertProblem(ctx, sp, p.TestSetVer); err != nil {
+			return err
+		}
+	}
+	log.Info("problems synced", "count", len(cat.Problems()))
+
 	q, err := queue.Open(redisURL, queue.Config{Prefix: os.Getenv("LEETFORCE_QUEUE_PREFIX")})
 	if err != nil {
 		return err
@@ -66,7 +83,7 @@ func run() error {
 
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           server.New(server.Deps{Logger: log, Ready: map[string]server.Pinger{"database": db, "redis": q}}),
+		Handler:           server.New(server.Deps{Logger: log, Ready: map[string]server.Pinger{"database": db, "redis": q}, Problems: db, Samples: cat}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	errc := make(chan error, 1)
