@@ -1,6 +1,6 @@
 # LeetForce flow, phase by phase
 
-This file shows how a submission flows through the system and which phase builds each part. It is updated at the end of every phase. Phases 0 and 1 are **as built** (section 3). Phases 2 to 16 are **planned**, taken from [PLAN.md](PLAN.md); only Phases 1 to 3 are firm in the plan, the rest are outlines that get refined at the start of their session.
+This file shows how a submission flows through the system and which phase builds each part. It is updated at the end of every phase. Phases 0 to 3 are **as built** (section 3). Phases 4 to 16 are **planned**, taken from [PLAN.md](PLAN.md); the plan is firm only a phase or two ahead, the rest are outlines that get refined at the start of their session.
 
 ## 1. The end-to-end flow (the finished system)
 ```
@@ -31,7 +31,7 @@ Rules that shape the flow (from CLAUDE.md): runners never connect to the databas
 | 0 | Foundation `[x]` | The browser-side page shell: navbar, theme, problem table with sample data; repo rules and layout | `browser (shell only, sample data)` |
 | 1 | Sandbox core `[x]` | Stage 6 and 7: run untrusted code in nsjail + cgroup and return host-measured facts | `Go test -> sandbox.Run -> nsjail box -> measured result` |
 | 2 | Judge engine (M1) `[x]` | Stage 5: drivers for Python, C++, Java, Go; compile step; checkers; verdicts; `problem.yaml`; test-set versions; `judge run` CLI | `judge CLI -> judge engine -> sandbox -> verdict` (local, one machine, no network) |
-| 3 | Queue and runner | Stages 3-4 and 8: Redis Streams, runner module, crash recovery; the runner talks only to Redis and the API | `job in Redis -> runner -> judge -> sandbox -> verdict sent to the API` |
+| 3 | Queue and runner `[x]` | Stages 3-4 and 8: Redis Streams, runner module, crash recovery; the runner talks only to Redis and the API | `job in Redis -> runner -> judge -> sandbox -> verdict sent to the API` |
 | 4 | API and database | Stages 1-2 and 9: Gin API, Neon Postgres, migrations, idempotent verdict writes, test-set version recorded | `API <-> Postgres`, plus the runner reporting to the API |
 | 5 | Live status and storage (M2) | Stage 10 and test data: SSE status stream, MinIO/S3 for tests, hidden-test redaction for Submit | `curl submit -> queue -> runner -> sandbox -> verdict -> SSE`, end to end on one machine |
 | 6 | Sandbox hardening | Inside stage 6: gVisor vs nsjail decision, seccomp tuning, bigger adversarial suite | same flow, stronger box |
@@ -123,6 +123,31 @@ What `engine.Judge(ctx, problem, language, source, opts)` does today (`judge/eng
  8. remove the job dir; return Report{TestSetVersion, Overall, Cases, CompileOutput}
 ```
 Details of a failing test (input, expected, actual, stderr) are recorded only for sample tests and only when the caller sets `Options.Detail` (Run); hidden tests never get any. Design reasoning: [ADR 0005](adr/0005-problem-format-and-test-set-version.md) and [ADR 0006](adr/0006-compile-in-sandbox-artifact-over-fd4.md).
+
+### Phase 3: Queue and runner (as built)
+What happens to a job today. There is no API yet, so `lfq` plays the API's part (`queue/cmd/lfq/main.go`):
+```
+ lfq enqueue [-id ID] <slug> <language> <file>      XADD <prefix>:jobs   job = {submission_id, problem, language, source}
+        |      (Setup first creates the consumer group "runners" from ID 0)                        queue/queue.go
+        v
+ Redis (Upstash rediss:// in production, local Redis in tests)
+      <prefix>:jobs  <prefix>:results  <prefix>:jobs:dead  <prefix>:verdict:<submission id>
+        |
+        v   runner (sudo bin/runner)   runner/cmd/runner/main.go: env config, must be root, SIGINT/SIGTERM stop the loop
+ 1. Receive(consumer, 5 s)  first XAUTOCLAIM jobs idle > MinIdle (a dead runner's job), else XREADGROUP ">"
+      delivered more than MaxDeliveries times, or undecodable -> <prefix>:jobs:dead, never judged      queue.Receive
+ 2. Published(id)?          a verdict already exists -> Ack and stop (no second judging)                agent.Process
+ 3. heartbeat goroutine     Touch every MinIdle/3 (Lua: only the current owner may reset the idle time)
+      Touch says ErrLost (someone else owns the job) -> cancel the judging and discard the result
+ 4. judge: slug must match ^[a-z0-9]+(-[a-z0-9]+)*$, problem.Load(problems/<slug>),
+      engine.Judge(..., Options{})  (Detail off: this is Submit)                                       agent.judge
+ 5. outcome: ok -> result from the Report | bad job -> IE | host error -> leave pending (IE on the last attempt)
+ 6. Publish(result)         Lua: SET <prefix>:verdict:<id> NX EX 7d, then XADD <prefix>:results         queue.Publish
+      a second publish for the same submission does nothing (returns false)
+ 7. Ack                     XACK + XDEL; a crash between 6 and 7 is repaired by a redelivery that stops at step 2
+ lfq results                XRANGE <prefix>:results, one JSON line per verdict (the API reads this stream in Phase 4)
+```
+Crash case (`make test-crash`, `scripts/test-crash-reclaim.sh`): runner A takes the job and starts judging, then `kill -9`. Its claim stops being refreshed; after `MinIdle` runner B's `XAUTOCLAIM` takes the job (delivery 2, `reclaimed: true`), judges it and publishes the only verdict. The module boundary keeps the runner away from the database: `runner/nodb_test.go` fails if `database/sql`, pgx, lib/pq, sqlx, gorm or Gin appear anywhere in the runner's dependency graph. Design reasoning: [ADR 0008](adr/0008-queue-reclaim-and-runner-privileges.md).
 
 ## 4. Keeping this file true
 At the end of each phase: tick the phase in section 2, add its "as built" flow to section 3 (the detailed step list with file paths), and correct the "planned" rows if the plan changed.
