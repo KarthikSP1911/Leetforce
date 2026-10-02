@@ -1,6 +1,6 @@
 # LeetForce flow, phase by phase
 
-This file shows how a submission flows through the system and which phase builds each part. It is updated at the end of every phase. Phases 0 to 4 are **as built** (section 3). Phases 5 to 16 are **planned**, taken from [PLAN.md](PLAN.md); the plan is firm only a phase or two ahead, the rest are outlines that get refined at the start of their session.
+This file shows how a submission flows through the system and which phase builds each part. It is updated at the end of every phase. Phases 0 to 5 are **as built** (section 3). Phases 6 to 16 are **planned**, taken from [PLAN.md](PLAN.md); the plan is firm only a phase or two ahead, the rest are outlines that get refined at the start of their session.
 
 ## 1. The end-to-end flow (the finished system)
 ```
@@ -33,7 +33,7 @@ Rules that shape the flow (from CLAUDE.md): runners never connect to the databas
 | 2 | Judge engine (M1) `[x]` | Stage 5: drivers for Python, C++, Java, Go; compile step; checkers; verdicts; `problem.yaml`; test-set versions; `judge run` CLI | `judge CLI -> judge engine -> sandbox -> verdict` (local, one machine, no network) |
 | 3 | Queue and runner `[x]` | Stages 3-4 and 8: Redis Streams, runner module, crash recovery; the runner talks only to Redis and the API | `job in Redis -> runner -> judge -> sandbox -> verdict sent to the API` |
 | 4 | API and database `[x]` | Stages 1-2 and 9: Gin API, Neon Postgres, migrations, idempotent verdict writes, test-set version recorded | `curl -> API -> Postgres + Redis -> runner -> Redis -> API ingest -> Postgres` (verdict idempotent; poll `GET /submissions/:id`) |
-| 5 | Live status and storage (M2) | Stage 10 and test data: SSE status stream, MinIO/S3 for tests, hidden-test redaction for Submit | `curl submit -> queue -> runner -> sandbox -> verdict -> SSE`, end to end on one machine |
+| 5 | Live status and storage (M2) `[x]` | Stage 10 and test data: SSE status stream, S3-compatible bucket for tests (RustFS locally, ADR 0011), the Judging state, hidden-test redaction checked end to end, a reaper for rows never queued | `curl submit -> API -> queue -> runner (tests from the bucket) -> sandbox -> verdict -> SSE`, end to end on one machine |
 | 6 | Sandbox hardening | Inside stage 6: gVisor vs nsjail decision, seccomp tuning, bigger adversarial suite | same flow, stronger box |
 | 7 | Web: problems and workspace | Browser side of stage 1 with real data: problem list, split-pane workspace, Monaco | `browser shows real problems` |
 | 8 | Web: run, submit, results | Stages 1 and 10 in the UI: Run and Submit, console, result panel, SSE client | `browser submit -> ... -> verdict shown in the page` |
@@ -46,7 +46,7 @@ Rules that shape the flow (from CLAUDE.md): runners never connect to the databas
 | 15 | Leaderboard | Rankings fed by verdicts, caching, penalty rules | rankings correct under concurrent submissions |
 | 16 | Launch readiness (M5) | Load test, security review, backup and restore drill | findings resolved or accepted in writing |
 
-Notes: the phase names, builds and exits come from `docs/PLAN.md`. In the "Flow after" column, Phases 5 to 16 are my reading of the plan's build lists, not a promise, and will be corrected when each phase is planned.
+Notes: the phase names, builds and exits come from `docs/PLAN.md`. In the "Flow after" column, Phases 6 to 16 are my reading of the plan's build lists, not a promise, and will be corrected when each phase is planned.
 
 ## 3. As built
 
@@ -175,7 +175,46 @@ The API now plays the part `lfq` played in Phase 3, and verdicts end up in Postg
  curl GET /problems, /problems/:slug   metadata from Postgres; the detail adds only the sample tests (the hidden ones never leave the files)
  GET /healthz (no I/O), GET /readyz (pings Postgres and Redis; 503 names the failing dependency, no error text)
 ```
-At startup the API loads `LEETFORCE_PROBLEMS_DIR` (judge's `problem.Load`) and upserts each problem and its test-set version into Postgres. Database: Neon, schema from `api/migrations/00001_init.sql` (`make migrate-up`); pool settings and test isolation in [ADR 0010](adr/0010-neon-access-migrations-and-test-schemas.md); why the verdict write is idempotent and how dead letters become `IE`: [ADR 0009](adr/0009-idempotent-verdict-ingest.md). Exit test: `make test-api-e2e` (`scripts/test-api-e2e.sh`): AC through the whole chain, a conflicting WA injected into the results stream changes nothing, a dead-lettered job becomes IE. Not yet: SSE live status and the Judging state (Phase 5), authentication and rate limits (Phase 9), a reaper for rows queued but never enqueued after a crash (Phase 5).
+At startup the API loads `LEETFORCE_PROBLEMS_DIR` (judge's `problem.Load`) and upserts each problem and its test-set version into Postgres. Database: Neon, schema from `api/migrations/00001_init.sql` (`make migrate-up`); pool settings and test isolation in [ADR 0010](adr/0010-neon-access-migrations-and-test-schemas.md); why the verdict write is idempotent and how dead letters become `IE`: [ADR 0009](adr/0009-idempotent-verdict-ingest.md). Exit test: `make test-api-e2e` (`scripts/test-api-e2e.sh`): AC through the whole chain, a conflicting WA injected into the results stream changes nothing, a dead-lettered job becomes IE. Not yet: SSE live status and the Judging state (Phase 5), authentication and rate limits (Phase 9), a reaper for rows queued but never enqueued after a crash (built in Phase 5).
+
+### Phase 5: Live status and storage (as built)
+Four additions to the Phase 4 flow, all on one machine (RustFS, Redis, the API and a runner on the dev host; Neon and Upstash in the cloud). Why: [ADR 0011](adr/0011-problem-tests-in-object-storage.md) (tests in a bucket) and [ADR 0012](adr/0012-live-status-sse-and-reaper.md) (status, SSE, reaper).
+```
+ API startup (api/cmd/api/main.go)
+ 0. publish tests   catalog.Publish: Pack each problem (problem.yaml + tests/, no solutions) -> PutBundle
+                    problems/<slug>/<test-set-version>.tar.gz in the bucket, tagged with its SHA-256;
+                    unchanged bundles are not rewritten. Done before the API listens. /readyz also pings the bucket.
+                    reaper: one sweep at startup (step 9), then every 15 min
+
+ curl POST /submissions                                                  api/internal/server/submissions.go
+ 1-2. validate, store   as Phase 4; InsertSubmission now RETURNs the test_set_version it stamped
+ 3. enqueue             XADD <prefix>:jobs {submission_id, problem, language, source, test_set_version}
+ 3b. MarkEnqueued       UPDATE submissions SET enqueued_at = now()   (failure only logged)
+ 4. respond             202 {"id", "status": "queued"}
+
+ curl -N GET /submissions/:id/events                                     api/internal/server/events.go
+ 5. stream              first event = current state; then one `event: status` per change (queued -> judging) and
+                        `event: verdict` {"status":"judged","verdict":{verdict, runtime_ms, memory_kb, passed, total}}, then close.
+                        Reads Postgres every 500 ms (state, not history: a judgement shorter than a poll can go queued -> verdict).
+                        Keep-alive every 15 s, timeout event after 10 min, 503 beyond 200 streams per instance, 404 for an unknown id.
+        |
+        v   runner (runner/internal/agent, runner/internal/problems)
+ 6. receive             Receive (XAUTOCLAIM / XREADGROUP) as Phase 3
+ 6b. report judging     XADD <prefix>:status {submission_id, state: judging, runner_id}   queue/status.go (best effort, capped ~5000)
+ 7. load tests          problems.S3.Load: Stat the bundle (its SHA-256), use the unpacked cache dir for that hash if present,
+                        else GetBundle -> Unpack -> problem.Load -> recompute the version; != job.test_set_version -> permanent error (IE)
+                        no LEETFORCE_S3_ENDPOINT -> problems.Dir (the old directory mode)
+ 8. judge, Publish, Ack as Phases 2-3
+        |
+        v   API (api/internal/ingest)
+ 8b. status watcher     XREAD <prefix>:status from the tail (no consumer group) -> MarkJudging:
+                        UPDATE ... SET status = 'judging' WHERE status = 'queued'  (never undoes a verdict)   ingest/status.go
+ 8c. verdict ingest     as Phase 4: RecordVerdict (idempotent), status = judged
+
+ 9. reaper              store.ReapUnqueued: queued, older than 2 min, enqueued_at IS NULL -> FOR UPDATE SKIP LOCKED in one
+                        transaction, Enqueue with the stored test_set_version, mark enqueued_at, commit   api/internal/reaper
+```
+Database: migrations `00002_judging_status.sql` (status may be `judging`) and `00003_enqueued_at.sql` (the column and a partial index). Redaction for Submit: the POST response, `GET /submissions/:id` and every SSE event carry only state and the verdict view; the compiler output, stdout and stderr never leave the runner's result or the sandbox. Exit test: `make test-live-e2e` (`scripts/test-live-e2e.sh`): (1) queued, judging and AC 5/5 in order over a `curl -N` stream, with a runner that has no problems directory and no database URL; (2) hostile programs echo the hidden input and a marker to stdout, stderr and the compiler, and no response contains them, the source or the version (the detector has a self-test); (3) an orphaned row is re-queued after an API restart and judged. Not yet: Run (custom and sample input, Phase 8), authentication and per-user limits (Phase 9), per-role bucket credentials (Phase 12), retention of old bundles and the results stream (Phases 10 and 11).
 
 ## 4. Keeping this file true
 At the end of each phase: tick the phase in section 2, add its "as built" flow to section 3 (the detailed step list with file paths), and correct the "planned" rows if the plan changed.
