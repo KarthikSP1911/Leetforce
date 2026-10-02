@@ -52,7 +52,11 @@ func Run(ctx context.Context, spec Spec) (res *Result, err error) {
 		}
 	}()
 
-	res, err = runJob(ctx, spec, job)
+	if b, _ := spec.backend(); b == BackendGVisor { // Validate rejected unknown values
+		res, err = runGVisor(ctx, spec, job)
+	} else {
+		res, err = runJob(ctx, spec, job)
+	}
 	if res != nil {
 		s := job.stats()
 		res.PeakMemoryBytes = s.PeakMemoryBytes
@@ -60,6 +64,10 @@ func Run(ctx context.Context, spec Spec) (res *Result, err error) {
 		res.OOMKilled = s.OOMKills > 0
 		res.PeakPIDs = s.PeakPIDs
 		res.PIDLimitHit = s.PIDLimitHits > 0
+		res.RawPeakMemoryBytes, res.RawCPUTime, res.RawPeakPIDs = res.PeakMemoryBytes, res.CPUTime, res.PeakPIDs
+		if b, _ := spec.backend(); b == BackendGVisor {
+			discountGVisorOverhead(res)
+		}
 	}
 	return res, err
 }
