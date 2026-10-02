@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working in this
 
 ## Current state
 
-The repo currently contains only `README.md`. Everything below describes the planned system and conventions; the commands and directories do not exist yet. `docs/PLAN.md` (the 0–16 phase plan) and `docs/PROGRESS.md` (phase tracker and resume point) are the sources of truth once they are created. Do not invent build or test commands that no Makefile defines yet.
+Phase 0 (web shell) is done; Phase 1 (sandbox core) is in progress, see `docs/PROGRESS.md`. Parts below describe the planned system and may not exist yet. `docs/PLAN.md` (the 0–16 phase plan) and `docs/PROGRESS.md` (phase tracker and resume point) are the sources of truth. Do not invent build or test commands that no Makefile defines.
 
 ## Project
 
@@ -18,14 +18,23 @@ Redis is hosted on Upstash; the connection string comes from `LEETFORCE_REDIS_UR
 
 Naming: `LeetForce` in UI copy, docs and titles; lowercase `leetforce` in Go module paths, image/db/k8s/Terraform names, and metric prefixes; `LEETFORCE_` prefix for project-specific env vars.
 
-## Planned commands
+## Commands
+
+Go targets run per module in `GO_MODULES` (Makefile) on a Linux host; Phase 1 development happens on the EC2 dev host (ADR 0003, `scripts/setup-dev-host.sh`).
 
 ```bash
-make dev | down | fmt | lint | test | test-adversarial | migrate-up
-judge run problems/<slug> <solution-file>   # local judge CLI, from Phase 2
+make fmt                 # golangci-lint fmt (gofmt + goimports) per Go module
+make lint                # go vet + golangci-lint run per Go module
+make test                # go test per Go module
+make test-sandbox        # functional sandbox tests: real programs in nsjail (sudo -n)
+make test-adversarial    # sandbox containment suite (build tag `adversarial`), run as root in a memory-capped systemd scope
+
+# single test
+cd judge && go test -run TestName ./sandbox/...
+make test-adversarial RUN=TestAdversarialForkBomb   # one adversarial test (RUN is a go test -run regex)
 ```
 
-Add real targets here as they are created, including how to run a single test.
+Planned, not defined yet: `make dev | down | migrate-up`, and `judge run problems/<slug> <solution-file>` (local judge CLI, from Phase 2).
 
 ## Session model: one phase per session
 
@@ -98,6 +107,31 @@ Target the polish of the official LeetCode site: dense, calm, utilitarian, no de
 - **Theme:** follows the system by default; the nav toggle sets `data-theme` on `<html>` and persists to `localStorage` (`lf-theme`). Every new component must be checked in both themes.
 - **Accessibility:** visible sky focus ring, `aria-label` on icon-only buttons, AA contrast.
 - Before finishing UI work: `npm run lint`, `npm run typecheck`, `npm run build` in `web/`, and look at the page in light and dark mode.
+
+## Documenting every step (mandatory)
+
+Every action taken in a session must be written down in the repo docs in detail, including actions outside the repo (EC2 instance, AWS console, SSH or Windows setup, installed packages, system changes). Do not rely on chat history.
+
+- Keep a running log in `docs/phases/phase-<N>-log.md` (environment setup, per-unit entries, mistakes), created at the start of the phase and updated during each unit of work, not only at the end. It is kept after the phase; the report `phase-<N>.md` links to it.
+- For each step record: who did it (owner or Claude), the exact command or console action, the result or verified fact, and anything that failed and how it was fixed.
+- Record host state changes (packages, services, swap, config files, users, firewall/security-group rules) and the resulting state, so the host can be rebuilt or audited later.
+- Never write secrets, key contents, or public IPs in docs. Name the file or variable instead.
+- Anything repeatable goes into a script under `scripts/` as well, and the log points to it.
+- The phase report and phase summary are built from this log; a step missing from the log is treated as not done.
+- Every phase also updates `docs/FLOW.md`: tick the phase in the per-phase table, add its detailed "as built" flow (numbered steps with file paths), and fix the planned rows if the plan changed. The phase summary's flow diagram must match it.
+
+### Update the docs on your own, in the same response (mandatory)
+
+The owner must never have to ask for documentation. Before ending any response that changed a file, ran a command on a host, or settled a decision, update the docs in that same response:
+
+1. Add or extend the entry in `docs/phases/phase-<N>-log.md` with exact paths, commands, results, mistakes and corrections, and add new paths to its file and path index.
+2. Update `docs/FLOW.md` if the flow of any phase changed.
+3. Update `docs/PROGRESS.md` (status and resume point) whenever the state changed.
+4. If the phase is in review or done, also refresh the phase report (file list regenerated from `git diff --name-status`, branches, stats) and the phase summary.
+5. Check every number and name you write against git, the code or the host; fix anything that does not match.
+6. Commit the docs with the work (separate `docs(docs)` commit), then say in the reply which docs were updated and where.
+
+Answers given in chat are not review answers unless the owner wrote them; record who answered what.
 
 ## Working style
 
