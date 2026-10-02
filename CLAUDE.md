@@ -99,6 +99,17 @@ Target the polish of the official LeetCode site: dense, calm, utilitarian, no de
 - **Accessibility:** visible sky focus ring, `aria-label` on icon-only buttons, AA contrast.
 - Before finishing UI work: `npm run lint`, `npm run typecheck`, `npm run build` in `web/`, and look at the page in light and dark mode.
 
+## Documenting every step (mandatory)
+
+Every action taken in a session must be written down in the repo docs in detail, including actions outside the repo (EC2 instance, AWS console, SSH or Windows setup, installed packages, system changes). Do not rely on chat history.
+
+- Keep a running log in the current phase's `docs/phases/phase-<N>.md` (section "Environment setup log" or similar), updated at the end of each unit of work, not only at the end of the phase.
+- For each step record: who did it (owner or Claude), the exact command or console action, the result or verified fact, and anything that failed and how it was fixed.
+- Record host state changes (packages, services, swap, config files, users, firewall/security-group rules) and the resulting state, so the host can be rebuilt or audited later.
+- Never write secrets, key contents, or public IPs in docs. Name the file or variable instead.
+- Anything repeatable goes into a script under `scripts/` as well, and the log points to it.
+- The phase report and phase summary are built from this log; a step missing from the log is treated as not done.
+
 ## Working style
 
 If an explicit user instruction conflicts with this file, follow the user and suggest updating this file. Explain non-obvious choices in one line as you go so the end-of-phase review has no surprises.
