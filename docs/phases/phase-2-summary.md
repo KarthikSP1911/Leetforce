@@ -125,15 +125,19 @@ Decisions needed from you:
 - **C. Go and Java compile speed:** accept 10 to 20 s per submission for now and plan a warm cache for Phase 6 or 13, or do you want it addressed earlier (Phase 3)?
 
 ## Review Q&A
-Not held yet. Answers, feedback and decisions will be recorded here after the review in chat.
+Review skipped at the owner's request (2026-10-02: after the report and summary were pushed, the owner wrote "merge it").
+
+**Understanding questions 1 to 5: not answered.** No answers were given, so no gaps in understanding could be assessed. They can be used as the recap question at the start of the next session.
+
+**Decisions A, B and C: not answered.** The defaults used in Phase 2 stay in force and remain open for the owner to change: A = stdin/stdout problems only (ADR 0005); B = compile errors are shown on Submit (ADR 0007); C = Go and Java compile time accepted for now, warm cache deferred (ADR 0006).
 
 ## Open decisions
-- A, B and C above (they affect Phases 3, 6, 7, 8 and 13).
+- A, B and C above: not answered at the review (skipped); the Phase 2 defaults stay until the owner decides (they affect Phases 3, 6, 7, 8 and 13).
 - Where the production runner's privileges and cgroup parent are decided: Phase 3 and Phase 6 (carried over from Phase 1).
 - The dev host holds several identical git stash entries and compiled test binaries in `/tmp`; they can be dropped at any time.
 
 ## Handoff
-- **State:** work is on `phase/2-judge-engine` (everything pushed to `origin`); tag `phase-2-start` exists; the merge into `main` and the `phase-2-done` and `M1` tags wait for the review. The EC2 instance `leetforce-dev` is running (billable); stop it when idle and update `HostName` after a restart. The host checkout is on the phase branch. `web/AGENTS.md` and `web/CLAUDE.md` are still untracked (decision: ignore).
+- **State:** Phase 2 is merged into `main` and tagged `phase-2-done` and `M1`; `phase-2-start` marks the start. The branch `phase/2-judge-engine` is kept. Everything is pushed to `origin`. The EC2 instance `leetforce-dev` is running (billable); stop it when idle and update `HostName` after a restart. The host checkout is on the phase branch. `web/AGENTS.md` and `web/CLAUDE.md` are still untracked (decision: ignore).
 - **Next phase:** 3 - Queue and runner. Goal: jobs flow through Redis (Upstash) to runners, a crashed runner's job is reclaimed and judged once, and the runner never touches the database. Before it starts, have the Upstash `rediss://` URL ready (`LEETFORCE_REDIS_URL`, never committed), and think about decision C and where the runner's privileges are decided.
 - **Next session prompt:**
   ```

@@ -2,7 +2,7 @@
 
 **Branch:** `phase/2-judge-engine`
 **Range:** `phase-2-start..phase-2-done`
-**Status:** in progress
+**Status:** done (merged into main; see the closing entry)
 
 ## Units of work
 - [x] `docs/2-runtimes`: JDK on the dev host, setup script updated
@@ -102,6 +102,9 @@ The owner said "complete this phase fully". Claude did all steps; the review wit
 2. Results on the host (phase branch at `fda6204`): `make test-matrix`: `TestVerdictMatrixIsComplete` PASS and `TestJudgeVerdicts` PASS, 28 of 28 sub-tests (python 2.8 s, go 97 s, cpp 4.9 s, java 62 s; 2 m 48 s in all). `make fmt lint test`: 0 issues, all packages ok. `make test-sandbox` (serial): all packages ok, engine 196.3 s, sandbox 3.8 s, cmd/judge 0.8 s. `make test-adversarial`: PASS (all 11 attack tests and the other sandbox tests). Afterwards `pgrep nsjail` prints 0, no `leetforce-job-*` in `/var/tmp`, no job folders in `/sys/fs/cgroup/leetforce`.
 3. **Bug found while writing the report, fixed on `fix/2-test-outputs-ignored`:** the generated file list showed `problems/sample-sum/tests/*.in` but no `*.out`. `.gitignore` line 21 (`*.out`, meant for build output) ignored every expected-output file, so they had never been committed. Every test had passed only because the files existed on the host and on this machine; a fresh clone could not load `sample-sum` (and `judge run` and the whole verdict matrix would fail there). This was my mistake in unit 2 (I never checked `git status` for the `.out` files). Fix, in two commits so the first proves the test works: (a) `TestProblemTestFilesAreNotGitIgnored` asks `git check-ignore` about every file under `problems/*/tests`; run on the host before the fix it failed for all five `.out` files; (b) an exception `!problems/**/tests/*.out` in `.gitignore` and the five `.out` files committed. Verified from a fresh local clone of the branch on the host (`git clone ~/Leetforce /tmp/fresh-clone`, removed afterwards): `go test ./judge/problem ./judge/cmd/... ./judge/engine` ok. A third commit gave the test a context (`noctx` lint). This is the only bug in this phase that affected the committed state.
 4. The sandbox package was not changed beyond the whitespace fix in unit 2, and the full adversarial suite passed on the final code (the later commits changed only `.gitignore`, a test and data files).
+
+### Review skipped and phase closed (2026-10-02)
+The owner replied "did u write all and push" (Claude confirmed everything was pushed and that the merge waited for the review) and then "merge it". Claude treated that as an explicit request to skip the review (CLAUDE.md allows it). Review questions and decisions A, B, C stay unanswered and are recorded as such in `phase-2-summary.md`; `PROGRESS.md` says done with resume point "start Phase 3". Then: `git merge --no-ff` of `phase/2-judge-engine` into `main` with git's default message, tags `phase-2-done` and `M1`, push of `main` and the tags (result in the closing entry below).
 
 ## File and path index
 - `judge/cmd/judge/main.go`, `main_test.go`: the `judge` CLI

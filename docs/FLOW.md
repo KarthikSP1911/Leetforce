@@ -30,7 +30,7 @@ Rules that shape the flow (from CLAUDE.md): runners never connect to the databas
 |---|---|---|---|
 | 0 | Foundation `[x]` | The browser-side page shell: navbar, theme, problem table with sample data; repo rules and layout | `browser (shell only, sample data)` |
 | 1 | Sandbox core `[x]` | Stage 6 and 7: run untrusted code in nsjail + cgroup and return host-measured facts | `Go test -> sandbox.Run -> nsjail box -> measured result` |
-| 2 | Judge engine (M1) | Stage 5: drivers for Python, C++, Java, Go; compile step; checkers; verdicts; `problem.yaml`; test-set versions; `judge run` CLI | `judge CLI -> judge engine -> sandbox -> verdict` (local, one machine, no network) |
+| 2 | Judge engine (M1) `[x]` | Stage 5: drivers for Python, C++, Java, Go; compile step; checkers; verdicts; `problem.yaml`; test-set versions; `judge run` CLI | `judge CLI -> judge engine -> sandbox -> verdict` (local, one machine, no network) |
 | 3 | Queue and runner | Stages 3-4 and 8: Redis Streams, runner module, crash recovery; the runner talks only to Redis and the API | `job in Redis -> runner -> judge -> sandbox -> verdict sent to the API` |
 | 4 | API and database | Stages 1-2 and 9: Gin API, Neon Postgres, migrations, idempotent verdict writes, test-set version recorded | `API <-> Postgres`, plus the runner reporting to the API |
 | 5 | Live status and storage (M2) | Stage 10 and test data: SSE status stream, MinIO/S3 for tests, hidden-test redaction for Submit | `curl submit -> queue -> runner -> sandbox -> verdict -> SSE`, end to end on one machine |
@@ -98,7 +98,7 @@ Trust rule in this flow: steps 7 and 8 come from nsjail's own log and the kernel
 
 How the attack tests exercise it (`adversarial_test.go`, run by `make test-adversarial`): each test builds a hostile program, runs steps 1 to 10, and then checks that the attack was stopped, `Run` returned promptly, and no process or cgroup folder is left. The design reasoning is in [ADR 0004](adr/0004-sandbox-design.md); the full explanation is in [phase-1-summary.md](phases/phase-1-summary.md).
 
-### Phase 2: Judge engine (as built; in review)
+### Phase 2: Judge engine (as built; done)
 What `engine.Judge(ctx, problem, language, source, opts)` does today (`judge/engine/engine.go`):
 ```
  sudo bin/judge run [-all] [-detail] problems/<slug> <file>   judge/cmd/judge/main.go: picks the language from the

@@ -1,9 +1,9 @@
 # Phase 2: Judge engine (M1)
 
 **Branch:** `phase/2-judge-engine`
-**Range:** `phase-2-start..phase-2-done` (the `phase-2-done` and `M1` tags are created at the merge into `main`, after the review)
+**Range:** `phase-2-start..phase-2-done`
 **Dates:** 2026-10-02 to 2026-10-02
-**Milestone:** M1 (judge works locally), pending the review
+**Milestone:** M1 (judge works locally); the owner skipped the review ("merge it")
 **Working log:** [phase-2-log.md](phase-2-log.md) (every command, mistake and host change)
 **Summary for the owner:** [phase-2-summary.md](phase-2-summary.md)
 
@@ -35,7 +35,7 @@ Other gates on the same code: `make fmt lint test` 0 issues; `make test-sandbox`
 | `feat/2-judge-cli` | `judge run`, `build-judge`, CLAUDE.md commands | 4 |
 | `test/2-verdict-matrix` | matrix completeness test, `make test-matrix` | 2 |
 | `fix/2-test-outputs-ignored` | expected-output files were git-ignored | 3 |
-| `docs/2-report` | ADR 0007, report, summary, PROGRESS (merged at the end of the phase) | 3 at this writing |
+| `docs/2-report` | ADR 0007, report, summary, PROGRESS | 4 |
 
 Four further commits were made directly on the phase branch (log entries about the host checkout and stash; one duplicate removed).
 
