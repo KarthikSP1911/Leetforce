@@ -16,7 +16,18 @@ import (
 // DefaultCgroupRoot is the cgroup v2 directory under which per-run cgroups are
 // created. It must be creatable by root and have the memory, pids and cpu
 // controllers available from its parent.
-const DefaultCgroupRoot = "/sys/fs/cgroup/leetforce"
+var DefaultCgroupRoot = cgroupRootFromEnv()
+
+// CgroupRootEnv overrides DefaultCgroupRoot, so two suites on one host (for
+// example a gVisor run beside an nsjail run) do not share a cgroup root.
+const CgroupRootEnv = "LEETFORCE_CGROUP_ROOT"
+
+func cgroupRootFromEnv() string {
+	if v := os.Getenv(CgroupRootEnv); v != "" {
+		return v
+	}
+	return "/sys/fs/cgroup/leetforce"
+}
 
 const (
 	cgroupControllers = "+memory +pids +cpu"

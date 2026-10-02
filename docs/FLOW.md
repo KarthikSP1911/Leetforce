@@ -34,7 +34,7 @@ Rules that shape the flow (from CLAUDE.md): runners never connect to the databas
 | 3 | Queue and runner `[x]` | Stages 3-4 and 8: Redis Streams, runner module, crash recovery; the runner talks only to Redis and the API | `job in Redis -> runner -> judge -> sandbox -> verdict sent to the API` |
 | 4 | API and database `[x]` | Stages 1-2 and 9: Gin API, Neon Postgres, migrations, idempotent verdict writes, test-set version recorded | `curl -> API -> Postgres + Redis -> runner -> Redis -> API ingest -> Postgres` (verdict idempotent; poll `GET /submissions/:id`) |
 | 5 | Live status and storage (M2) `[x]` | Stage 10 and test data: SSE status stream, S3-compatible bucket for tests (RustFS locally, ADR 0011), the Judging state, hidden-test redaction checked end to end, a reaper for rows never queued | `curl submit -> API -> queue -> runner (tests from the bucket) -> sandbox -> verdict -> SSE`, end to end on one machine |
-| 6 | Sandbox hardening | Inside stage 6: gVisor vs nsjail decision, seccomp tuning, bigger adversarial suite | same flow, stronger box |
+| 6 | Sandbox hardening `[x]` | Inside stage 6: gVisor vs nsjail decision, seccomp tuning, bigger adversarial suite | same flow, stronger box |
 | 7 | Web: problems and workspace | Browser side of stage 1 with real data: problem list, split-pane workspace, Monaco | `browser shows real problems` |
 | 8 | Web: run, submit, results | Stages 1 and 10 in the UI: Run and Submit, console, result panel, SSE client | `browser submit -> ... -> verdict shown in the page` |
 | 9 | Auth and limits (M3) | Sign-up/login, sessions, rate limits per user and per IP, solved status in front of stage 1 | usable product on one machine |
@@ -215,6 +215,19 @@ Four additions to the Phase 4 flow, all on one machine (RustFS, Redis, the API a
                         transaction, Enqueue with the stored test_set_version, mark enqueued_at, commit   api/internal/reaper
 ```
 Database: migrations `00002_judging_status.sql` (status may be `judging`) and `00003_enqueued_at.sql` (the column and a partial index). Redaction for Submit: the POST response, `GET /submissions/:id` and every SSE event carry only state and the verdict view; the compiler output, stdout and stderr never leave the runner's result or the sandbox. Exit test: `make test-live-e2e` (`scripts/test-live-e2e.sh`): (1) queued, judging and AC 5/5 in order over a `curl -N` stream, with a runner that has no problems directory and no database URL; (2) hostile programs echo the hidden input and a marker to stdout, stderr and the compiler, and no response contains them, the source or the version (the detector has a self-test); (3) an orphaned row is re-queued after an API restart and judged. Not yet: Run (custom and sample input, Phase 8), authentication and per-user limits (Phase 9), per-role bucket credentials (Phase 12), retention of old bundles and the results stream (Phases 10 and 11).
+
+### Phase 6: Sandbox hardening (as built)
+
+The flow does not change. Only stages 6 and 7 (the box) get stronger, and the runner stops being root. Decision records: [ADR 0013](adr/0013-sandbox-nsjail-vs-gvisor.md) (nsjail default, gVisor opt-in; proposed, owner to confirm) and [ADR 0014](adr/0014-runner-privilege-model.md) (unprivileged runner).
+```
+ runner (user lfrunner, no capabilities) -> judge engine -> sandbox backend -> measured facts
+ 1. backend choice     LEETFORCE_SANDBOX=nsjail (default) | gvisor, or Spec.Backend: judge/sandbox/backend.go, gvisor.go
+ 2. seccomp filter     judge/sandbox/seccomp.go: seccompPolicy() denylist; clone with CLONE_NEW* denied, clone3 -> ENOSYS, sockets limited to unix/inet/inet6
+ 3. runner privileges  scripts/runner/leetforce-runner.service (+ AppArmor profile usr.local.bin.nsjail, install-runner.sh); cgroups via systemd delegation, judge/sandbox/delegate.go; LEETFORCE_CGROUP_ROOT
+ 4. adversarial suite  judge/sandbox/adversarial_more_test.go, adversarial_syscalls_test.go (~90 refused calls); make test-adversarial
+ 5. benchmarks         make bench-sandbox (judge/cmd/sandbox-bench); numbers in ADR 0013 and docs/phases/phase-6-log.md
+```
+Exit test: `make test-adversarial` passes on the merged tree (nsjail); `make test-sandbox` passes; `make bench-sandbox` prints the nsjail vs gVisor table. Not yet: the adversarial suite against the unprivileged runner, and per-backend expectations for the 3 adversarial tests that fail under gVisor.
 
 ## 4. Keeping this file true
 At the end of each phase: tick the phase in section 2, add its "as built" flow to section 3 (the detailed step list with file paths), and correct the "planned" rows if the plan changed.

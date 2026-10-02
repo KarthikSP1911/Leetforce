@@ -1,0 +1,66 @@
+# LeetForce runner, unprivileged and hardened (Phase 6, ADR 0014).
+# Install with scripts/runner/install-runner.sh. The runner runs as the
+# dedicated user "lfrunner" with NO capabilities; nsjail builds its sandbox in
+# an unprivileged user namespace (needs the AppArmor profile in this folder on
+# Ubuntu 24.04+) and the per-run cgroups live in the cgroup systemd delegates.
+[Unit]
+Description=LeetForce runner (unprivileged)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=lfrunner
+Group=lfrunner
+EnvironmentFile=/etc/leetforce/runner.env
+ExecStart=/opt/leetforce/bin/runner
+Restart=on-failure
+RestartSec=3
+# On stop systemd kills the whole service cgroup, including any sandbox left.
+KillMode=control-group
+TimeoutStopSec=20
+
+# cgroup v2 delegation: the user owns this service's cgroup subtree. systemd
+# puts the runner into the "runner" leaf; per-run cgroups are its siblings.
+Delegate=memory pids cpu
+DelegateSubgroup=runner
+
+# No privileges at all.
+CapabilityBoundingSet=
+AmbientCapabilities=
+NoNewPrivileges=yes
+SecureBits=noroot
+
+# Filesystem: read-only system, private /tmp and /var/tmp (job directories and
+# the problem cache live there and vanish with the service).
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=
+Environment=LEETFORCE_PROBLEM_CACHE=/var/tmp/leetforce-problems
+
+# Kernel surface. Deliberately NOT set: ProtectControlGroups and
+# RestrictNamespaces (the runner writes its delegated cgroup, nsjail creates
+# namespaces), ProtectHostname (its seccomp filter kills nsjail on
+# sethostname) and PrivateDevices (nsjail cannot remount the /dev nodes it
+# binds out of a private /dev). The runner is unprivileged, so host /dev is
+# not writable by it anyway.
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectClock=yes
+LockPersonality=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+# MemoryDenyWriteExecute is not set: child processes (JVM) need W+X pages.
+SystemCallArchitectures=native
+SystemCallFilter=@system-service @mount sethostname
+SystemCallFilter=~@reboot @swap @module @raw-io @obsolete
+UMask=0077
+
+# Backstop against a runner (not sandbox) leak; the sandbox has its own limits.
+TasksMax=4096
+
+[Install]
+WantedBy=multi-user.target

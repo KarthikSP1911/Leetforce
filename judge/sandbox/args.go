@@ -1,6 +1,7 @@
 package sandbox
 
 import (
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -27,17 +28,21 @@ const (
 // systemBinds are mounted read-only in every sandbox.
 var systemBinds = []string{"/usr", "/lib", "/lib64", "/bin"}
 
-// seccompPolicy denies syscalls a judged program never needs. Everything else
-// is allowed; the namespaces, empty network and read-only mounts do the rest.
-const seccompPolicy = "POLICY deny { ERRNO(1) { " +
-	"ptrace, mount, pivot_root, chroot, setns, unshare, bpf, " +
-	"kexec_load, init_module, finit_module, delete_module, perf_event_open, " +
-	"keyctl, add_key, request_key, reboot, swapon, swapoff" +
-	" } } USE deny DEFAULT ALLOW"
-
 var defaultEnv = map[string]string{
 	"PATH": "/usr/local/bin:/usr/bin:/bin",
 	"HOME": jailTmp,
+}
+
+// idMaps returns the nsjail uid and gid maps (inside:outside:count). As root
+// the program maps to the host nobody user; an unprivileged runner may only
+// map its own ids, so the program runs as inside uid jailUID backed by them.
+func idMaps() (uid, gid string) {
+	hostUID, hostGID := jailUID, jailUID
+	if Rootless() {
+		hostUID, hostGID = os.Geteuid(), os.Getegid()
+	}
+	in := strconv.Itoa(jailUID) + ":"
+	return in + strconv.Itoa(hostUID) + ":1", in + strconv.Itoa(hostGID) + ":1"
 }
 
 // nsjailArgs builds the nsjail command line for a spec. cgroupDir is the
@@ -47,12 +52,12 @@ var defaultEnv = map[string]string{
 // program has no network interface beyond a down loopback.
 func (s Spec) nsjailArgs(cgroupDir string) []string {
 	l := s.Limits
-	uidMap := strconv.Itoa(jailUID) + ":" + strconv.Itoa(jailUID) + ":1"
+	uidMap, gidMap := idMaps()
 
 	args := []string{
 		"-Mo",
 		"--user", uidMap,
-		"--group", uidMap,
+		"--group", gidMap,
 		"--hostname", "sandbox",
 		"--log_fd", strconv.Itoa(nsjailLogFD),
 		"--pass_fd", strconv.Itoa(ResultFD),
@@ -63,7 +68,7 @@ func (s Spec) nsjailArgs(cgroupDir string) []string {
 		"--rlimit_fsize", strconv.FormatUint(bytesToMiBCeil(l.MaxFileBytes), 10),
 		"--rlimit_nofile", strconv.FormatUint(orDefault(l.MaxOpenFiles, 64), 10),
 		"--rlimit_core", "0",
-		"--seccomp_string", seccompPolicy,
+		"--seccomp_string", seccompPolicy(),
 		"--use_cgroupv2",
 		"--cgroupv2_mount", cgroupDir,
 		"--cgroup_mem_max", strconv.FormatUint(l.MemoryBytes, 10),

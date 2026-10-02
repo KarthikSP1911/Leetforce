@@ -1,0 +1,11 @@
+# Allows nsjail to create user namespaces with capabilities inside them.
+# Ubuntu 24.04 sets kernel.apparmor_restrict_unprivileged_userns=1, which
+# otherwise strips all capabilities inside a namespace made by an unconfined
+# process (mount() then fails with EPERM). The profile is "unconfined" apart
+# from the userns rule, so it does not restrict nsjail further.
+abi <abi/4.0>,
+include <tunables/global>
+
+profile leetforce-nsjail /usr/local/bin/nsjail flags=(unconfined) {
+  userns,
+}

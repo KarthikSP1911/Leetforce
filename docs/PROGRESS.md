@@ -1,9 +1,9 @@
 # LeetForce progress
 
-**Current phase:** 5 - Live status and storage (done); next: 6 - Sandbox hardening
+**Current phase:** 6 - Sandbox hardening (done); next: 7 - Web: problems and workspace
 **Status:** done
-**Resume point:** start Phase 6
-**Open decisions:** Phase 5 review skipped by the owner: understanding questions unanswered; decisions A (RustFS instead of MinIO), B (runner no-database guard allows two interface-only `database/sql` packages) and C (Neon plan and Upstash usage, 15-minute reaper) stay on Claude's defaults. Carried over: Phase 4 understanding questions unanswered; Neon plan and limits unchecked; Phase 2 decisions A and C on defaults; runner privilege model (Phase 6); `web/AGENTS.md` and `web/CLAUDE.md` stay untracked
+**Resume point:** start Phase 7
+**Open decisions:** Phase 6 review skipped by the owner: understanding questions unanswered; decisions A (ADR 0013 stays PROPOSED: nsjail default, gVisor opt-in), B (shared runner and program uid, ADR 0014) and C (Phase 5 decisions) stay on Claude's defaults. Phase 6: confirm ADR 0013 (nsjail default, gVisor opt-in) and the shared uid in ADR 0014. Phase 5 review skipped by the owner: understanding questions unanswered; decisions A (RustFS instead of MinIO), B (runner no-database guard allows two interface-only `database/sql` packages) and C (Neon plan and Upstash usage, 15-minute reaper) stay on Claude's defaults. Carried over: Phase 4 understanding questions unanswered; Neon plan and limits unchecked; Phase 2 decisions A and C on defaults; runner privilege model (Phase 6); `web/AGENTS.md` and `web/CLAUDE.md` stay untracked
 
 | Phase | Name | Status | Sessions | Summary |
 |---|---|---|---|---|
@@ -13,3 +13,4 @@
 | 3 | Queue and runner | done | 1 | [summary](phases/phase-3-summary.md) |
 | 4 | API and database | done | 1 | [summary](phases/phase-4-summary.md) |
 | 5 | Live status and storage | done | 1 | [summary](phases/phase-5-summary.md) |
+| 6 | Sandbox hardening | done | 1 | [summary](phases/phase-6-summary.md) |

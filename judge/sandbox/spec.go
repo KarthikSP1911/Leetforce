@@ -2,6 +2,7 @@ package sandbox
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"syscall"
 	"time"
@@ -58,6 +59,12 @@ type Spec struct {
 	// CgroupRoot is the cgroup v2 directory per-run cgroups are created in;
 	// empty means DefaultCgroupRoot.
 	CgroupRoot string
+	// Backend picks the isolation technology; empty means the LEETFORCE_SANDBOX
+	// environment variable, which defaults to nsjail.
+	Backend Backend
+	// RunscPath overrides the runsc binary used by the gVisor backend; empty
+	// means "runsc" from PATH.
+	RunscPath string
 }
 
 // Validate reports whether the spec can be run.
@@ -83,6 +90,9 @@ func (s Spec) Validate() error {
 	}
 	if l.MaxPIDs == 0 {
 		return errors.New("spec: process limit must be positive")
+	}
+	if _, err := s.backend(); err != nil {
+		return fmt.Errorf("spec: %w", err)
 	}
 	return nil
 }
@@ -113,4 +123,10 @@ type Result struct {
 	OOMKilled       bool          // the kernel OOM-killed something in the run
 	PeakPIDs        uint64        // most processes/threads alive at once
 	PIDLimitHit     bool          // a fork or thread creation was refused by pids.max
+
+	// The same three measurements before the gVisor backend discounts its own
+	// fixed cost (see discountGVisorOverhead); equal to the fields above for nsjail.
+	RawPeakMemoryBytes uint64
+	RawCPUTime         time.Duration
+	RawPeakPIDs        uint64
 }
