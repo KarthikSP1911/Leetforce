@@ -17,7 +17,7 @@ export DEBIAN_FRONTEND=noninteractive
 sudo apt-get update -qq
 sudo apt-get install -y -qq build-essential git curl make pkg-config nodejs npm \
   autoconf bison flex libtool libprotobuf-dev libnl-route-3-dev protobuf-compiler \
-  openjdk-21-jdk-headless
+  openjdk-21-jdk-headless redis-server
 
 if ! swapon --show | grep -q "$SWAP_FILE"; then
   sudo fallocate -l "$SWAP_SIZE" "$SWAP_FILE"
