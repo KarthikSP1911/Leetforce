@@ -30,11 +30,41 @@ var ErrSandbox = errors.New("sandbox failure")
 
 // Run executes the spec inside nsjail and returns what the host observed. It
 // must run as root (see ADR 0003). The caller's ctx can cancel the run; the
-// spec's wall-time limit is enforced separately.
-func Run(ctx context.Context, spec Spec) (*Result, error) {
+// spec's wall-time limit is enforced separately. Every run gets its own cgroup,
+// which is emptied with cgroup.kill and removed before Run returns; if it
+// cannot be emptied, Run fails with ErrSandbox instead of leaking processes.
+func Run(ctx context.Context, spec Spec) (res *Result, err error) {
 	if err := spec.Validate(); err != nil {
 		return nil, err
 	}
+	root := spec.CgroupRoot
+	if root == "" {
+		root = DefaultCgroupRoot
+	}
+	job, err := newCgroupJob(root)
+	if err != nil {
+		return nil, fmt.Errorf("prepare run cgroup: %w", err)
+	}
+	defer func() {
+		if rerr := job.remove(); rerr != nil {
+			res = nil
+			err = errors.Join(err, fmt.Errorf("%w: %w", ErrSandbox, rerr))
+		}
+	}()
+
+	res, err = runJob(ctx, spec, job)
+	if res != nil {
+		s := job.stats()
+		res.PeakMemoryBytes = s.PeakMemoryBytes
+		res.CPUTime = s.CPUTime
+		res.OOMKilled = s.OOMKills > 0
+		res.PeakPIDs = s.PeakPIDs
+		res.PIDLimitHit = s.PIDLimitHits > 0
+	}
+	return res, err
+}
+
+func runJob(ctx context.Context, spec Spec, job *cgroupJob) (*Result, error) {
 	bin := spec.NsjailPath
 	if bin == "" {
 		bin = "nsjail"
@@ -54,13 +84,16 @@ func Run(ctx context.Context, spec Spec) (*Result, error) {
 
 	// The nsjail path is configuration and the arguments are built by
 	// nsjailArgs from a validated Spec, never from shell text.
-	cmd := exec.CommandContext(runCtx, bin, spec.nsjailArgs()...) //nolint:gosec // see comment above
+	cmd := exec.CommandContext(runCtx, bin, spec.nsjailArgs(job.dir)...) //nolint:gosec // see comment above
 	cmd.Stdin = spec.Stdin
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 	// ExtraFiles[0] becomes fd 3 in nsjail, matching nsjailLogFD.
 	cmd.ExtraFiles = []*os.File{logW}
-	cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGTERM) }
+	cmd.Cancel = func() error {
+		_ = job.kill() // the whole run, not just nsjail
+		return cmd.Process.Signal(syscall.SIGTERM)
+	}
 	cmd.WaitDelay = killDelay
 
 	logBuf := newCappedBuffer(maxLogBytes, nil)

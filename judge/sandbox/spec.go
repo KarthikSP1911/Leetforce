@@ -7,9 +7,9 @@ import (
 	"time"
 )
 
-// Limits are the per-run resource limits. Memory and process-count limits are
-// enforced by cgroup v2 (added separately); everything here is enforced by
-// nsjail rlimits, its time limit, and the output caps in this package.
+// Limits are the per-run resource limits. Memory, process-count and CPU-quota
+// limits are enforced by cgroup v2 (see cgroup.go); the rest by nsjail rlimits,
+// its time limit, and the output caps in this package.
 type Limits struct {
 	WallTime       time.Duration // real time before the run is killed
 	CPUTime        time.Duration // CPU time before SIGXCPU (RLIMIT_CPU)
@@ -17,6 +17,9 @@ type Limits struct {
 	MaxOpenFiles   uint64        // RLIMIT_NOFILE
 	MaxOutputBytes int64         // cap per stream (stdout, stderr); excess is discarded and the run is killed
 	TmpfsBytes     uint64        // size of the writable /tmp
+	MemoryBytes    uint64        // cgroup memory.max for the program and its children; swap is disabled
+	MaxPIDs        uint64        // cgroup pids.max: processes and threads
+	CPUMilliPerSec uint64        // CPU quota in ms per second (1000 = one full CPU)
 }
 
 // DefaultLimits returns conservative limits suitable for tests and as a base
@@ -29,6 +32,9 @@ func DefaultLimits() Limits {
 		MaxOpenFiles:   64,
 		MaxOutputBytes: 1 << 20,
 		TmpfsBytes:     64 << 20,
+		MemoryBytes:    256 << 20,
+		MaxPIDs:        64,
+		CPUMilliPerSec: 1000,
 	}
 }
 
@@ -47,6 +53,9 @@ type Spec struct {
 	Limits        Limits
 	// NsjailPath overrides the nsjail binary; empty means "nsjail" from PATH.
 	NsjailPath string
+	// CgroupRoot is the cgroup v2 directory per-run cgroups are created in;
+	// empty means DefaultCgroupRoot.
+	CgroupRoot string
 }
 
 // Validate reports whether the spec can be run.
@@ -63,6 +72,12 @@ func (s Spec) Validate() error {
 	}
 	if l.MaxOutputBytes <= 0 {
 		return errors.New("spec: output limit must be positive")
+	}
+	if l.MemoryBytes == 0 {
+		return errors.New("spec: memory limit must be positive")
+	}
+	if l.MaxPIDs == 0 {
+		return errors.New("spec: process limit must be positive")
 	}
 	return nil
 }
@@ -82,4 +97,11 @@ type Result struct {
 	// OutputExceeded is true when stdout or stderr passed MaxOutputBytes.
 	OutputExceeded bool
 	WallTime       time.Duration
+
+	// Host-side measurements, read from the run's cgroup.
+	PeakMemoryBytes uint64        // highest memory use of the run (memory.peak)
+	CPUTime         time.Duration // total CPU time used (cpu.stat usage_usec)
+	OOMKilled       bool          // the kernel OOM-killed something in the run
+	PeakPIDs        uint64        // most processes/threads alive at once
+	PIDLimitHit     bool          // a fork or thread creation was refused by pids.max
 }

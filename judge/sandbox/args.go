@@ -35,10 +35,12 @@ var defaultEnv = map[string]string{
 	"HOME": jailTmp,
 }
 
-// nsjailArgs builds the nsjail command line for a spec. A new network
+// nsjailArgs builds the nsjail command line for a spec. cgroupDir is the
+// run's cgroup directory, in which nsjail creates its own limited child cgroup.
+// A new network
 // namespace is nsjail's default and is deliberately not disabled, so the
 // program has no network interface beyond a down loopback.
-func (s Spec) nsjailArgs() []string {
+func (s Spec) nsjailArgs(cgroupDir string) []string {
 	l := s.Limits
 	uidMap := strconv.Itoa(jailUID) + ":" + strconv.Itoa(jailUID) + ":1"
 
@@ -56,6 +58,12 @@ func (s Spec) nsjailArgs() []string {
 		"--rlimit_nofile", strconv.FormatUint(orDefault(l.MaxOpenFiles, 64), 10),
 		"--rlimit_core", "0",
 		"--seccomp_string", seccompPolicy,
+		"--use_cgroupv2",
+		"--cgroupv2_mount", cgroupDir,
+		"--cgroup_mem_max", strconv.FormatUint(l.MemoryBytes, 10),
+		"--cgroup_mem_swap_max", "0",
+		"--cgroup_pids_max", strconv.FormatUint(l.MaxPIDs, 10),
+		"--cgroup_cpu_ms_per_sec", strconv.FormatUint(orDefault(l.CPUMilliPerSec, 1000), 10),
 	}
 
 	for _, p := range systemBinds {
@@ -64,6 +72,8 @@ func (s Spec) nsjailArgs() []string {
 	for _, p := range s.ReadOnlyBinds {
 		args = append(args, "-R", p)
 	}
+	// Device nodes real programs need (JVMs and runtimes open /dev/null and /dev/urandom).
+	args = append(args, "-B", "/dev/null", "-R", "/dev/zero", "-R", "/dev/urandom")
 	if l.TmpfsBytes > 0 {
 		args = append(args, "-m", "none:"+jailTmp+":tmpfs:size="+strconv.FormatUint(l.TmpfsBytes, 10))
 	}
