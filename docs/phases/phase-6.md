@@ -45,6 +45,7 @@ Merge commits (7):
 | `docs/phases/phase-6-log.md` | Running log: sections for Agents A, B, C and the lead |
 | `docs/phases/phase-6-scan-baseline.md` | Baseline Trivy scan of `main` before the phase |
 | `docs/phases/phase-6-summary.md` | Plain-language phase summary |
+| `docs/phases/phase-6.md` |  |
 | `judge/cmd/sandbox-bench/main.go` | Benchmark tool behind `make bench-sandbox` |
 | `judge/sandbox/adversarial_more_test.go` | New adversarial tests: /proc, /sys, fds, host files, network, disk, output, per-language bombs |
 | `judge/sandbox/adversarial_syscalls_test.go` | About 90 dangerous syscalls that must return EPERM, plus clone namespace flags and clone3 |
@@ -66,6 +67,7 @@ Merge commits (7):
 |---|---|---|
 | `Makefile` | Added `bench-sandbox` target | Runs the nsjail vs gVisor benchmark with a root-capable PATH |
 | `docs/FLOW.md` | Replaced the draft Phase 6 section with the as-built flow | Per-phase flow must stay true |
+| `docs/PROGRESS.md` |  |  |
 | `judge/sandbox/args.go` | Seccomp policy moved out to `seccomp.go`; jail uid map via `idMaps()` (maps the jail user to the runner uid when unprivileged) | Tighter policy; unprivileged runner can only map its own uid |
 | `judge/sandbox/cgroup.go` | Cgroup root can be set by `LEETFORCE_CGROUP_ROOT`; gVisor accounting hooks | Parallel suites and delegated cgroups need their own root |
 | `judge/sandbox/cgroup_run_test.go` | `requireNoRunCgroups` counts only cgroups of the test process | Concurrent runs under the shared root made the suite flaky |
@@ -106,6 +108,6 @@ None.
 - Docs still saying the runner needs root (ADR 0008, comments) need a touch-up.
 
 ## Stats
-- Commits: 18 (excluding merges)
-- Files: 20 added, 9 modified, 0 deleted
-- Lines: +2680 / -20
+- Commits: 19 (excluding merges)
+- Files: 21 added, 10 modified, 0 deleted
+- Lines: +2861 / -24
