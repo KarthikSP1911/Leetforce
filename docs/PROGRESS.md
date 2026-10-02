@@ -2,8 +2,8 @@
 
 **Current phase:** 2 - Judge engine
 **Status:** in progress
-**Resume point:** unit 5 `feat/2-drivers-python-go` (branch off `phase/2-judge-engine`)
-**Open decisions:** owner review of the Phase 2 section of `docs/PLAN.md` (deferred to the next session); disk headroom for the Phase 2 runtimes (keep as is; watch `df -h /`). Decided: Go layout ([ADR 0002](adr/0002-go-module-layout.md)); sandbox design ([ADR 0004](adr/0004-sandbox-design.md)); `web/AGENTS.md` and `web/CLAUDE.md` stay untracked
+**Resume point:** unit 6 `feat/2-drivers-cpp-java` (branch off `phase/2-judge-engine`)
+**Open decisions:** at the Phase 2 review: stdin/stdout problems instead of function-signature templates (ADR 0005); compile errors shown on Submit vs the "no raw stderr" rule (log, unit 5)
 
 | Phase | Name | Status | Sessions | Summary |
 |---|---|---|---|---|

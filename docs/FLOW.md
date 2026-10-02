@@ -98,5 +98,26 @@ Trust rule in this flow: steps 7 and 8 come from nsjail's own log and the kernel
 
 How the attack tests exercise it (`adversarial_test.go`, run by `make test-adversarial`): each test builds a hostile program, runs steps 1 to 10, and then checks that the attack was stopped, `Run` returned promptly, and no process or cgroup folder is left. The design reasoning is in [ADR 0004](adr/0004-sandbox-design.md); the full explanation is in [phase-1-summary.md](phases/phase-1-summary.md).
 
+### Phase 2: Judge engine (in progress: Python and Go work; C++, Java and the CLI are still to come)
+What `engine.Judge(ctx, problem, language, source, opts)` does today (`judge/engine/engine.go`):
+```
+ problems/<slug>/ ---> problem.Load ---> Problem{Spec, Tests, TestSetVer}   judge/problem/problem.go, version.go
+                                                  |
+ source text + language name                      v
+        |                              1. lang.Get(language): source name, compile argv, run argv, limits   judge/lang/lang.go
+        v                              2. write <job dir>/src/main.<ext> (host, world-readable, under /var/tmp)
+ 3. COMPILE (if the language has one) in sandbox.Run: only src/ is visible, read-only
+      python: compile() syntax check          go: go build -o /tmp/main, then cat /tmp/main >&4
+      the artifact comes back over fd 4 (ResultData); the host writes it to <job dir>/bin/main
+      any non-zero exit, signal, timeout or OOM  ->  verdict CE with the (cleaned, 4 KiB) compiler output; stop
+ 4. for each test, in name order: sandbox.Run with the whole job dir read-only, test input on stdin, limits from
+      problem.yaml (CPU limit + 1 s kill slack, wall 2x + 1 s, memory limit, output cap from the expected size)
+ 5. verdict.Classify(result, limits)        host facts only: OLE > MLE > TLE > RE, else Completed      judge/verdict/verdict.go
+ 6. if Completed: checker.Check(mode, expected, stdout) -> AC or WA                                       judge/checker/checker.go
+ 7. stop at the first non-AC (or run all with ContinueOnFail); verdict.Summarize -> Overall{verdict, first failed test, max time, max memory}
+ 8. remove the job dir; return Report{TestSetVersion, Overall, Cases, CompileOutput}
+```
+Details of a failing test (input, expected, actual, stderr) are recorded only for sample tests and only when the caller sets `Options.Detail` (Run); hidden tests never get any. Design reasoning: [ADR 0005](adr/0005-problem-format-and-test-set-version.md) and [ADR 0006](adr/0006-compile-in-sandbox-artifact-over-fd4.md).
+
 ## 4. Keeping this file true
 At the end of each phase: tick the phase in section 2, add its "as built" flow to section 3 (the detailed step list with file paths), and correct the "planned" rows if the plan changed.

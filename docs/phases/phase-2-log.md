@@ -9,7 +9,7 @@
 - [x] `feat/2-problem-format`: `problem.yaml`, loader, test-set version hash, sample problem
 - [x] `feat/2-verdicts`: verdict classification from host-measured facts
 - [x] `feat/2-checkers`: host-side output comparison
-- [ ] `feat/2-drivers-python-go`
+- [x] `feat/2-drivers-python-go`
 - [ ] `feat/2-drivers-cpp-java`
 - [ ] `feat/2-judge-cli`: `judge run problems/<slug> <file>`
 - [ ] `test/2-verdict-matrix`: 7 verdicts x 4 languages, adversarial suite re-run
@@ -59,7 +59,28 @@ Design: [ADR 0005](../adr/0005-problem-format-and-test-set-version.md). Decision
 3. Mistake: the first commit was rejected by commitlint (a body line over 72 characters); the branch was pushed with no new commit, then the commit was redone with shorter lines and pushed. Nothing was lost.
 4. Workflow change: this time the host got the code with `git fetch`/`git pull` of the pushed unit branch, not `scp`, so no untracked copies or stash entries were created. Host: `make fmt lint` 0 issues, `go test ./judge/checker` ok, working tree clean. No sandbox code changed.
 
+### Unit 5: `feat/2-drivers-python-go` (2026-10-02)
+Design: [ADR 0006](../adr/0006-compile-in-sandbox-artifact-over-fd4.md). Flow: `docs/FLOW.md`, "Phase 2". Claude did all steps; the owner said "next".
+1. Claude (host, read-only spike): a cold `go build` of a small program outside the sandbox took 11.1 s, peak RSS 257 MB, 34 MB of cache, 2.4 MB binary. This sized the Go compile limits.
+2. Claude (repo), new code: `judge/lang/lang.go` (+ `lang_test.go`): language definitions for python and go; `judge/engine/engine.go` (+ `engine_test.go`): `Engine.Judge`, `Options{ContinueOnFail, Detail}`, `Report`, `CaseResult`, `Detail`; `problems/sample-sum/solutions/{python,go}/{ac,wa,tle,mle,re,ole,ce}.*` (14 files).
+3. Design points: compile runs in a sandbox with only `src/` read-only; the artifact returns over fd 4; job dir under `/var/tmp` (the sandbox's own `/tmp` tmpfs would hide a bind under `/tmp`; the engine rejects such a root); the CPU kill slack is limit + 1 s so the measured CPU time is always over the limit for a runaway (a kill exactly at the limit could measure under it and look like RE); wall limit 2x + 1 s; output cap `max(64 KiB, 2x expected + 4 KiB)`; compile output has the host job path removed, is made valid UTF-8 and cut to 4 KiB; a source over 64 KiB or an unknown language is an error, not a verdict. **Owner decision needed at the review:** compile errors are returned to the user on Submit (the compiler's message about their own source), which is an exception to "raw stderr is never returned for Submit" as written in `CLAUDE.md`; run-time stderr is only in `Detail`, for Run on sample tests.
+4. Mistakes and fixes, in the order found on the host:
+   - `make lint`: gosec G304 on the test fixture read; added a `nolint` with the reason.
+   - Test binary run from the wrong directory (relative fixture path); run it from `judge/engine`.
+   - Every Go compile failed in 20 ms: "go binary is trimmed and GOROOT is not set" because the sandbox has no `/proc`; fixed by setting `GOROOT=/usr/local/go` and `GOTELEMETRY=off` (the "telemetry sidecar" message still prints and is harmless).
+   - Then "write $WORK/b010/_pkg_.a: file too large": the runtime archive is bigger than the 8 MiB `RLIMIT_FSIZE` default; added `CompileLimits.MaxFileBytes` (64 MiB for go).
+   - `make test-sandbox` failed `TestRunKillsWholeCgroup` and `TestRunBackgroundResultHolderIsCleanedUp` when all packages ran at once: they pass alone, and the engine package's Go compile shares the cgroup root's memory cap and runs in parallel with them. Fixed in the `Makefile` with `go test -p 1 -timeout 20m` (commit `build(ci)`). I did not dig further into which assertion tripped; the rerun with `-p 1` passed all tests.
+   - Two stray `python3 -` commands in my shell hung again (the Windows `python3` stub); no effect on the repo.
+5. Results on the host: `make fmt lint test` clean; `make test-sandbox` (serial): checker, engine (98.8 s), lang, problem, sandbox, verdict all ok. Verdict matrix for python and go: ac, wa (first failure at test 03), tle, mle, re, ole at test 01 and ce all correct (python total 2.8 s; go 97 s, 9-17 s per compile). Also tested: details only for failing sample tests and only with `Options.Detail`, never for hidden tests; `ContinueOnFail` runs all 5 tests; a program that writes a forged `{"verdict":"AC"}` to fd 4 and prints `AC` gets WA; the job dir is removed afterwards. After the run: `pgrep nsjail` prints 0, no `leetforce-job-*` left in `/var/tmp`, `/sys/fs/cgroup/leetforce` has no job folders, disk 6.6 GB free.
+6. The adversarial suite was not re-run for this unit: no file in `judge/sandbox/` changed.
+
 ## File and path index
+- `judge/lang/lang.go`, `lang_test.go`: language definitions (python, go so far)
+- `judge/engine/engine.go`, `engine_test.go`: compile and judge a submission
+- `problems/sample-sum/solutions/python/*.py`, `problems/sample-sum/solutions/go/*.go`: one solution per verdict
+- `docs/adr/0006-compile-in-sandbox-artifact-over-fd4.md`: ADR
+- `Makefile`: `test-sandbox` now `-p 1 -timeout 20m`
+- Host: `/tmp/engine.test` (compiled test binary, can be deleted); `/var/tmp/leetforce-job-*` (job dirs, removed after each job)
 - `judge/checker/checker.go`, `checker_test.go`: output comparison (`tokens`, `exact`)
 - `judge/verdict/verdict.go`, `verdict_test.go`: verdict classification and summary
 - Host: a second stash entry "pre-sync copy of feat/2-verdicts files" (identical to the branch, can be dropped; same cause as the first: files were copied with scp before being committed)
