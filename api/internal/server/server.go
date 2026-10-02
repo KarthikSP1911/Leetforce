@@ -25,11 +25,17 @@ type Deps struct {
 	Samples     SampleSource
 	Submissions SubmissionStore
 	Queue       Enqueuer
+
+	// Events tunes the SSE status stream; the zero value takes the defaults.
+	Events EventConfig
+
+	slots streamSlots
 }
 
 // New returns the router. /healthz says the process is up and does no I/O;
 // /readyz says it can serve requests, which needs its dependencies.
 func New(d Deps) *gin.Engine {
+	d.slots = newStreamSlots(d.Events.withDefaults().MaxStreams)
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	r.Use(gin.Recovery(), requestLog(d.Logger))
@@ -57,6 +63,7 @@ func New(d Deps) *gin.Engine {
 	r.GET("/problems/:slug", d.getProblem)
 	r.POST("/submissions", d.createSubmission)
 	r.GET("/submissions/:id", d.getSubmission)
+	r.GET("/submissions/:id/events", d.streamEvents)
 	return r
 }
 
