@@ -110,17 +110,30 @@ Decisions needed before or during Phase 2:
 - C. Do you approve the Phase 2 section of `docs/PLAN.md` as drafted (drivers for Python, C++, Java and Go, verdicts, `problem.yaml`, test-set versioning, `judge run` CLI), or do you want changes?
 
 ## Review Q&A
-Filled in after the review: each question, your answer, and feedback or clarification.
+Review held in chat on 2026-10-02.
+
+**Understanding questions 1 to 5: not answered by the owner.** The owner replied to the decisions only (the review message said any or all could be answered). While the review was open, Claude explained the five topics in chat at the owner's request; those were Claude's explanations, not the owner's answers, and are summarised here so the record is complete:
+1. *Why host-measured facts?* Exit status and memory come from nsjail's log and the cgroup, which the program cannot write to. If the program's output were trusted, it could print a fake `{"verdict":"AC"}` or a fake "exited with status 0" line and a failing or crashing solution would pass. Five tests (`TestRunForgedResultsDoNotChangeOutcome`) try this.
+2. *Why kill the whole cgroup?* A program can start children, hide a background process or detach with `setsid`; killing only the main process leaves them running. `cgroup.kill` removes every process the run started (about 2 ms in the spike), and `TestAdversarialOrphansAreKilled` checks it.
+3. *Why an error, not "Runtime Error"?* If nsjail cannot build the box the program never started, so the user did nothing wrong; a verdict would punish them for a host failure. `Run` returns `ErrSandbox` so the job can be retried. A run only counts as started if nsjail logged `Executing`, because a failed setup sometimes ends in SIGKILL, which looks like a crash.
+4. *Why leave nothing behind?* Leaked processes keep using CPU and memory and leaked cgroups pile up as kernel objects and directories; a runner would slow down and then fail valid jobs. `Run` waits for `populated 0` and returns `ErrSandbox` if it cannot empty the cgroup.
+5. *10 GB of output?* A capped buffer keeps only the first N bytes (1 MiB by default) and the first overflow cancels the run, which kills the whole cgroup; the wall-time limit is the backstop (and for files, the file-size limit and the small `/tmp`). `OutputExceeded` is set, which maps to OLE later.
+No gap in understanding was identified because the owner did not answer; if the owner wants to be quizzed on these, it can be done at the start of the next session as the recap question.
+
+**Decisions (owner answers):**
+- **A. `web/AGENTS.md` and `web/CLAUDE.md`:** ignore. They stay untracked and untouched; nothing was added to `.gitignore`.
+- **B. Disk size:** keep as it is (14 GB, about 7 GB free). Revisit if installing the Phase 2 runtimes runs short.
+- **C. Phase 2 plan approval:** the owner will review it in the next session. Until then the Phase 2 section of `docs/PLAN.md` is a draft.
 
 ## Open decisions
-- `web/AGENTS.md` and `web/CLAUDE.md` (see A above). Matters now.
-- Disk size for runtimes (B). Matters at the start of Phase 2.
-- Owner approval of the PLAN.md Phase 2 section (C), and the standing draft review of the whole plan.
+- Owner review and approval of the Phase 2 section of `docs/PLAN.md` (C), and the standing draft review of the whole plan. To be done at the start of the next session, before any Phase 2 code.
+- Disk headroom for the Phase 2 runtimes (g++, a JDK, Go): decided to keep as is (B); watch `df -h /` when installing.
 - Where the production runner's cgroup parent and root privileges are decided: Phase 3 and Phase 6.
+- Resolved: `web/AGENTS.md` and `web/CLAUDE.md` (ignore).
 
 ## Handoff
-- **State:** branch `phase/1-sandbox-core` (all units merged and pushed), tag `phase-1-start`. `phase-1-done` and the merge to `main` happen after the review. The EC2 instance `leetforce-dev` is running (billable) with the repo at the phase branch; stop it when idle. Scratch files remain in `/tmp/spike/` and an empty `/sys/fs/cgroup/leetforce` on the host (see the log).
-- **Next phase:** 2 - Judge engine (M1). Judge a solution against a problem locally: drivers for Python, C++, Java and Go, a compile step, verdicts AC/WA/TLE/MLE/RE/CE/OLE with runtime and memory, `problem.yaml`, test-set versioning, and a `judge run problems/<slug> <file>` command. Think about decisions A, B and C above first. Carry over: classify TLE from measured CPU time, and never decide a verdict from `ResultData`.
+- **State:** Phase 1 is merged into `main` (merge commit with the default message) and tagged `phase-1-done`; `phase-1-start` marks the start. The branch `phase/1-sandbox-core` is kept for history. Everything is pushed to `origin`. The EC2 instance `leetforce-dev` was left running (billable): stop it when idle and update `HostName` in `C:\Users\karth\.ssh\config` after a restart. The host checkout is on an older commit of the phase branch (run `git pull` there). Scratch files remain in `/tmp/spike/` and an empty `/sys/fs/cgroup/leetforce` on the host (see the log). `web/AGENTS.md` and `web/CLAUDE.md` are still untracked (decision: ignore).
+- **Next phase:** 2 - Judge engine (M1). Judge a solution against a problem locally: drivers for Python, C++, Java and Go, a compile step, verdicts AC/WA/TLE/MLE/RE/CE/OLE with runtime and memory, `problem.yaml`, test-set versioning, and a `judge run problems/<slug> <file>` command. Before it starts, the owner reviews the Phase 2 section of `docs/PLAN.md` (decision C, deferred to the next session). Carry over: classify TLE from measured CPU time, and never decide a verdict from `ResultData`; check `df -h /` when installing runtimes.
 - **Next session prompt:**
   ```
   Continue LeetForce. Read CLAUDE.md, docs/PROGRESS.md and docs/phases/phase-1-summary.md, then start Phase 2 (Judge engine). Ask me the recap question and show me the session plan before writing any code.

@@ -261,3 +261,11 @@ The owner said that updating the docs after each response should never need to b
 5. Not changed: `docs/FLOW.md` (no flow changed), `docs/PROGRESS.md` (state unchanged: Phase 1 still in review, waiting for the owner's answers or a skip).
 
 Addendum to the path index (section C above): `C:\Users\karth\.claude\projects\c--Users-karth-Downloads-Leetforce\memory\MEMORY.md`, `feedback-update-docs-without-being-asked.md`, `leetforce-phase-workflow.md`.
+
+### Review and closing the phase (2026-10-02)
+Windows repo, GitHub `origin`, and Claude's memory folder; no host changes.
+1. The owner answered the three decisions and not the five understanding questions: A = ignore `web/AGENTS.md` and `web/CLAUDE.md`; B = keep the disk as it is; C = the owner will review the Phase 2 plan in the next session. Claude's earlier chat explanations of the five questions were recorded in `docs/phases/phase-1-summary.md` ("Review Q&A") as Claude's explanations, not owner answers.
+2. Before closing, verified with git: `main` and `origin/main` were the same commit (`c5b33d7`); the phase branch matched `origin/phase/1-sandbox-core`; `git diff --stat 112824c HEAD -- judge Makefile go.work .golangci.yml scripts` was empty, so only documents changed since the last full test run (32 PASS, 0 FAIL, 0 SKIP) and that result still describes the merged code.
+3. Edited `docs/phases/phase-1-summary.md` (Review Q&A, Open decisions, Handoff state and next-phase notes), `docs/PROGRESS.md` (status `done`, resume point "start Phase 2", open decisions updated, table row `done`), and `docs/phases/phase-1.md` (the two known-issues bullets about the `web/` files and the PLAN.md review now show the decisions).
+4. Updated Claude's memory file `C:\Users\karth\.claude\projects\c--Users-karth-Downloads-Leetforce\memory\leetforce-phase-workflow.md` to say Phase 1 is closed.
+5. Merged `phase/1-sandbox-core` into `main` with a merge commit and git's default message, tagged `phase-1-done`, and pushed `main` and the tag (see the commands and result in the final entry below).

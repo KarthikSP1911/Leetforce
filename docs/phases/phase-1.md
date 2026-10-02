@@ -137,8 +137,8 @@ Generated with `git diff --name-status phase-1-start..HEAD` and `--numstat` and 
 - **The seccomp denylist is not tested alone**; its denials overlap with the unprivileged user namespace. A seccomp-only test and a review of running as root move to **Phase 6**.
 - **Production cgroup parent**: the tests put a 400 MiB backstop on `/sys/fs/cgroup/leetforce`; a real runner must set its own, and a systemd slice with `Delegate=yes` is decided in **Phase 3 / Phase 12**.
 - **Commit `f1657fc`** (`docs(docs): log unit 3 cgroup limits work`) also contains all the unit 3 code, because two feature commits were rejected by commitlint and the next commit swept in the staged files. It is merged and pushed and phase branches are never force-pushed, so it stays; recorded in the log with corrective rules.
-- **Untracked `web/AGENTS.md` and `web/CLAUDE.md`** predate this phase and were left untouched (decision pending, default: not committed).
-- **PLAN.md review**: the Phase 1 section was treated as approved for this session; the owner's formal review of the draft plan is still open.
+- **Untracked `web/AGENTS.md` and `web/CLAUDE.md`** predate this phase and were left untouched. Owner decision at the review: ignore (they stay untracked; nothing added to `.gitignore`).
+- **PLAN.md review**: the Phase 1 section was treated as approved for this session. The owner will review the Phase 2 section (and the draft plan) at the start of the next session, before any Phase 2 code.
 - **Host scratch files** in `/tmp/spike/` and an empty `/sys/fs/cgroup/leetforce` remain on the dev host (listed in the log); no repo impact.
 - The dev instance is billable while running (README cost table); stop it when idle.
 
