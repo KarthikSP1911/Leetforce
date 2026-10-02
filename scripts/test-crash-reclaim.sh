@@ -53,6 +53,10 @@ wait_for() { # wait_for <seconds> <description> <command...>
 }
 
 result_count() { bin/lfq results | grep -c "\"submission_id\":\"$SUB\"" || true; }
+# wait_for runs its command repeatedly, so conditions must be functions (a
+# "$(...)" in the arguments would be evaluated only once, before waiting).
+has_verdict() { [ "$(result_count)" -ge 1 ]; }
+is_stopped() { ! sudo -n kill -0 "$1" 2>/dev/null; }
 
 echo "1. start runner A and enqueue $SRC (id $SUB)"
 start_runner runner-a "$WORK/a.log"
@@ -67,7 +71,7 @@ sleep 1
 
 echo "3. start runner B; after MinIdle ($LEETFORCE_JOB_MIN_IDLE) it must reclaim and judge the job"
 start_runner runner-b "$WORK/b.log"
-wait_for 120 "runner B to publish a verdict" test "$(result_count)" -ge 1
+wait_for 120 "runner B to publish a verdict" has_verdict
 
 echo "4. check: exactly one verdict, AC, from runner B, job was a reclaim"
 sleep 8  # a duplicate verdict, if the queue allowed one, would appear by now
@@ -81,7 +85,7 @@ grep -q '"reclaimed":true' "$WORK/b.log" || fail "runner B log does not show a r
 echo "5. stop runner B with SIGTERM; it must exit cleanly"
 PID_B="$(cat "$WORK/runner-b.pid")"
 sudo -n kill -TERM "$PID_B"
-wait_for 30 "runner B to exit" bash -c "! sudo -n kill -0 $PID_B 2>/dev/null"
+wait_for 30 "runner B to exit" is_stopped "$PID_B"
 grep -q '"msg":"runner stopped"' "$WORK/b.log" || fail "runner B did not log a clean stop"
 
 echo "PASS: runner killed mid-job; job reclaimed and judged once"
