@@ -4,7 +4,14 @@
 
 GO_MODULES := judge
 
-.PHONY: fmt lint test build-judge test-matrix test-sandbox test-adversarial
+.PHONY: dev down fmt lint test build-judge test-matrix test-sandbox test-adversarial
+
+# Local Redis and MinIO (needs Docker and LEETFORCE_MINIO_PASSWORD in .env).
+dev:
+	docker compose --env-file .env up -d
+
+down:
+	docker compose down
 
 fmt:
 	@for m in $(GO_MODULES); do (cd $$m && golangci-lint fmt ./...) || exit 1; done
