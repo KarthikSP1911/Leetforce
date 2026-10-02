@@ -112,7 +112,7 @@ Target the polish of the official LeetCode site: dense, calm, utilitarian, no de
 
 Every action taken in a session must be written down in the repo docs in detail, including actions outside the repo (EC2 instance, AWS console, SSH or Windows setup, installed packages, system changes). Do not rely on chat history.
 
-- Keep a running log in the current phase's `docs/phases/phase-<N>.md` (section "Environment setup log" or similar), updated at the end of each unit of work, not only at the end of the phase.
+- Keep a running log in `docs/phases/phase-<N>-log.md` (environment setup, per-unit entries, mistakes), created at the start of the phase and updated during each unit of work, not only at the end. It is kept after the phase; the report `phase-<N>.md` links to it.
 - For each step record: who did it (owner or Claude), the exact command or console action, the result or verified fact, and anything that failed and how it was fixed.
 - Record host state changes (packages, services, swap, config files, users, firewall/security-group rules) and the resulting state, so the host can be rebuilt or audited later.
 - Never write secrets, key contents, or public IPs in docs. Name the file or variable instead.

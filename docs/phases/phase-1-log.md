@@ -1,8 +1,8 @@
-# Phase 1: Sandbox core
+# Phase 1 working log: Sandbox core
 
 **Branch:** `phase/1-sandbox-core`
 **Range:** `phase-1-start..phase-1-done`
-**Status:** working draft (report is completed at the end of the phase)
+**Status:** working log kept after the phase; the formal report is [phase-1.md](phase-1.md)
 
 ## Units of work
 - [x] `docs/1-dev-environment`: ADR 0003, `scripts/setup-dev-host.sh`, README cost table
