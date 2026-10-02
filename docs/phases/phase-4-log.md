@@ -10,7 +10,7 @@
 - [x] `feat/4-problems-endpoints`: `GET /problems`, `GET /problems/:slug`
 - [x] `feat/4-submissions`: `POST /submissions`, `GET /submissions/:id`, enqueue with the test-set version
 - [x] `feat/4-verdict-ingest`: results-stream consumer writing idempotent verdicts; dead-letter watcher marks `IE`
-- [ ] `test/4-idempotency`: duplicate verdicts change nothing; API to runner end-to-end
+- [x] `test/4-idempotency`: duplicate verdicts change nothing; API to runner end-to-end
 - [ ] `docs/4-adr-report`: ADR, `docs/FLOW.md`, report, summary, `PROGRESS.md` to in review
 - [ ] review, merge to `main`, tag `phase-4-done`
 
@@ -70,6 +70,16 @@
 5. Tests: `store/verdicts_test.go` `TestRecordVerdictIsIdempotent` (the exit criterion: after a first AC, a repeat of it, a conflicting WA and an IE leave the submission, verdict, runner id, test-set version and created time unchanged, and exactly one row exists) and `TestRecordVerdictEdgeCases` (unknown submission stores nothing and is not an error, a bad UUID and a bad verdict string are permanent errors and change nothing, an IE takes the submission's version, a timeout is not permanent); `ingest/ingest_test.go` with fakes (every failure class: acknowledged or left pending as designed, field mapping, dead letter to IE, `Run` handles both streams and stops on cancel).
 6. Verified on the host: `make fmt lint` 0 issues in all modules; store tests (4) pass against Neon; ingest tests pass; `queue` tests (including the Phase 3 ones) pass against the host's Redis.
 
+### Unit 6: `test/4-idempotency` (2026-10-02)
+1. Claude (repo): `scripts/test-api-e2e.sh` and `make test-api-e2e`. It starts `bin/api` and a root `bin/runner` on a throwaway queue prefix against the real Neon and Upstash, then: (1) POSTs the sample-sum Python solution and waits for `status: judged`, expecting AC with all five tests passed and no test-set version in the response; (2) injects a conflicting WA verdict (runner `impostor`, version `bogus`) straight into the results stream with `redis-cli`, waits until the API's group has read 2 entries with none pending (`XINFO GROUPS`), and requires the `GET /submissions/:id` body to be byte-identical to before; (3) kills the runner, submits again, injects a dead-lettered job for that submission into the dead-letter stream, and expects an IE verdict within 90 s (the dead-letter stream is drained every 30 s).
+2. Result on the host: PASS in about 51 s (twice, the second time after the dependency upgrade below).
+3. Mutation check (to be sure the test can fail): on the host copy only, `ON CONFLICT (submission_id) DO NOTHING` was changed to `DO UPDATE SET verdict = EXCLUDED.verdict`. `TestRecordVerdictIsIdempotent` failed ("duplicate AC record = true, want false") and the end-to-end test failed with the stored verdict flipping from AC to WA. The file was restored from a copy afterwards (`grep` confirmed `DO NOTHING` is back) and the real tree was never edited.
+4. Side effect: every run of the script writes two real rows to the `submissions` and `verdicts` tables on Neon (this run and the mutation run added four more). There is no cleanup command yet.
+5. Trivy, first full scan (I had only run the secret scan on earlier units; the full scan is required before merging a unit): `scripts/scan-staged.sh full` (new mode: `trivy fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --exit-code 1` on the staged tree, Trivy 0.75.0). Finding: 16 HIGH CVEs in `api/go.mod`, all in transitive dependencies of gin and pgx: `golang.org/x/crypto` v0.48.0 (10), `golang.org/x/net` v0.51.0 (5), `golang.org/x/text` v0.34.0 (1); nothing in the other modules, no secrets, no misconfigurations. Fix: `go get golang.org/x/crypto@latest golang.org/x/net@latest golang.org/x/text@latest` and `go mod tidy` (crypto v0.57.0, net v0.59.0, text v0.42.0, plus sync and sys). Rescan: clean. `make fmt lint test` (0 issues, all ok) and `make test-api-e2e` (PASS) re-run on the upgraded dependencies. No `.trivyignore` needed.
+5a. `Dockerfile`, Terraform and Kubernetes scans (`trivy config`, `trivy image`) do not apply yet: none exist.
+6. Mistake: the commit `feat(queue): let the API consume results and dead letters` (`60ccd05`) has the footer `Refs: phase-3`; it is Phase 4 work. It was already pushed, and branch history is not rewritten, so it stays and is recorded here (`git log --grep` by footer will attribute it to the wrong phase).
+7. Note on `make fmt`: files written on Windows have CRLF line endings, which the host's formatter and bash scripts reject; the sync step to the host strips them (`sed -i 's/$//'` for shell scripts). Git normalises line endings on commit (`CRLF will be replaced by LF` warnings), so the repository content is LF.
+
 ## File and path index
 - `docs/phases/phase-4-log.md`: this log
 - `api/migrations/00001_init.sql`: schema (problems, submissions, verdicts)
@@ -88,5 +98,8 @@
 - `queue/ingest.go`, `queue/ingest_test.go`: the API's consumer groups on the results and dead-letter streams
 - `api/internal/store/verdicts.go`, `verdicts_test.go`: idempotent verdict write
 - `api/internal/ingest/ingest.go`, `ingest_test.go`: results and dead-letter loop
+- `scripts/test-api-e2e.sh`, `Makefile` (`test-api-e2e`): the Phase 4 end-to-end test
+- `scripts/scan-staged.sh`: now also has a `full` mode (vuln, secret, misconfig)
+- `api/go.mod`, `api/go.sum`: x/crypto, x/net, x/text upgraded for 16 HIGH CVEs
 - `go.work`: `./api` added; `Makefile`: `api` in `GO_MODULES`, `build-api`
 - `.env.example`: added `DATABASE_URL`, `LEETFORCE_MIGRATE_DATABASE_URL`
