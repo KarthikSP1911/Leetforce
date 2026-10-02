@@ -6,7 +6,7 @@
 
 ## Units of work
 - [x] `docs/2-runtimes`: JDK on the dev host, setup script updated
-- [ ] `feat/2-problem-format`: `problem.yaml`, loader, test-set version hash, sample problem
+- [x] `feat/2-problem-format`: `problem.yaml`, loader, test-set version hash, sample problem
 - [ ] `feat/2-verdicts`: verdict classification from host-measured facts
 - [ ] `feat/2-checkers`: host-side output comparison
 - [ ] `feat/2-drivers-python-go`
@@ -32,6 +32,25 @@
 ### Host checkout moved (2026-10-02)
 Owner said "retry". Claude (host): `git checkout -- judge/sandbox/run.go` (discarded the whitespace-only gofmt edit), `git fetch`, `git checkout phase/2-judge-engine`, `git pull --ff-only`. Result: clean, at `a7dddac`, tracking `origin/phase/2-judge-engine`. Resolves the blocked step above.
 
+### Unit 2: `feat/2-problem-format` (2026-10-02)
+Design: [ADR 0005](../adr/0005-problem-format-and-test-set-version.md). Decision taken by Claude without a separate owner answer (the owner had said "next" after being offered "propose in chat or use a default"): stdin/stdout problems, so the "drivers" in Phase 2 are the per-language compile/run steps, not function-signature templates. The owner should confirm this at the review.
+1. Claude (repo): created `judge/problem/problem.go` (Spec, Limits, Load, Validate, `LimitFor`), `judge/problem/version.go` (`Version`), `judge/problem/problem_test.go` (table-driven: valid load, limit overrides, 12 rejection cases, version sensitivity, the committed sample), `problems/sample-sum/problem.yaml` and `problems/sample-sum/tests/01..05.{in,out}` (05 is 100000 numbers, 588,902 bytes; 03 sums to 5,000,000,000 to overflow 32 bits).
+2. Claude (host, over SSH): copied the files with `scp`, ran `go get gopkg.in/yaml.v3@latest` (v3.0.1) and `go mod tidy` in `judge/`, copied `go.mod` and `go.sum` back to the repo.
+3. Mistakes and fixes:
+   - First shell command failed to parse (quote inside a long heredoc), nothing ran; files were then created with the Write tool.
+   - `make lint` reported gosec G115 (int to uint64) in `MemoryBytes`. Fixed by making `MemoryMB` a `uint64`; a negative YAML value is now rejected at parse time ("cannot unmarshal"). My test expected the field name in the message and failed once; corrected the expectation.
+   - A `sed` edit left a struct tag misaligned, so gofmt on the host changed it; committed the formatted file (`chore(judge): gofmt the problem package`).
+   - `make fmt` on the host also reformatted `judge/sandbox/run.go` (alignment of `maxLogBytes`, whitespace only, present in committed Phase 1 code). Committed as `chore(sandbox)`; `style` is not an allowed commit type here, the first attempt was rejected by commitlint.
+   - Two stray empty `python -` commands in my shell hung until killed (no effect on the repo).
+4. Host sync: host files were uncommitted copies; verified each equals the branch with `cmp`, then `git stash push -u` (stash kept, not dropped: `pre-sync copy of feat/2-problem-format files`) and `git pull --ff-only`. Host is on `feat/2-problem-format` at `d673221`.
+5. Checks on the host: `make fmt lint test` clean (0 issues, `judge/problem` and `judge/sandbox` ok); `make test-adversarial` PASS after the `run.go` whitespace change, `pgrep nsjail` prints 0.
+6. Commits on the branch: `61e3ac5` loader, `1219187` sample problem, `4000ac6` run.go alignment, `d673221` gofmt; ADR and log in a docs commit.
+
 ## File and path index
 - `docs/phases/phase-2-log.md`: this log
 - `scripts/setup-dev-host.sh`: now also installs the JDK
+- `judge/problem/problem.go`, `version.go`, `problem_test.go`: problem loader, validation, test-set version, tests
+- `judge/go.mod`, `judge/go.sum`: add `gopkg.in/yaml.v3` v3.0.1
+- `problems/sample-sum/`: `problem.yaml` and `tests/01..05.in|out`
+- `docs/adr/0005-problem-format-and-test-set-version.md`: ADR
+- Host: `git stash` entry "pre-sync copy of feat/2-problem-format files" in `~/Leetforce` (identical to the branch; can be dropped)
