@@ -29,7 +29,7 @@ var slugRe = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
 // Limit is a time and memory limit for one language.
 type Limit struct {
-	TimeMS   int `yaml:"time_ms"`
+	TimeMS   int    `yaml:"time_ms"`
 	MemoryMB uint64 `yaml:"memory_mb"`
 }
 
