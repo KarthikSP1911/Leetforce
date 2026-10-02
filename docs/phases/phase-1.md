@@ -36,11 +36,12 @@ Extra evidence: weakening network isolation on a copy of `args.go` (adding `--di
 | `feat/1-result-channel` | dedicated result fd (fd 4), forged-result tests | 3 |
 | `test/1-adversarial` | adversarial suite, `make test-adversarial` in a memory-capped scope | 3 |
 | `docs/1-adrs-report` | ADR 0004, log rename, report, summary (review Q&A is recorded afterwards on the phase branch) | 4 |
+| `docs/1-flow-docs` | `docs/FLOW.md` (flow of every phase), richer flow diagram in the summary, flow-update rule in CLAUDE.md | 3 |
 
-Six commits were made directly on `phase/1-sandbox-core` (progress, logging rule, host log, missing log entries, the unit 3 incident note, host state log).
+Eight commits were made directly on `phase/1-sandbox-core` (progress start, host setup log, logging rule, missing log entries, the unit 3 incident note, unit 3 host state, the unit 6 log, the file and path index); counted with `git log --first-parent --no-merges phase-1-start..5e337a5`.
 
 ## File-by-file changes
-Generated with `git diff --name-status phase-1-start..HEAD` and `--numstat` at the tip of `docs/1-adrs-report` (before the review Q&A commit); lines are added/deleted.
+Generated with `git diff --name-status phase-1-start..HEAD` and `--numstat` and cross-checked against the report at `5e337a5` (before the review Q&A commit); line numbers are added/deleted.
 
 ### Added
 | File | Purpose |
@@ -66,6 +67,7 @@ Generated with `git diff --name-status phase-1-start..HEAD` and `--numstat` at t
 | `scripts/setup-dev-host.sh` | Idempotent dev-host provisioning: packages, swap, Go, nsjail, golangci-lint (55/0) |
 | `docs/adr/0003-dev-environment-ec2-x86.md` | Decision record: EC2 x86 dev host instead of WSL2 (25/0) |
 | `docs/adr/0004-sandbox-design.md` | Decision record: sandbox design with measured numbers (38/0) |
+| `docs/FLOW.md` | End-to-end submission flow, what each of the 17 phases adds to it, the as-built flow of Phases 0 and 1 (including the 10 internal steps of `sandbox.Run` with file paths), and a rule to keep it current (102/0) |
 | `docs/phases/phase-1.md` | This report |
 | `docs/phases/phase-1-log.md` | Step-by-step working log of the phase |
 | `docs/phases/phase-1-summary.md` | Plain-language explainer, review questions, Q&A, handoff |
@@ -73,7 +75,7 @@ Generated with `git diff --name-status phase-1-start..HEAD` and `--numstat` at t
 ### Modified
 | File | What changed | Why |
 |---|---|---|
-| `CLAUDE.md` | Real commands replaced the planned ones (including `test-sandbox` and `RUN=`); "Current state" updated; new rule "Documenting every step"; log file named `phase-<N>-log.md` (25/5) | Keep the repo guidance true, and make step logging mandatory |
+| `CLAUDE.md` | Real commands replaced the planned ones (including `test-sandbox` and `RUN=`); "Current state" updated; new rule "Documenting every step" with the log file named `phase-<N>-log.md` and a rule to update `docs/FLOW.md` each phase (26/5) | Keep the repo guidance true, and make step logging mandatory |
 | `README.md` | Added a cost table (EC2 t3.micro, 15 GiB EBS, public IPv4) (10/0) | CLAUDE.md requires recording new recurring costs |
 | `docs/PLAN.md` | Removed a stray character on line 1 (1/1) | Typo from the Phase 0 draft |
 | `docs/PROGRESS.md` | Phase 1 status and resume point kept current through the phase (5/4) | Required session state |
@@ -141,9 +143,10 @@ Generated with `git diff --name-status phase-1-start..HEAD` and `--numstat` at t
 - The dev instance is billable while running (README cost table); stop it when idle.
 
 ## Stats
-Measured with the git commands from CLAUDE.md section 7.1 at commit `8d6cf8d` (the phase summary), the last commit before this one. Later commits (this stats commit, the review Q&A record) add a few commits and change only files already listed.
-- Range: `phase-1-start..8d6cf8d`
-- Commits: 25 (excluding merges), plus 6 merge commits (one per unit branch)
-- Files: 24 added, 4 modified, 0 deleted, 0 renamed (28 files; git shows the moved working log as a new file)
-- Lines: +2,581 / -10 (`git diff --shortstat`)
+Measured with the git commands from CLAUDE.md section 7.1 at commit `5e337a5` (the merge of `docs/1-flow-docs`), the last commit before the one that records these numbers. Later commits (this one, the review Q&A record) add a few commits and change only files already listed.
+- Range: `phase-1-start..5e337a5`
+- Commits: 31 (excluding merges), plus 8 merge commits
+- Files: 25 added, 4 modified, 0 deleted, 0 renamed (29 files; git shows the moved working log as a new file)
+- Lines: +2,757 / -10 (`git diff --shortstat`)
 - Of the added code, `judge/sandbox` holds 1,906 lines in 13 files (1,177 of them tests).
+- An earlier version of this report was pinned to `8d6cf8d` (24 added, 28 files, +2,581 / -10, 25 commits, 6 merges); `docs/FLOW.md`, the flow summary diagram, the file index and the log updates were added after it.
