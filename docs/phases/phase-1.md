@@ -75,3 +75,25 @@ Developed on the Windows repo; each iteration was copied to the EC2 host with `t
 **Verification (EC2 host, 2026-10-02).** `make fmt` and `make lint`: `0 issues.` `make test`: ok. `make test-sandbox`: all tests PASS. `go test -count=200 -run TestRunSandboxFailure`: ok. `go test -count=30 -run TestRun`: ok (about 35 s). After the runs `pgrep -c nsjail` printed 0 (no leaked processes).
 
 **Not done here (moved to later units).** Memory and process-count limits, CPU cgroup limit, whole-cgroup kill and peak-memory measurement (unit `feat/1-cgroup-limits`); a result fd for the harness (unit `feat/1-result-channel`); the containment test cases (unit `test/1-adversarial`). The seccomp denylist is only checked for being accepted by nsjail so far; its effect is tested in the adversarial suite.
+
+## Additional log entries (added after a completeness check)
+
+Steps that were performed earlier in the session but were not written down at the time.
+
+### Phase start and publishing (Claude, Windows repo)
+1. `git checkout main && git pull --ff-only` (already up to date), `git checkout -b phase/1-sandbox-core`, `git tag phase-1-start` (local; the repo's `main` had already been merged from `phase/0-foundation`).
+2. `git push origin phase/1-sandbox-core phase-1-start` published the branch and tag. On the host: `git fetch && git checkout phase/1-sandbox-core` (the host clone started on `main`).
+3. After each merged unit the phase branch was pushed and the unit branch deleted locally and on `origin`.
+4. Untracked `web/AGENTS.md` and `web/CLAUDE.md` exist on the Windows repo from before this phase; they were left untouched and are not part of any commit (owner decision pending, default: ignore).
+
+### Files left on the EC2 host (scratch, not in the repo)
+- `/tmp/spike/`: C test programs compiled with gcc (`segv`, `abrt`, `wfd`) and probe scripts (`probe.sh`, `p2.sh`, `p3.sh`) plus `nslog*.txt`/`l*.txt` nsjail logs from the spike. They run only inside nsjail, were used for the findings above, and can be deleted with `rm -rf /tmp/spike`. `/tmp` is also cleared on reboot.
+- `/tmp/apt.log`, `/tmp/nsjail-build.log`, `/tmp/go.tgz` from the initial install.
+
+### Temporary debugging on the host (unit 2)
+- Created `judge/sandbox/dbg_test.go` twice in `~/Leetforce` to print the wrapper's result in a loop (it found the setup-failure bug), and removed it after each run. It was never committed.
+- After unit 2 was merged I ran `git checkout -- .` and `git clean -fdq judge Makefile` on the host to discard the files copied over by `tar`, then `git fetch`, `git checkout phase/1-sandbox-core`, `git pull --ff-only` (host now at the merge commit, clean working tree).
+
+### Slips
+- A `python3` heredoc on Windows hung and was stopped (logged above).
+- Two `sed` edits mangled a regex and a test table; I rewrote the files in full before committing (logged above).
