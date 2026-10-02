@@ -2,7 +2,7 @@
 
 **Branch:** `phase/4-api-database`
 **Range:** `phase-4-start..phase-4-done`
-**Status:** in progress
+**Status:** in review
 
 ## Units of work
 - [x] `feat/4-migrations`: schema (`problems`, `submissions`, `verdicts`), migration tool, `make migrate-up`
@@ -11,7 +11,7 @@
 - [x] `feat/4-submissions`: `POST /submissions`, `GET /submissions/:id`, enqueue with the test-set version
 - [x] `feat/4-verdict-ingest`: results-stream consumer writing idempotent verdicts; dead-letter watcher marks `IE`
 - [x] `test/4-idempotency`: duplicate verdicts change nothing; API to runner end-to-end
-- [ ] `docs/4-adr-report`: ADR, `docs/FLOW.md`, report, summary, `PROGRESS.md` to in review
+- [x] `docs/4-adr-report`: ADR, `docs/FLOW.md`, report, summary, `PROGRESS.md` to in review
 - [ ] review, merge to `main`, tag `phase-4-done`
 
 ## Decisions (2026-10-02)
@@ -80,6 +80,11 @@
 6. Mistake: the commit `feat(queue): let the API consume results and dead letters` (`60ccd05`) has the footer `Refs: phase-3`; it is Phase 4 work. It was already pushed, and branch history is not rewritten, so it stays and is recorded here (`git log --grep` by footer will attribute it to the wrong phase).
 7. Note on `make fmt`: files written on Windows have CRLF line endings, which the host's formatter and bash scripts reject; the sync step to the host strips them (`sed -i 's/$//'` for shell scripts). Git normalises line endings on commit (`CRLF will be replaced by LF` warnings), so the repository content is LF.
 
+### Unit 7: `docs/4-adr-report` (2026-10-02)
+1. Claude (repo): ADRs `docs/adr/0009-idempotent-verdict-ingest.md` and `0010-neon-access-migrations-and-test-schemas.md`; `docs/FLOW.md` (Phase 4 ticked, as-built flow with file paths, "flow after" column); `CLAUDE.md` (current state, the new commands, Trivy now installed on the dev host); then the phase report `docs/phases/phase-4.md` (file list from `git diff --name-status phase-4-start..26e3779`, stats from `git diff` and `git log` over the same range) and the summary `docs/phases/phase-4-summary.md`. `PROGRESS.md` set to in review.
+2. Checks: every test count and commit count in the report was computed from the repository (14 top-level `api` tests, 17 `queue`, 10 `runner`, all passing and none skipped on the host with the database enabled; 16 non-merge commits, 6 merges, 36 files, +2530/-12 before the report). I corrected two things I had written in the summary before they were committed: "make loads .env" (it does not; the database tests skip without it) and a claim about the verdict for `print(1)` that I had not observed.
+3. Neon plan and limits were not checked (ADR 0010), so no cost-table row was added.
+
 ## File and path index
 - `docs/phases/phase-4-log.md`: this log
 - `api/migrations/00001_init.sql`: schema (problems, submissions, verdicts)
@@ -101,5 +106,7 @@
 - `scripts/test-api-e2e.sh`, `Makefile` (`test-api-e2e`): the Phase 4 end-to-end test
 - `scripts/scan-staged.sh`: now also has a `full` mode (vuln, secret, misconfig)
 - `api/go.mod`, `api/go.sum`: x/crypto, x/net, x/text upgraded for 16 HIGH CVEs
+- `docs/adr/0009-idempotent-verdict-ingest.md`, `docs/adr/0010-neon-access-migrations-and-test-schemas.md`: ADRs
+- `docs/phases/phase-4.md`, `docs/phases/phase-4-summary.md`: report and summary
 - `go.work`: `./api` added; `Makefile`: `api` in `GO_MODULES`, `build-api`
 - `.env.example`: added `DATABASE_URL`, `LEETFORCE_MIGRATE_DATABASE_URL`
