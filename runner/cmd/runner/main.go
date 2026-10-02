@@ -11,7 +11,12 @@
 //	LEETFORCE_JOB_MIN_IDLE      idle time before a job is reclaimed (default 30s)
 //	LEETFORCE_JOB_MAX_ATTEMPTS  deliveries before IE / dead letter (default 3)
 //
-// The sandbox needs root, so the runner must run as root (see ADR 0008).
+//	LEETFORCE_CGROUP_ROOT       cgroup v2 directory for per-run cgroups (root default /sys/fs/cgroup/leetforce)
+//
+// The runner runs either as root (dev host, sudo) or as an unprivileged user
+// started by the hardened systemd unit in scripts/runner (ADR 0014): then it
+// needs a delegated cgroup (Delegate=yes) and the AppArmor userns profile for
+// nsjail on Ubuntu 24.04. It never needs root capabilities of its own.
 package main
 
 import (
@@ -26,6 +31,7 @@ import (
 	"time"
 
 	"leetforce/judge/engine"
+	"leetforce/judge/sandbox"
 	"leetforce/queue"
 	"leetforce/runner/internal/agent"
 	"leetforce/runner/internal/problems"
@@ -46,8 +52,9 @@ func run() error {
 	if url == "" {
 		return fmt.Errorf("LEETFORCE_REDIS_URL is not set")
 	}
-	if os.Geteuid() != 0 {
-		return fmt.Errorf("the sandbox needs root; run with sudo or as a root systemd unit")
+	cgroupRoot, err := cgroupRoot(log)
+	if err != nil {
+		return err
 	}
 	minIdle, err := envDuration("LEETFORCE_JOB_MIN_IDLE", 30*time.Second)
 	if err != nil {
@@ -105,7 +112,7 @@ func run() error {
 		log.Info("problems from directory", "dir", problemsDir)
 	}
 
-	a := agent.New(q, &engine.Engine{}, agent.Config{
+	a := agent.New(q, &engine.Engine{CgroupRoot: cgroupRoot}, agent.Config{
 		ID:             id,
 		Problems:       src,
 		HeartbeatEvery: minIdle / 3,
@@ -113,6 +120,24 @@ func run() error {
 		Logger:         log,
 	})
 	return a.Run(ctx)
+}
+
+// cgroupRoot picks the cgroup directory for per-run cgroups. An explicit
+// LEETFORCE_CGROUP_ROOT wins; an unprivileged runner prepares its delegated
+// cgroup; root uses the sandbox default (empty string).
+func cgroupRoot(log *slog.Logger) (string, error) {
+	if v := os.Getenv("LEETFORCE_CGROUP_ROOT"); v != "" {
+		return v, nil
+	}
+	if sandbox.Rootless() {
+		root, err := sandbox.PrepareDelegatedRoot()
+		if err != nil {
+			return "", fmt.Errorf("unprivileged runner needs a delegated cgroup (systemd Delegate=yes): %w", err)
+		}
+		log.Info("running unprivileged", "uid", os.Geteuid(), "cgroup_root", root)
+		return root, nil
+	}
+	return "", nil
 }
 
 func envDuration(name string, def time.Duration) (time.Duration, error) {
