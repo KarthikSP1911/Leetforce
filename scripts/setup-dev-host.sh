@@ -75,12 +75,18 @@ if ! command -v docker >/dev/null 2>&1; then
   sudo usermod -aG docker "$USER"
 fi
 
+if ! command -v psql >/dev/null 2>&1; then
+  # psql: the Phase 5 end-to-end test creates an orphaned submission and cleans up its rows.
+  sudo apt-get install -y -qq postgresql-client
+fi
+
 echo "--- environment ---"
 go version
 command -v nsjail
 golangci-lint --version
 trivy --version | head -1
 docker --version
+psql --version
 echo "cgroup fs: $(stat -fc %T /sys/fs/cgroup) (want cgroup2fs)"
 echo "controllers: $(cat /sys/fs/cgroup/cgroup.controllers) (want cpu memory pids)"
 sudo -n true && echo "passwordless sudo: ok"
