@@ -206,7 +206,7 @@ func (e *Engine) compile(ctx context.Context, dir string, lg lang.Language) (out
 	res, err := sandbox.Run(ctx, sandbox.Spec{
 		Argv:          lg.Compile(dir),
 		Env:           lg.CompileEnv,
-		ReadOnlyBinds: []string{filepath.Join(dir, "src")},
+		ReadOnlyBinds: append([]string{filepath.Join(dir, "src")}, lg.Binds...),
 		Limits:        limits,
 		NsjailPath:    e.NsjailPath,
 		CgroupRoot:    e.CgroupRoot,
@@ -270,7 +270,7 @@ func (e *Engine) runTest(ctx context.Context, dir string, lg lang.Language, mode
 		Argv:          lg.Run(dir, limit.MemoryBytes()),
 		Env:           lg.RunEnv,
 		Stdin:         bytes.NewReader(t.Input),
-		ReadOnlyBinds: []string{dir},
+		ReadOnlyBinds: append([]string{dir}, lg.Binds...),
 		Limits:        limits,
 		NsjailPath:    e.NsjailPath,
 		CgroupRoot:    e.CgroupRoot,

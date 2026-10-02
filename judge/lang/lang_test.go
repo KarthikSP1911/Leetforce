@@ -5,10 +5,44 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"leetforce/judge/problem"
 )
 
+// Every language a problem may list must have a definition, and no definition
+// may be missing from the problem format's list.
+func TestMatchesProblemLanguages(t *testing.T) {
+	names := Names()
+	slices.Sort(names)
+	want := slices.Clone(problem.Languages)
+	slices.Sort(want)
+	if !slices.Equal(names, want) {
+		t.Errorf("lang.Names() = %v, problem.Languages = %v", names, want)
+	}
+}
+
+func TestJavaRunArgv(t *testing.T) {
+	l, _ := Get("java")
+	argv := l.Run("/var/tmp/job", 256<<20)
+	if argv[0] != javaHome+"/bin/java" {
+		t.Errorf("java must be run by its real path, got %q", argv[0])
+	}
+	if !slices.Contains(argv, "-Xmx512m") {
+		t.Errorf("heap should be twice the memory limit: %v", argv)
+	}
+	if argv[len(argv)-1] != "Main" || !slices.Contains(argv, "/var/tmp/job/bin/main") {
+		t.Errorf("classpath or main class missing: %v", argv)
+	}
+	if !slices.Contains(l.Binds, "/etc/java-21-openjdk") {
+		t.Errorf("java needs the /etc configuration bind: %v", l.Binds)
+	}
+	if got := l.Run("/var/tmp/job", 1<<20); !slices.Contains(got, "-Xmx32m") {
+		t.Errorf("tiny limits still get a usable heap: %v", got)
+	}
+}
+
 func TestGet(t *testing.T) {
-	for _, name := range []string{"python", "go"} {
+	for _, name := range []string{"python", "go", "cpp", "java"} {
 		l, ok := Get(name)
 		if !ok || l.Name != name {
 			t.Fatalf("Get(%q) = %+v, %v", name, l, ok)

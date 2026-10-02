@@ -42,6 +42,9 @@ type Language struct {
 	// RunPIDs is the process and thread cap for a run. Runtimes that start
 	// helper threads at launch need more than a native program.
 	RunPIDs uint64
+	// Binds are extra host paths mounted read-only in both the compile and run
+	// sandboxes (for example the JDK configuration the Debian package keeps in /etc).
+	Binds []string
 }
 
 // CompileLimits bound the compile sandbox.
@@ -110,7 +113,66 @@ var languages = map[string]Language{
 		RunEnv:  []string{"GOMAXPROCS=2"},
 		RunPIDs: 32,
 	},
+	"cpp": {
+		Name:     "cpp",
+		Source:   "main.cpp",
+		Artifact: true,
+		// Static, so the run needs nothing from the host but the kernel.
+		Compile: func(dir string) []string {
+			script := fmt.Sprintf("g++ -O2 -pipe -std=c++17 -static -o /tmp/main %q && cat /tmp/main >&4", filepath.Join(dir, "src", "main.cpp"))
+			return []string{"/bin/sh", "-c", script}
+		},
+		CompileEnv: []string{sysPath},
+		CompileLimits: CompileLimits{
+			Time: 30 * time.Second, MemoryBytes: 400 << 20, PIDs: 64, TmpfsBytes: 64 << 20, MaxFileBytes: 64 << 20,
+			MaxArtifactBytes: 32 << 20,
+		},
+		Run: func(dir string, _ uint64) []string {
+			return []string{ArtifactPath(dir)}
+		},
+		RunPIDs: 16,
+	},
+	"java": {
+		Name:     "java",
+		Source:   "Main.java",
+		Artifact: true,
+		// Compile to a single jar so the artifact is one file. The -J flags
+		// size the compiler's own JVM; JAVA_TOOL_OPTIONS is not used because it
+		// would print a notice into the compiler output.
+		Compile: func(dir string) []string {
+			script := fmt.Sprintf("javac -J-Xmx192m -J-XX:+UseSerialGC -J-XX:-UsePerfData -d /tmp/out %q"+
+				" && jar -J-Xmx64m -J-XX:+UseSerialGC -J-XX:-UsePerfData cfe /tmp/main.jar Main -C /tmp/out ."+
+				" && cat /tmp/main.jar >&4", filepath.Join(dir, "src", "Main.java"))
+			return []string{"/bin/sh", "-c", script}
+		},
+		CompileEnv: []string{sysPath, "JAVA_HOME=" + javaHome},
+		CompileLimits: CompileLimits{
+			Time: 45 * time.Second, MemoryBytes: 420 << 20, PIDs: 128, TmpfsBytes: 32 << 20, MaxFileBytes: 32 << 20,
+			MaxArtifactBytes: 8 << 20,
+		},
+		Run: func(dir string, memoryBytes uint64) []string {
+			// The heap may grow to twice the memory limit. The kernel's memory
+			// cgroup, not the JVM, decides when a program has used too much, so
+			// an allocation loop ends in an OOM kill (MLE, measured by the host)
+			// rather than a catchable OutOfMemoryError that would look like RE.
+			heapMB := max(memoryBytes>>20, 16) * 2
+			return []string{
+				javaHome + "/bin/java",
+				fmt.Sprintf("-Xmx%dm", heapMB), "-Xms16m", "-Xss64m",
+				"-XX:+UseSerialGC", "-XX:-UsePerfData", "-XX:TieredStopAtLevel=1",
+				"-cp", ArtifactPath(dir), "Main",
+			}
+		},
+		// The Debian JDK keeps its configuration in /etc and links to it.
+		Binds:   []string{"/etc/java-21-openjdk"},
+		RunPIDs: 64,
+	},
 }
+
+// javaHome is where the Debian openjdk-21-jdk-headless package installs the
+// JDK. /usr/bin/java goes through /etc/alternatives, which the sandbox does
+// not have, so the real path is used.
+const javaHome = "/usr/lib/jvm/java-21-openjdk-amd64"
 
 // Get returns the language with the given name.
 func Get(name string) (Language, bool) {

@@ -127,7 +127,7 @@ var verdictCases = []struct {
 	{"ce", verdict.CE, "compile"},
 }
 
-var extensions = map[string]string{"python": "py", "go": "go"}
+var extensions = map[string]string{"python": "py", "go": "go", "cpp": "cpp", "java": "java"}
 
 func TestJudgeVerdicts(t *testing.T) {
 	requireSandbox(t)
