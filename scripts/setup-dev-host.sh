@@ -48,7 +48,7 @@ fi
 
 echo "--- environment ---"
 go version
-nsjail --help 2>&1 | head -1
+command -v nsjail
 golangci-lint --version
 echo "cgroup fs: $(stat -fc %T /sys/fs/cgroup) (want cgroup2fs)"
 echo "controllers: $(cat /sys/fs/cgroup/cgroup.controllers) (want cpu memory pids)"
