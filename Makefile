@@ -4,7 +4,7 @@
 
 GO_MODULES := judge queue runner
 
-.PHONY: dev down fmt lint test build-judge build-runner test-runner test-matrix test-sandbox test-adversarial
+.PHONY: dev down fmt lint test build-judge build-runner test-crash test-matrix test-sandbox test-adversarial
 
 # Local Redis and MinIO (needs Docker and LEETFORCE_MINIO_PASSWORD in .env).
 dev:
@@ -28,11 +28,19 @@ build-judge:
 	@mkdir -p bin
 	cd judge && go build -o ../bin/judge ./cmd/judge
 
-# Builds the runner to bin/runner. It needs root and LEETFORCE_REDIS_URL, for example:
+# Builds the runner to bin/runner and the queue tool to bin/lfq. The runner needs
+# root and LEETFORCE_REDIS_URL, for example:
 #   sudo -n env LEETFORCE_REDIS_URL=... bin/runner
 build-runner:
 	@mkdir -p bin
 	cd runner && go build -o ../bin/runner ./cmd/runner
+	cd queue && go build -o ../bin/lfq ./cmd/lfq
+
+# Phase 3 exit criterion: kill a runner mid-job, another runner reclaims the job
+# and exactly one verdict is recorded. Uses LEETFORCE_REDIS_URL (.env), real
+# sandbox, a throwaway key prefix; about a minute.
+test-crash:
+	scripts/test-crash-reclaim.sh
 
 # Phase 2 exit criterion: judges the sample problem with one solution per
 # verdict (AC, WA, TLE, MLE, RE, OLE, CE) in each of Python, C++, Java and Go
