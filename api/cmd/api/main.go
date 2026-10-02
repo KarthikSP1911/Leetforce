@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"leetforce/api/internal/catalog"
+	"leetforce/api/internal/ingest"
 	"leetforce/api/internal/server"
 	"leetforce/api/internal/store"
 	"leetforce/queue"
@@ -80,6 +81,14 @@ func run() error {
 	if err := q.Setup(ctx); err != nil {
 		return err
 	}
+	if err := q.SetupAPI(ctx); err != nil {
+		return err
+	}
+
+	host, _ := os.Hostname()
+	ing := ingest.New(q, db, log, ingest.Config{Consumer: fmt.Sprintf("api-%s-%d", host, os.Getpid())})
+	ingestDone := make(chan struct{})
+	go func() { ing.Run(ctx); close(ingestDone) }()
 
 	srv := &http.Server{
 		Addr:              addr,
@@ -100,6 +109,8 @@ func run() error {
 	if err := srv.Shutdown(shutdown); err != nil {
 		return fmt.Errorf("shutdown: %w", err)
 	}
+	stop()
+	<-ingestDone
 	log.Info("api stopped")
 	return nil
 }
