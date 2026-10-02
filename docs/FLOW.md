@@ -101,6 +101,9 @@ How the attack tests exercise it (`adversarial_test.go`, run by `make test-adver
 ### Phase 2: Judge engine (in progress: all four languages work; the CLI and the final verdict matrix are still to come)
 What `engine.Judge(ctx, problem, language, source, opts)` does today (`judge/engine/engine.go`):
 ```
+ sudo bin/judge run [-all] [-detail] problems/<slug> <file>   judge/cmd/judge/main.go: picks the language from the
+        |   file extension, loads the problem, calls engine.Judge, prints the verdict table; exit 0 = AC, 1 = other, 2 = error
+        v
  problems/<slug>/ ---> problem.Load ---> Problem{Spec, Tests, TestSetVer}   judge/problem/problem.go, version.go
                                                   |
  source text + language name                      v

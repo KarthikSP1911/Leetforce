@@ -11,7 +11,7 @@
 - [x] `feat/2-checkers`: host-side output comparison
 - [x] `feat/2-drivers-python-go`
 - [x] `feat/2-drivers-cpp-java`
-- [ ] `feat/2-judge-cli`: `judge run problems/<slug> <file>`
+- [x] `feat/2-judge-cli`: `judge run problems/<slug> <file>`
 - [ ] `test/2-verdict-matrix`: 7 verdicts x 4 languages, adversarial suite re-run
 
 ## Decisions (2026-10-02)
@@ -88,7 +88,18 @@ Design notes are in the "C++ and Java specifics" section of [ADR 0006](../adr/00
 3. Results on the host: `make fmt lint test` clean; `make test-sandbox` (serial): checker, engine 194.7 s, lang, problem, sandbox, verdict all ok. Verdict matrix for cpp and java: ac, wa (first failure at test 03), tle, mle, re, ole at test 01, ce all correct (cpp about 1 s per submission; java about 10 s). Java memory: one 2 GB array and a 400 MB array on a 256 MB limit give MLE, and a 80 MB array (within the limit) is not MLE. After the run: `pgrep nsjail` 0, no `leetforce-job-*` in `/var/tmp`, no job cgroups, disk 6.5 GB free.
 4. The adversarial suite was not re-run for this unit: no file in `judge/sandbox/` changed. It runs at the end of the phase.
 
+### Unit 7: `feat/2-judge-cli` (2026-10-02)
+Claude did all steps; the owner said "next".
+1. Claude (repo): `judge/cmd/judge/main.go` (`judge run [-all] [-detail] [-lang NAME] <problem-dir> <solution-file>`; language from the extension `.py .cpp .cc .java .go`; exit 0 = AC, 1 = any other verdict, 2 = usage or host error; refuses to run unless root; Ctrl-C and SIGTERM cancel through the context and so kill the cgroup), `judge/cmd/judge/main_test.go`, a `build-judge` target in the `Makefile`, and `CLAUDE.md` (the command is no longer "planned"; the phase status line is current).
+2. Output: Problem and test-set version, Language, Verdict, Runtime and Memory (maxima), `Failed test NN` for a non-AC, then a table (TEST, KIND sample or hidden, VERDICT, TIME, MEMORY); for CE the compiler output instead of the table; with `-detail`, input, expected, actual and stderr of failing sample tests. The CLI is a local author tool, so it names the failed hidden test; the engine still never records details for hidden tests.
+3. Mistakes and fixes: two `sed` edits corrupted files and were repaired with the Edit tool after checking `git diff` (a `\n` in a `sed` replacement became a real newline inside two Go string literals in the test; a wrong line number in a `CLAUDE.md` edit replaced the `make test` line); a `:=` that should have been `=` in my test failed `go vet` on the host, fixed in a follow-up commit; `make fmt` removed a trailing blank line from `main.go` (copied back). None of these reached `phase/2-judge-engine`.
+4. Results on the host: `make fmt lint test` clean; `make build-judge` builds `bin/judge` (about 4.5 MB); CLI tests pass (usage errors, extension detection, report formatting, CE report, end to end for ac, wa with and without `-all`, `-detail` for re, ce, unknown `-lang`, missing problem); `TestRunRequiresRoot` runs in `make test` as a normal user and skips under root. Manual runs: python ac (AC, 5 tests), cpp wa (WA at test 03, stops), java ce (compiler message with `Main.java:3`), go tle (TLE, 2025 ms), python wa with `-all` (WA at 03, 04, 05), non-root run (exit 2 with a clear message).
+5. Host: a fourth stash entry, "host gofmt copy of cmd/judge/main.go (same as commit)". The adversarial suite was not re-run: no file in `judge/sandbox/` changed.
+
 ## File and path index
+- `judge/cmd/judge/main.go`, `main_test.go`: the `judge` CLI
+- `Makefile`: `build-judge` target (output `bin/judge`, git-ignored)
+- `CLAUDE.md`: command list and status line updated
 - `judge/lang/lang.go`, `lang_test.go`: now python, go, cpp, java; `Binds`, `OOMExitCode`
 - `judge/verdict/verdict.go`, `verdict_test.go`: `Limits.OOMExitCode`
 - `problems/sample-sum/solutions/cpp/*.cpp`, `problems/sample-sum/solutions/java/*.java`: one solution per verdict
