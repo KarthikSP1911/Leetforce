@@ -5,8 +5,8 @@
 **Status:** working draft (report is completed at the end of the phase)
 
 ## Units of work
-- [ ] `docs/1-dev-environment`: ADR 0003, `scripts/setup-dev-host.sh`, README cost table
-- [ ] `feat/1-go-workspace`: `go.work`, `judge/go.mod`, `.golangci.yml`, `Makefile`, `.env.example`
+- [x] `docs/1-dev-environment`: ADR 0003, `scripts/setup-dev-host.sh`, README cost table
+- [x] `feat/1-go-workspace`: `go.work`, `judge/go.mod`, `.golangci.yml`, `Makefile`, `.env.example`
 - [ ] `feat/1-nsjail-wrapper`: `judge/sandbox` Spec/Run, bounded output capture
 - [ ] `feat/1-cgroup-limits`: cgroup v2 memory/pids/cpu limits, whole-cgroup kill, measurements
 - [ ] `feat/1-result-channel`: dedicated fd for the harness result
@@ -42,3 +42,14 @@ Recorded so a later session can rebuild or audit the dev host. Rationale is in [
 - Disk 6.4 GB used of 14 GB; swap 2 GiB; nothing running in the background.
 - No credentials, instance role, or secrets on the box. No security-group or system configuration changes beyond swap.
 - Pushing from the box needs credentials: the workflow is edit and commit on the Windows repo, push to `origin`, then `git pull` on the box to build and test.
+
+## Unit log
+
+### `feat/1-go-workspace` (2026-10-02)
+Done by Claude, on the Windows repo then verified on the EC2 host.
+1. Created `go.work` (`go 1.27`, `use ./judge`), `judge/go.mod` (`module leetforce/judge`), and a stub `judge/sandbox/doc.go` so vet and lint have a package to check.
+2. Added `.golangci.yml` (golangci-lint v2, `standard` linters plus `errorlint`, `gosec`, `misspell`, `noctx`, `unconvert`; `gofmt` and `goimports` formatters), `.env.example` (`LEETFORCE_REDIS_URL=` blank), and the `Makefile` (`fmt lint test test-adversarial`, looping over `GO_MODULES := judge`).
+3. Updated CLAUDE.md: the commands section now lists the real targets and how to run a single test.
+4. Committed (`build(judge): add go workspace, judge module and Makefile`), pushed `feat/1-go-workspace`, then on the host: `git checkout feat/1-go-workspace && git pull`.
+5. Verified on the host: `make fmt lint test` printed `0 issues.` and `[no test files]`; `make test-adversarial` ran `sudo -n env PATH=... go test -tags adversarial` successfully (no tests yet).
+6. Mistake worth noting: a `python3` probe on Windows hung on the Microsoft Store stub; I stopped it. The host and Windows both lack a needed Python, and none is required.
