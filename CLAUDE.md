@@ -27,11 +27,11 @@ make fmt                 # golangci-lint fmt (gofmt + goimports) per Go module
 make lint                # go vet + golangci-lint run per Go module
 make test                # go test per Go module
 make test-sandbox        # functional sandbox tests: real programs in nsjail (sudo -n)
-make test-adversarial    # sandbox containment suite (build tag `adversarial`, runs via sudo -n)
+make test-adversarial    # sandbox containment suite (build tag `adversarial`), run as root in a memory-capped systemd scope
 
 # single test
 cd judge && go test -run TestName ./sandbox/...
-sudo -n env "PATH=$PATH" go test -tags adversarial -run TestForkBomb -v ./judge/sandbox/...
+make test-adversarial RUN=TestAdversarialForkBomb   # one adversarial test (RUN is a go test -run regex)
 ```
 
 Planned, not defined yet: `make dev | down | migrate-up`, and `judge run problems/<slug> <solution-file>` (local judge CLI, from Phase 2).
