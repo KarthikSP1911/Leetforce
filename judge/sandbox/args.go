@@ -27,14 +27,6 @@ const (
 // systemBinds are mounted read-only in every sandbox.
 var systemBinds = []string{"/usr", "/lib", "/lib64", "/bin"}
 
-// seccompPolicy denies syscalls a judged program never needs. Everything else
-// is allowed; the namespaces, empty network and read-only mounts do the rest.
-const seccompPolicy = "POLICY deny { ERRNO(1) { " +
-	"ptrace, mount, pivot_root, chroot, setns, unshare, bpf, " +
-	"kexec_load, init_module, finit_module, delete_module, perf_event_open, " +
-	"keyctl, add_key, request_key, reboot, swapon, swapoff" +
-	" } } USE deny DEFAULT ALLOW"
-
 var defaultEnv = map[string]string{
 	"PATH": "/usr/local/bin:/usr/bin:/bin",
 	"HOME": jailTmp,
@@ -63,7 +55,7 @@ func (s Spec) nsjailArgs(cgroupDir string) []string {
 		"--rlimit_fsize", strconv.FormatUint(bytesToMiBCeil(l.MaxFileBytes), 10),
 		"--rlimit_nofile", strconv.FormatUint(orDefault(l.MaxOpenFiles, 64), 10),
 		"--rlimit_core", "0",
-		"--seccomp_string", seccompPolicy,
+		"--seccomp_string", seccompPolicy(),
 		"--use_cgroupv2",
 		"--cgroupv2_mount", cgroupDir,
 		"--cgroup_mem_max", strconv.FormatUint(l.MemoryBytes, 10),
