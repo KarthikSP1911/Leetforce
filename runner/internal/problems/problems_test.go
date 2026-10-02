@@ -128,12 +128,12 @@ func TestS3RefetchesWhenBundleChanges(t *testing.T) {
 		t.Fatal(err)
 	}
 	yamlPath := filepath.Join(src, "problem.yaml")
-	raw, err := os.ReadFile(yamlPath)
+	raw, err := os.ReadFile(yamlPath) //nolint:gosec // path is under t.TempDir()
 	if err != nil {
 		t.Fatal(err)
 	}
 	raw = append(raw, []byte("# limits tuned\n")...)
-	if err := os.WriteFile(yamlPath, raw, 0o600); err != nil {
+	if err := os.WriteFile(yamlPath, raw, 0o600); err != nil { //nolint:gosec // path is under t.TempDir()
 		t.Fatal(err)
 	}
 	f.data, err = problem.Pack(src)
