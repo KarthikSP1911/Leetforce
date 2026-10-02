@@ -83,7 +83,7 @@ Decision questions:
 - C. Commit style: answered, use the industry standard (git's default merge message); CLAUDE.md updated.
 
 ## Review Q&A
-_To be filled in after the review._
+Questions 1-4 were skipped by the owner. Question 5 was answered by Claude: runners execute untrusted code, so a compromised runner must not hold database credentials; they only pull jobs from Redis and post verdicts to the API, which validates and writes them idempotently. Decisions: A = one Go module per component with `go.work` (ADR 0002); B = Claude drafts `docs/PLAN.md`; C = git's default merge message.
 
 ## Open decisions
 - ~~Go module layout~~: decided, one module per component with `go.work` ([ADR 0002](../adr/0002-go-module-layout.md)).

@@ -1,4 +1,4 @@
-# LeetForce build plan
+a# LeetForce build plan
 
 > **Status: DRAFT written by Claude from CLAUDE.md, awaiting owner review.** Phases are done in order, one per session. Goals and exit criteria for Phases 1-3 are firm; later phases are outlines to be refined at the start of their session.
 
