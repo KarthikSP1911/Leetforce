@@ -1,6 +1,7 @@
 package sandbox
 
 import (
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -40,6 +41,18 @@ var defaultEnv = map[string]string{
 	"HOME": jailTmp,
 }
 
+// idMaps returns the nsjail uid and gid maps (inside:outside:count). As root
+// the program maps to the host nobody user; an unprivileged runner may only
+// map its own ids, so the program runs as inside uid jailUID backed by them.
+func idMaps() (uid, gid string) {
+	hostUID, hostGID := jailUID, jailUID
+	if Rootless() {
+		hostUID, hostGID = os.Geteuid(), os.Getegid()
+	}
+	in := strconv.Itoa(jailUID) + ":"
+	return in + strconv.Itoa(hostUID) + ":1", in + strconv.Itoa(hostGID) + ":1"
+}
+
 // nsjailArgs builds the nsjail command line for a spec. cgroupDir is the
 // run's cgroup directory, in which nsjail creates its own limited child cgroup.
 // A new network
@@ -47,12 +60,12 @@ var defaultEnv = map[string]string{
 // program has no network interface beyond a down loopback.
 func (s Spec) nsjailArgs(cgroupDir string) []string {
 	l := s.Limits
-	uidMap := strconv.Itoa(jailUID) + ":" + strconv.Itoa(jailUID) + ":1"
+	uidMap, gidMap := idMaps()
 
 	args := []string{
 		"-Mo",
 		"--user", uidMap,
-		"--group", uidMap,
+		"--group", gidMap,
 		"--hostname", "sandbox",
 		"--log_fd", strconv.Itoa(nsjailLogFD),
 		"--pass_fd", strconv.Itoa(ResultFD),

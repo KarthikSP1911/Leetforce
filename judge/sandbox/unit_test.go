@@ -49,9 +49,10 @@ func TestNsjailArgs(t *testing.T) {
 	}
 	args := spec.nsjailArgs("/sys/fs/cgroup/leetforce/job-x")
 	joined := " " + strings.Join(args, " ") + " "
+	wantUID, wantGID := idMaps()
 
 	for _, want := range []string{
-		" --user 65534:65534:1 ", " --group 65534:65534:1 ",
+		" --user " + wantUID + " ", " --group " + wantGID + " ",
 		" --log_fd 3 ", " --pass_fd 4 ", " --time_limit 2 ", " --rlimit_cpu 2 ",
 		" --rlimit_fsize 4 ", " --rlimit_nofile 16 ", " --rlimit_core 0 ",
 		" --disable_proc ", " -R /usr ", " -R /work ",
