@@ -2,7 +2,7 @@
 
 **Branch:** `phase/4-api-database`
 **Range:** `phase-4-start..phase-4-done`
-**Status:** in progress
+**Status:** in review
 
 ## Units of work
 - [x] `feat/4-migrations`: schema (`problems`, `submissions`, `verdicts`), migration tool, `make migrate-up`
@@ -11,7 +11,7 @@
 - [x] `feat/4-submissions`: `POST /submissions`, `GET /submissions/:id`, enqueue with the test-set version
 - [x] `feat/4-verdict-ingest`: results-stream consumer writing idempotent verdicts; dead-letter watcher marks `IE`
 - [x] `test/4-idempotency`: duplicate verdicts change nothing; API to runner end-to-end
-- [ ] `docs/4-adr-report`: ADR, `docs/FLOW.md`, report, summary, `PROGRESS.md` to in review
+- [x] `docs/4-adr-report`: ADR, `docs/FLOW.md`, report, summary, `PROGRESS.md` to in review
 - [ ] review, merge to `main`, tag `phase-4-done`
 
 ## Decisions (2026-10-02)
@@ -74,11 +74,16 @@
 1. Claude (repo): `scripts/test-api-e2e.sh` and `make test-api-e2e`. It starts `bin/api` and a root `bin/runner` on a throwaway queue prefix against the real Neon and Upstash, then: (1) POSTs the sample-sum Python solution and waits for `status: judged`, expecting AC with all five tests passed and no test-set version in the response; (2) injects a conflicting WA verdict (runner `impostor`, version `bogus`) straight into the results stream with `redis-cli`, waits until the API's group has read 2 entries with none pending (`XINFO GROUPS`), and requires the `GET /submissions/:id` body to be byte-identical to before; (3) kills the runner, submits again, injects a dead-lettered job for that submission into the dead-letter stream, and expects an IE verdict within 90 s (the dead-letter stream is drained every 30 s).
 2. Result on the host: PASS in about 51 s (twice, the second time after the dependency upgrade below).
 3. Mutation check (to be sure the test can fail): on the host copy only, `ON CONFLICT (submission_id) DO NOTHING` was changed to `DO UPDATE SET verdict = EXCLUDED.verdict`. `TestRecordVerdictIsIdempotent` failed ("duplicate AC record = true, want false") and the end-to-end test failed with the stored verdict flipping from AC to WA. The file was restored from a copy afterwards (`grep` confirmed `DO NOTHING` is back) and the real tree was never edited.
-4. Side effect: every run of the script writes two real rows to the `submissions` and `verdicts` tables on Neon (this run and the mutation run added four more). There is no cleanup command yet.
+4. Side effect: every run of the script writes two real rows to the `submissions` and `verdicts` tables on Neon (there is no cleanup command yet). Measured at the end of the phase with a throwaway `go run` against the real database (file removed afterwards): 1 problem, 6 submissions (1 from the unit 4 smoke test with no verdict, 2 from each full e2e run, 1 from the mutation run that failed at step 2), 5 verdicts, and 0 leftover `t_*` test schemas.
 5. Trivy, first full scan (I had only run the secret scan on earlier units; the full scan is required before merging a unit): `scripts/scan-staged.sh full` (new mode: `trivy fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --exit-code 1` on the staged tree, Trivy 0.75.0). Finding: 16 HIGH CVEs in `api/go.mod`, all in transitive dependencies of gin and pgx: `golang.org/x/crypto` v0.48.0 (10), `golang.org/x/net` v0.51.0 (5), `golang.org/x/text` v0.34.0 (1); nothing in the other modules, no secrets, no misconfigurations. Fix: `go get golang.org/x/crypto@latest golang.org/x/net@latest golang.org/x/text@latest` and `go mod tidy` (crypto v0.57.0, net v0.59.0, text v0.42.0, plus sync and sys). Rescan: clean. `make fmt lint test` (0 issues, all ok) and `make test-api-e2e` (PASS) re-run on the upgraded dependencies. No `.trivyignore` needed.
 5a. `Dockerfile`, Terraform and Kubernetes scans (`trivy config`, `trivy image`) do not apply yet: none exist.
 6. Mistake: the commit `feat(queue): let the API consume results and dead letters` (`60ccd05`) has the footer `Refs: phase-3`; it is Phase 4 work. It was already pushed, and branch history is not rewritten, so it stays and is recorded here (`git log --grep` by footer will attribute it to the wrong phase).
 7. Note on `make fmt`: files written on Windows have CRLF line endings, which the host's formatter and bash scripts reject; the sync step to the host strips them (`sed -i 's/$//'` for shell scripts). Git normalises line endings on commit (`CRLF will be replaced by LF` warnings), so the repository content is LF.
+
+### Unit 7: `docs/4-adr-report` (2026-10-02)
+1. Claude (repo): ADRs `docs/adr/0009-idempotent-verdict-ingest.md` and `0010-neon-access-migrations-and-test-schemas.md`; `docs/FLOW.md` (Phase 4 ticked, as-built flow with file paths, "flow after" column); `CLAUDE.md` (current state, the new commands, Trivy now installed on the dev host); then the phase report `docs/phases/phase-4.md` (file list from `git diff --name-status phase-4-start..26e3779`, stats from `git diff` and `git log` over the same range) and the summary `docs/phases/phase-4-summary.md`. `PROGRESS.md` set to in review.
+2. Checks: every test count and commit count in the report was computed from the repository (14 top-level `api` tests, 17 `queue`, 10 `runner`, all passing and none skipped on the host with the database enabled; 16 non-merge commits, 6 merges, 36 files, +2530/-12 before the report). I corrected two things I had written in the summary before they were committed: "make loads .env" (it does not; the database tests skip without it) and a claim about the verdict for `print(1)` that I had not observed.
+3. Neon plan and limits were not checked (ADR 0010), so no cost-table row was added.
 
 ## File and path index
 - `docs/phases/phase-4-log.md`: this log
@@ -101,5 +106,7 @@
 - `scripts/test-api-e2e.sh`, `Makefile` (`test-api-e2e`): the Phase 4 end-to-end test
 - `scripts/scan-staged.sh`: now also has a `full` mode (vuln, secret, misconfig)
 - `api/go.mod`, `api/go.sum`: x/crypto, x/net, x/text upgraded for 16 HIGH CVEs
+- `docs/adr/0009-idempotent-verdict-ingest.md`, `docs/adr/0010-neon-access-migrations-and-test-schemas.md`: ADRs
+- `docs/phases/phase-4.md`, `docs/phases/phase-4-summary.md`: report and summary
 - `go.work`: `./api` added; `Makefile`: `api` in `GO_MODULES`, `build-api`
 - `.env.example`: added `DATABASE_URL`, `LEETFORCE_MIGRATE_DATABASE_URL`

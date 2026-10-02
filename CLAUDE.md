@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working in this
 
 ## Current state
 
-Phases 0 (web shell), 1 (sandbox core) and 2 (judge engine) are done; Phase 3 (queue and runner) is built and in review, see `docs/PROGRESS.md`. Parts below describe the planned system and may not exist yet. `docs/PLAN.md` (the 0–16 phase plan) and `docs/PROGRESS.md` (phase tracker and resume point) are the sources of truth. Do not invent build or test commands that no Makefile defines.
+Phases 0 (web shell), 1 (sandbox core), 2 (judge engine) and 3 (queue and runner) are done; Phase 4 (API and database) is built and in review, see `docs/PROGRESS.md`. Parts below describe the planned system and may not exist yet. `docs/PLAN.md` (the 0–16 phase plan) and `docs/PROGRESS.md` (phase tracker and resume point) are the sources of truth. Do not invent build or test commands that no Makefile defines.
 
 ## Project
 
@@ -32,6 +32,10 @@ sudo -n bin/judge run [-all] [-detail] [-lang NAME] problems/<slug> <solution-fi
 make test-adversarial    # sandbox containment suite (build tag `adversarial`), run as root in a memory-capped systemd scope
 make build-runner        # build bin/runner and bin/lfq (queue tool: enqueue, results, destroy)
 make test-crash          # Phase 3 exit test: kill a runner mid-job, another reclaims it, one verdict (needs LEETFORCE_REDIS_URL in .env)
+make build-api           # build bin/api (Gin API; needs DATABASE_URL and LEETFORCE_REDIS_URL to run)
+make migrate-up          # apply goose migrations in api/migrations to Neon (also migrate-down, migrate-status; URL from .env)
+make test-api-e2e        # Phase 4 exit test: API, Redis, runner, ingest, Postgres; a duplicate verdict changes nothing (writes 2 rows to the real DB)
+scripts/scan-staged.sh [full]   # Trivy on the staged tree via the dev host: secrets (every commit) or vuln+secret+misconfig (before merges)
 make dev | make down     # local Redis and MinIO via docker-compose.yml (needs Docker)
 
 # Trivy security scans (see "Security scanning with Trivy"; no make target yet)
@@ -44,7 +48,7 @@ cd judge && go test -run TestName ./sandbox/...
 make test-adversarial RUN=TestAdversarialForkBomb   # one adversarial test (RUN is a go test -run regex)
 ```
 
-Planned, not defined yet: `make migrate-up`, `make scan` (wrapping the Trivy commands above).
+Planned, not defined yet: `make scan` (wrapping the Trivy commands above).
 
 ## Session model: one phase per session
 
@@ -85,7 +89,7 @@ Trivy scans dependencies, secrets, container images and IaC. It complements, and
 - **Findings:** fix HIGH and CRITICAL, or record why not (ADR or the phase log, with the CVE or rule ID and the phase that will fix it). Suppress only in a committed `.trivyignore`, one ID per line with a comment giving reason and expiry. A secret finding is never suppressed: rotate the secret, remove it from history if it was committed, and say so in the log.
 - **Record in the phase log:** the exact command, Trivy and database version, and the result summary. Phase reports list unresolved findings under "Known issues".
 - **Cloud and cost rules still apply:** Trivy is local and free; do not enable paid or hosted scanning without confirmation.
-- Trivy is not installed on the dev host yet. Installing it is a host change: add it to `scripts/setup-dev-host.sh` and log it. Never pipe an installer from the internet into a shell without telling the owner; prefer the official apt repository.
+- Trivy is installed on the dev host (official apt repository, Phase 4; `scripts/setup-dev-host.sh`) and not on the Windows machine, so scans run through `scripts/scan-staged.sh`. Never pipe an installer from the internet into a shell without telling the owner; prefer the official apt repository.
 
 ## Data model rules
 
