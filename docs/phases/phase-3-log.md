@@ -8,14 +8,15 @@
 - [x] `feat/3-compose`: Compose file for Redis and MinIO, `.env.example`, Redis on the dev host for tests
 - [x] `feat/3-queue-package`: job and result types, stream, consumer group, ack, `XAUTOCLAIM`
 - [x] `feat/3-runner-module`: `runner/` module, agent loop calling `engine.Judge`, verdict reporting to the `results` stream (idempotent by submission ID). This also covers the planned `feat/3-runner-reporting`: reporting is one `Publish` call in the agent, so it was not worth a separate unit
-- [ ] `feat/3-lfq-tool`: small `lfq` command (enqueue, results) for demos and the crash test
-- [ ] `test/3-crash-reclaim`: kill a runner mid-job, job reclaimed and judged once; no DB in `runner/go.mod`
+- [x] `feat/3-lfq-tool`: small `lfq` command (enqueue, results, destroy) and `LEETFORCE_QUEUE_PREFIX`; this branch also holds the crash-reclaim test (`scripts/test-crash-reclaim.sh`, `make test-crash`)
+- [x] `test/3-no-db-dependency`: fails if the runner's dependency graph contains a database package
+- [ ] `docs/3-adr-flow`, then the phase report and summary, and the review with the owner
 
 ## Decisions (2026-10-02)
 - Owner asked for the recap question and session plan; the recap question was not answered. The owner replied "upstash url i will provide you later, remaining you decide which is good", so Claude chose the defaults below. Who decided: Claude, on the owner's delegation.
 - Upstash URL: owner supplied it during unit 2 (see the unit 2 entry). Until then queue code is developed and tested against a local Redis (dev host); `LEETFORCE_REDIS_URL` stays out of git.
 - Reporting before the API exists: runner `XADD`s the verdict to a `results` stream, idempotent by submission ID; the API consumes it in Phase 4.
-- Runner privileges: root under a systemd unit on the dev host for now; real privilege model deferred to Phase 6 (ADR in this phase).
+- Runner privileges: root, started with `sudo` on the dev host for now (no systemd unit yet; that comes with provisioning in Phase 13); the real privilege model is deferred to Phase 6 (ADR 0008).
 - Decision C (Go/Java compile speed) deferred; Phase 2 decisions A and B keep their defaults.
 
 ## Session log
@@ -50,7 +51,21 @@
 7. Mistakes and fixes: (a) the first `make lint` on the host reported gosec G115 for `int64(uint64)`; fixed by making `MemoryKB` unsigned (separate `fix(runner)` commit). (b) The first runner commit lacked the `Co-Authored-By` trailer; amended before it was pushed. (c) `go vet` on the Windows checkout fails in `judge/verdict` (`syscall.SIGXCPU` is Linux-only); expected, all Go checks run on the host.
 8. Not yet verified: the runner binary has not run against the real sandbox and Upstash; that is the next unit and the crash test.
 
+### Units 4 and 5: `feat/3-lfq-tool` and `test/3-no-db-dependency` (2026-10-02)
+1. Claude (repo): `queue/cmd/lfq/main.go` (`lfq enqueue [-id ID] <slug> <language> <file>`, `lfq results`, `lfq destroy`; `destroy` refuses the default prefix) with `main_test.go` (usage errors, refusal). `LEETFORCE_QUEUE_PREFIX` is read by the runner and by `lfq`. `make build-runner` builds `bin/runner` and `bin/lfq`.
+2. Claude (repo): `scripts/test-crash-reclaim.sh` and `make test-crash`. Steps: start runner A (as root through `sudo -n --preserve-env=...`, its pid recorded by `exec`) and enqueue `problems/sample-sum/solutions/go/ac.go`; wait for A's log line "judging"; `kill -KILL` A; start runner B with `LEETFORCE_JOB_MIN_IDLE=6s`; wait for a verdict; wait 8 s more and require exactly one verdict, AC, `runner_id` runner-b, and "reclaimed" in B's log; SIGTERM B and require a clean stop. It uses a throwaway prefix (`lfcrash-<pid>-<time>`) on Upstash and destroys it on exit.
+3. Mistakes and fixes (all in the test script, none in the runner): (a) `sudo` drops the environment, so runner A exited with "LEETFORCE_REDIS_URL is not set"; fixed with `--preserve-env`, which also keeps the URL out of the process list. (b) `wait_for ... test "$(result_count)" -ge 1` evaluated the count once before waiting, so the test timed out although runner B had reported AC; fixed with the functions `has_verdict` and `is_stopped`. (c) Two commits were rejected by commitlint (a body line over 72 characters, then a header of 73 characters) and I pushed without checking, so the host first ran the old script; I now check that a commit succeeded before pushing. (d) a `sed` edit left a literal `\n` in the script; fixed with the editor.
+4. Result on the host (`~/Leetforce`, Upstash, real sandbox, commit `a04444d`): `make test-crash` PASS, verdict `{"verdict":"AC","runtime_ms":48,"memory_kb":2788,"passed":5,"total":5,"runner_id":"runner-b"}`, exactly one. Timeline of the earlier run that failed only because of mistake (b): runner B started 14:31:44, began judging at 14:31:50 (delivery 2, reclaimed, 5.9 s after start with MinIdle 6 s), reported AC at 14:32:09 (19.5 s of judging, mostly the cold Go compile). After the passing run `pgrep nsjail` is 0 and `pgrep -x runner` is 0.
+5. Finding: killing runner A leaves its `/var/tmp/leetforce-job-*` directory behind (2 after the first runs, 1 after the passing run). I removed them by hand on the host (`sudo -n rm -rf /var/tmp/leetforce-job-*`) before the passing run. Nothing sweeps them yet; recorded as a known issue.
+6. Claude (repo): `runner/nodb_test.go` reads `runner/go.mod` and `go list -deps ./...` and fails on `database/sql`, `github.com/jackc/pgx`, `github.com/lib/pq`, `github.com/gin-gonic/gin`, `gorm.io`, `github.com/jmoiron/sqlx`. Result: PASS. Proof that it can fail: with `log/slog` temporarily added to the forbidden list on the host, the test failed on `log/slog`, `log/slog/internal` and `log/slog/internal/buffer`; reverted with `git checkout` (nothing committed).
+7. Host: `make fmt lint` 0 issues in judge, queue and runner; `go test ./queue/... ./runner/...` ok. The sandbox code was not changed in this phase, so the adversarial suite was not re-run.
+8. Claude (docs): ADR 0008 (`docs/adr/0008-queue-reclaim-and-runner-privileges.md`), `docs/FLOW.md` section 3 "Phase 3" and the phase 3 row ticked.
+
 ## File and path index
+- `queue/cmd/lfq/main.go`, `main_test.go`: queue tool (`bin/lfq`, git-ignored)
+- `scripts/test-crash-reclaim.sh`, `Makefile` (`test-crash`): crash-reclaim exit test
+- `runner/nodb_test.go`: no-database dependency test
+- `docs/adr/0008-queue-reclaim-and-runner-privileges.md`, `docs/FLOW.md`: ADR and flow
 - `queue/go.mod`, `go.sum`, `queue.go`, `queue_test.go`: Redis Streams queue module
 - `go.work`, `Makefile` (`GO_MODULES`): include `queue`
 - `scripts/setup-dev-host.sh`: installs `redis-server`
