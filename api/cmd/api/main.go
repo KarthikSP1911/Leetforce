@@ -5,6 +5,11 @@
 //	LEETFORCE_API_ADDR      listen address (default ":8080")
 //	LEETFORCE_PROBLEMS_DIR  problem directory (default "problems")
 //	LEETFORCE_QUEUE_PREFIX  queue key prefix (default "leetforce")
+//	LEETFORCE_S3_ENDPOINT   object storage host:port; when set, problem bundles are published
+//	                        to the bucket at startup (LEETFORCE_S3_ACCESS_KEY, _SECRET_KEY, _BUCKET, _USE_TLS)
+//	LEETFORCE_REAPER_INTERVAL  how often stored-but-never-queued submissions are re-queued (default 15m;
+//	                        it also sweeps once at startup. Each sweep wakes Neon, so keep it long)
+//	LEETFORCE_REAPER_GRACE  how old such a submission must be before it is re-queued (default 2m)
 package main
 
 import (
@@ -20,9 +25,11 @@ import (
 
 	"leetforce/api/internal/catalog"
 	"leetforce/api/internal/ingest"
+	"leetforce/api/internal/reaper"
 	"leetforce/api/internal/server"
 	"leetforce/api/internal/store"
 	"leetforce/queue"
+	"leetforce/storage"
 )
 
 func main() {
@@ -70,6 +77,29 @@ func run() error {
 	}
 	log.Info("problems synced", "count", len(cat.Problems()))
 
+	ready := map[string]server.Pinger{"database": db}
+	s3cfg, useS3, err := storage.ConfigFromEnv()
+	if err != nil {
+		return err
+	}
+	if useS3 {
+		st, err := storage.Open(s3cfg)
+		if err != nil {
+			return err
+		}
+		if err := st.EnsureBucket(ctx); err != nil {
+			return fmt.Errorf("object storage: %w", err)
+		}
+		// Publish before accepting submissions, so every version a submission
+		// can be stamped with is already in the bucket.
+		n, err := cat.Publish(ctx, st)
+		if err != nil {
+			return fmt.Errorf("object storage: %w", err)
+		}
+		log.Info("problem bundles published", "bucket", s3cfg.Bucket, "written", n, "total", len(cat.Problems()))
+		ready["storage"] = st
+	}
+
 	q, err := queue.Open(redisURL, queue.Config{Prefix: os.Getenv("LEETFORCE_QUEUE_PREFIX")})
 	if err != nil {
 		return err
@@ -84,15 +114,31 @@ func run() error {
 	if err := q.SetupAPI(ctx); err != nil {
 		return err
 	}
+	ready["redis"] = q
 
 	host, _ := os.Hostname()
 	ing := ingest.New(q, db, log, ingest.Config{Consumer: fmt.Sprintf("api-%s-%d", host, os.Getpid())})
 	ingestDone := make(chan struct{})
 	go func() { ing.Run(ctx); close(ingestDone) }()
+	watcher := ingest.NewStatusWatcher(q, db, log, ingest.StatusConfig{})
+	statusDone := make(chan struct{})
+	go func() { watcher.Run(ctx); close(statusDone) }()
+
+	every, err := envDuration("LEETFORCE_REAPER_INTERVAL")
+	if err != nil {
+		return err
+	}
+	grace, err := envDuration("LEETFORCE_REAPER_GRACE")
+	if err != nil {
+		return err
+	}
+	rp := reaper.New(db, q, log, reaper.Config{Every: every, Grace: grace})
+	reaperDone := make(chan struct{})
+	go func() { rp.Run(ctx); close(reaperDone) }()
 
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           server.New(server.Deps{Logger: log, Ready: map[string]server.Pinger{"database": db, "redis": q}, Problems: db, Samples: cat, Submissions: db, Queue: q}),
+		Handler:           server.New(server.Deps{Logger: log, Ready: ready, Problems: db, Samples: cat, Submissions: db, Queue: q}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	errc := make(chan error, 1)
@@ -111,6 +157,22 @@ func run() error {
 	}
 	stop()
 	<-ingestDone
+	<-statusDone
+	<-reaperDone
 	log.Info("api stopped")
 	return nil
+}
+
+// envDuration reads a positive duration from the environment; unset means 0,
+// which the callee replaces with its default.
+func envDuration(name string) (time.Duration, error) {
+	v := os.Getenv(name)
+	if v == "" {
+		return 0, nil
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil || d <= 0 {
+		return 0, fmt.Errorf("%s: %q is not a positive duration", name, v)
+	}
+	return d, nil
 }

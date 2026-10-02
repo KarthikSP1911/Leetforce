@@ -5,6 +5,7 @@
 package catalog
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -52,6 +53,33 @@ func Load(dir string) (*Catalog, error) {
 		c.problems[p.Spec.Slug] = p
 	}
 	return c, nil
+}
+
+// BundleStore is where problem bundles are published (object storage).
+type BundleStore interface {
+	PutBundle(ctx context.Context, slug, version string, data []byte) (bool, error)
+}
+
+// Publish packs every problem (problem.yaml and tests only) and stores it under
+// its test-set version, so runners can fetch the tests a submission was
+// accepted against. An unchanged bundle is not rewritten. It returns how many
+// bundles were written.
+func (c *Catalog) Publish(ctx context.Context, b BundleStore) (int, error) {
+	written := 0
+	for _, p := range c.Problems() {
+		data, err := problem.Pack(p.Dir)
+		if err != nil {
+			return written, fmt.Errorf("pack %q: %w", p.Spec.Slug, err)
+		}
+		wrote, err := b.PutBundle(ctx, p.Spec.Slug, p.TestSetVer, data)
+		if err != nil {
+			return written, fmt.Errorf("publish %q: %w", p.Spec.Slug, err)
+		}
+		if wrote {
+			written++
+		}
+	}
+	return written, nil
 }
 
 // Problems returns all problems ordered by slug.

@@ -11,8 +11,9 @@ import (
 
 // Submission statuses.
 const (
-	StatusQueued = "queued"
-	StatusJudged = "judged"
+	StatusQueued  = "queued"
+	StatusJudging = "judging"
+	StatusJudged  = "judged"
 )
 
 // Submission is what the API returns about a submission: its state and, once
@@ -38,20 +39,22 @@ type VerdictView struct {
 
 // InsertSubmission records a queued submission and stamps it with the
 // problem's current test-set version in the same statement, so the version
-// cannot change between the check and the insert. It returns ErrNotFound if
-// the problem does not exist.
-func (s *Store) InsertSubmission(ctx context.Context, id, problem, language, source string) error {
-	tag, err := s.pool.Exec(ctx, `
+// cannot change between the check and the insert, and returns that version so
+// the job can name it. It returns ErrNotFound if the problem does not exist.
+func (s *Store) InsertSubmission(ctx context.Context, id, problem, language, source string) (string, error) {
+	var version string
+	err := s.pool.QueryRow(ctx, `
 		INSERT INTO submissions (id, problem_slug, language, source, test_set_version)
-		SELECT $1, slug, $3, $4, test_set_version FROM problems WHERE slug = $2`,
-		id, problem, language, source)
+		SELECT $1, slug, $3, $4, test_set_version FROM problems WHERE slug = $2
+		RETURNING test_set_version`,
+		id, problem, language, source).Scan(&version)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrNotFound
+	}
 	if err != nil {
-		return fmt.Errorf("insert submission: %w", err)
+		return "", fmt.Errorf("insert submission: %w", err)
 	}
-	if tag.RowsAffected() == 0 {
-		return ErrNotFound
-	}
-	return nil
+	return version, nil
 }
 
 // DeleteSubmission removes a submission that could not be queued.
@@ -90,4 +93,18 @@ func (s *Store) GetSubmission(ctx context.Context, id string) (Submission, error
 		sub.Verdict = &VerdictView{Verdict: *v.Verdict, RuntimeMS: *v.RuntimeMS, MemoryKB: *v.MemoryKB, Passed: *v.Passed, Total: *v.Total}
 	}
 	return sub, nil
+}
+
+// MarkJudging records that a runner took the submission's job. It only moves a
+// queued submission forward: a judged one (or one already judging) is left
+// alone, so a late or repeated event can never undo a verdict. It returns true
+// if the status changed.
+func (s *Store) MarkJudging(ctx context.Context, id string) (bool, error) {
+	tag, err := s.pool.Exec(ctx, `
+		UPDATE submissions SET status = 'judging', updated_at = now()
+		WHERE id = $1::uuid AND status = 'queued'`, id)
+	if err != nil {
+		return false, fmt.Errorf("mark judging %s: %w", id, err)
+	}
+	return tag.RowsAffected() == 1, nil
 }

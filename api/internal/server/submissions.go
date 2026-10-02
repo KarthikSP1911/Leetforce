@@ -24,8 +24,9 @@ var languages = []string{"python", "cpp", "java", "go"}
 
 // SubmissionStore records submissions.
 type SubmissionStore interface {
-	InsertSubmission(ctx context.Context, id, problem, language, source string) error
+	InsertSubmission(ctx context.Context, id, problem, language, source string) (testSetVersion string, err error)
 	DeleteSubmission(ctx context.Context, id string) error
+	MarkEnqueued(ctx context.Context, id string) error
 	GetSubmission(ctx context.Context, id string) (store.Submission, error)
 }
 
@@ -69,7 +70,8 @@ func (d Deps) createSubmission(c *gin.Context) {
 
 	ctx := c.Request.Context()
 	id := uuid.NewString()
-	if err := d.Submissions.InsertSubmission(ctx, id, req.Problem, req.Language, req.Source); err != nil {
+	version, err := d.Submissions.InsertSubmission(ctx, id, req.Problem, req.Language, req.Source)
+	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "problem not found"})
 			return
@@ -77,7 +79,7 @@ func (d Deps) createSubmission(c *gin.Context) {
 		d.fail(c, "insert submission", err)
 		return
 	}
-	job := queue.Job{SubmissionID: id, Problem: req.Problem, Language: req.Language, Source: req.Source}
+	job := queue.Job{SubmissionID: id, Problem: req.Problem, Language: req.Language, Source: req.Source, TestSetVersion: version}
 	if _, err := d.Queue.Enqueue(ctx, job); err != nil {
 		// Do not leave a row that no runner will ever see. Use a fresh context:
 		// the request's may be the thing that failed.
@@ -87,6 +89,12 @@ func (d Deps) createSubmission(c *gin.Context) {
 		}
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "could not queue the submission, try again"})
 		return
+	}
+	// Without this mark the reaper would queue the job a second time after its
+	// grace period. That is harmless (a verdict is stored once), so a failure
+	// here is logged and the submission is still accepted.
+	if err := d.Submissions.MarkEnqueued(context.WithoutCancel(ctx), id); err != nil {
+		d.Logger.Warn("mark submission enqueued", "id", id, "err", err)
 	}
 	c.JSON(http.StatusAccepted, gin.H{"id": id, "status": store.StatusQueued})
 }

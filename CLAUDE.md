@@ -14,7 +14,7 @@ Submission flow: browser → API (Gin, SSE for live status) → Redis Streams (c
 
 Planned layout: `judge/` (engine, drivers, checkers, adversarial suite), `runner/` (pulls jobs, judges, reports to API), `api/`, `web/` (Next.js + Monaco), `infra/` (Terraform: `infra/neon`, `infra/aws`), `packer/`, `ansible/`, `k8s/`, `problems/` (`problem.yaml` + tests), `docs/` (`PLAN.md`, `PROGRESS.md`, `adr/`, `phases/`).
 
-Redis is hosted on Upstash; the connection string comes from `LEETFORCE_REDIS_URL` (a `rediss://` TLS URL), provided by the owner, never committed, and listed without a value in `.env.example`. Stack: Go for judge/runner/API; Neon Postgres via pgx; MinIO locally and S3 in the cloud; Docker Compose, k3s, Prometheus/Grafana/Loki.
+Redis is hosted on Upstash; the connection string comes from `LEETFORCE_REDIS_URL` (a `rediss://` TLS URL), provided by the owner, never committed, and listed without a value in `.env.example`. Stack: Go for judge/runner/API; Neon Postgres via pgx; RustFS (S3 API) locally and S3 in the cloud, test data as bundles keyed by test-set version (ADR 0011); Docker Compose, k3s, Prometheus/Grafana/Loki.
 
 Naming: `LeetForce` in UI copy, docs and titles; lowercase `leetforce` in Go module paths, image/db/k8s/Terraform names, and metric prefixes; `LEETFORCE_` prefix for project-specific env vars.
 
@@ -35,8 +35,9 @@ make test-crash          # Phase 3 exit test: kill a runner mid-job, another rec
 make build-api           # build bin/api (Gin API; needs DATABASE_URL and LEETFORCE_REDIS_URL to run)
 make migrate-up          # apply goose migrations in api/migrations to Neon (also migrate-down, migrate-status; URL from .env)
 make test-api-e2e        # Phase 4 exit test: API, Redis, runner, ingest, Postgres; a duplicate verdict changes nothing (writes 2 rows to the real DB)
+make test-live-e2e       # Phase 5 exit test: queued, judging, verdict over SSE with tests from the S3 bucket; no hidden data in any response; the reaper re-queues an orphan (needs psql and LEETFORCE_S3_*; deletes the rows it creates)
 scripts/scan-staged.sh [full]   # Trivy on the staged tree via the dev host: secrets (every commit) or vuln+secret+misconfig (before merges)
-make dev | make down     # local Redis and MinIO via docker-compose.yml (needs Docker)
+make dev | make down     # local Redis and S3 (RustFS; MinIO no longer ships images, ADR 0011) via docker-compose.yml (needs Docker and LEETFORCE_S3_SECRET_KEY in .env)
 
 # Trivy security scans (see "Security scanning with Trivy"; no make target yet)
 trivy fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --exit-code 1 .
@@ -66,7 +67,7 @@ Planned, not defined yet: `make scan` (wrapping the Trivy commands above).
 - Branches: `main` ← `phase/<N>-<slug>` ← `feat|fix|test/<N>-<slug>`. Tag `phase-<N>-start` at phase start and `phase-<N>-done` at merge (plus `M<k>` for milestones).
 - Never commit directly to `main` (the initial README commit was the one bootstrap exception). Never force-push `main` or `phase/*`.
 - Merge units into the phase branch with `--no-ff` and git's default message (`Merge branch 'feat/<N>-<slug>' into phase/<N>-<slug>`), which commitlint ignores by design; delete the unit branch. Keep phase branches after merging to `main`.
-- Conventional Commits with scope (`sandbox`, `judge`, `runner`, `api`, `web`, `brand`, `db`, `queue`, `infra`, `packer`, `ansible`, `k8s`, `ci`, `obs`, `contest`, `leaderboard`, `docs`) and a `Refs: phase-<N>` footer. Commit at every meaningful step (~30–150 lines) that builds and passes tests.
+- Conventional Commits with scope (`sandbox`, `judge`, `runner`, `api`, `web`, `brand`, `db`, `queue`, `storage`, `infra`, `packer`, `ansible`, `k8s`, `ci`, `obs`, `contest`, `leaderboard`, `docs`) and a `Refs: phase-<N>` footer. Commit at every meaningful step (~30–150 lines) that builds and passes tests.
 - Before committing: `make fmt lint`, tests for the touched area, review `git diff --staged` for secrets/binaries, run `trivy fs --scanners secret .` (a finding blocks the commit), and stage specific paths.
 - Push branches and tags after each merge only if a remote is configured (it is: `origin` → `KarthikSP1911/Leetforce`).
 

@@ -15,25 +15,35 @@ import (
 	"leetforce/queue"
 )
 
+// fakeVersion is the test-set version the fake store stamps on every submission.
+const fakeVersion = "ts-0123456789abcdef"
+
 type fakeSubs struct {
 	rows     map[string]store.Submission
 	noProb   bool
 	insertEr error
 	deleted  []string
+	enqueued []string // ids passed to MarkEnqueued
+	markErr  error
 }
 
-func (f *fakeSubs) InsertSubmission(_ context.Context, id, problem, language, _ string) error {
+func (f *fakeSubs) InsertSubmission(_ context.Context, id, problem, language, _ string) (string, error) {
 	if f.insertEr != nil {
-		return f.insertEr
+		return "", f.insertEr
 	}
 	if f.noProb {
-		return store.ErrNotFound
+		return "", store.ErrNotFound
 	}
 	if f.rows == nil {
 		f.rows = map[string]store.Submission{}
 	}
-	f.rows[id] = store.Submission{ID: id, Problem: problem, Language: language, Status: store.StatusQueued}
-	return nil
+	f.rows[id] = store.Submission{ID: id, Problem: problem, Language: language, Status: store.StatusQueued, TestSetVersion: fakeVersion}
+	return fakeVersion, nil
+}
+
+func (f *fakeSubs) MarkEnqueued(_ context.Context, id string) error {
+	f.enqueued = append(f.enqueued, id)
+	return f.markErr
 }
 
 func (f *fakeSubs) DeleteSubmission(_ context.Context, id string) error {
@@ -82,11 +92,22 @@ func TestCreateSubmission(t *testing.T) {
 		if w.Code != http.StatusAccepted || json.Unmarshal(w.Body.Bytes(), &out) != nil || out.Status != "queued" || out.ID == "" {
 			t.Fatalf("response = %d %s", w.Code, w.Body)
 		}
-		if len(q.jobs) != 1 || q.jobs[0].SubmissionID != out.ID || q.jobs[0].Source != "print(3)" || q.jobs[0].Problem != "sum" {
+		if len(q.jobs) != 1 || q.jobs[0].SubmissionID != out.ID || q.jobs[0].Source != "print(3)" || q.jobs[0].Problem != "sum" || q.jobs[0].TestSetVersion != fakeVersion {
 			t.Fatalf("queued jobs = %+v", q.jobs)
 		}
 		if _, ok := subs.rows[out.ID]; !ok {
 			t.Fatal("submission row not stored")
+		}
+		if len(subs.enqueued) != 1 || subs.enqueued[0] != out.ID {
+			t.Fatalf("MarkEnqueued calls = %v, want [%s] (so the reaper leaves it alone)", subs.enqueued, out.ID)
+		}
+	})
+
+	t.Run("accepted even if marking it enqueued fails", func(t *testing.T) {
+		subs, q := &fakeSubs{markErr: errors.New("database asleep")}, &fakeQueue{}
+		w := post(t, Deps{Submissions: subs, Queue: q}, good)
+		if w.Code != http.StatusAccepted || len(q.jobs) != 1 || len(subs.deleted) != 0 {
+			t.Fatalf("response = %d %s, jobs %d, deleted %v; want 202 with the job queued and the row kept", w.Code, w.Body, len(q.jobs), subs.deleted)
 		}
 	})
 

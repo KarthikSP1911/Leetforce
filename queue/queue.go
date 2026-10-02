@@ -31,12 +31,16 @@ type Config struct {
 }
 
 // Job is one submission to judge. Source travels in the job so a runner needs
-// nothing but Redis; hidden tests are loaded from the problem directory.
+// nothing but Redis; hidden tests come from object storage (or a problems directory in development).
 type Job struct {
 	SubmissionID string `json:"submission_id"`
 	Problem      string `json:"problem"`
 	Language     string `json:"language"`
 	Source       string `json:"source"`
+	// TestSetVersion is the version the submission was accepted against; the
+	// runner fetches exactly that test set. Empty only for jobs made by tools
+	// (lfq) that run against a problems directory.
+	TestSetVersion string `json:"test_set_version,omitempty"`
 }
 
 // Result is the verdict a runner reports. It deliberately carries no test

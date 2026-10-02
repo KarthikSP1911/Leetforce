@@ -2,7 +2,10 @@
 // reports verdicts. Configuration comes from the environment:
 //
 //	LEETFORCE_REDIS_URL         required, redis:// or rediss:// URL
-//	LEETFORCE_PROBLEMS_DIR      problem directory (default "problems")
+//	LEETFORCE_PROBLEMS_DIR      problem directory (default "problems"); used only without object storage
+//	LEETFORCE_S3_ENDPOINT       object storage host:port; when set, tests are fetched from the bucket
+//	LEETFORCE_S3_ACCESS_KEY, LEETFORCE_S3_SECRET_KEY, LEETFORCE_S3_BUCKET, LEETFORCE_S3_USE_TLS
+//	LEETFORCE_PROBLEM_CACHE     where fetched problems are unpacked (default <tmp>/leetforce-problems)
 //	LEETFORCE_QUEUE_PREFIX      key prefix (default "leetforce"; tests use a throwaway one)
 //	LEETFORCE_RUNNER_ID         consumer name (default "<hostname>-<pid>")
 //	LEETFORCE_JOB_MIN_IDLE      idle time before a job is reclaimed (default 30s)
@@ -17,6 +20,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"syscall"
 	"time"
@@ -24,6 +28,8 @@ import (
 	"leetforce/judge/engine"
 	"leetforce/queue"
 	"leetforce/runner/internal/agent"
+	"leetforce/runner/internal/problems"
+	"leetforce/storage"
 )
 
 func main() {
@@ -56,9 +62,9 @@ func run() error {
 		host, _ := os.Hostname()
 		id = fmt.Sprintf("%s-%d", host, os.Getpid())
 	}
-	problems := os.Getenv("LEETFORCE_PROBLEMS_DIR")
-	if problems == "" {
-		problems = "problems"
+	problemsDir := os.Getenv("LEETFORCE_PROBLEMS_DIR")
+	if problemsDir == "" {
+		problemsDir = "problems"
 	}
 
 	q, err := queue.Open(url, queue.Config{Prefix: os.Getenv("LEETFORCE_QUEUE_PREFIX"), MinIdle: minIdle, MaxDeliveries: int64(attempts)})
@@ -76,9 +82,32 @@ func run() error {
 		return err
 	}
 
+	var src problems.Source = problems.Dir{Root: problemsDir}
+	s3cfg, useS3, err := storage.ConfigFromEnv()
+	if err != nil {
+		return err
+	}
+	if useS3 {
+		st, err := storage.Open(s3cfg)
+		if err != nil {
+			return err
+		}
+		if err := st.Ping(ctx); err != nil {
+			return fmt.Errorf("connect to object storage: %w", err)
+		}
+		cache := os.Getenv("LEETFORCE_PROBLEM_CACHE")
+		if cache == "" {
+			cache = filepath.Join(os.TempDir(), "leetforce-problems")
+		}
+		src = problems.S3{Store: st, Cache: cache}
+		log.Info("problems from object storage", "bucket", s3cfg.Bucket, "cache", cache)
+	} else {
+		log.Info("problems from directory", "dir", problemsDir)
+	}
+
 	a := agent.New(q, &engine.Engine{}, agent.Config{
 		ID:             id,
-		ProblemsDir:    problems,
+		Problems:       src,
 		HeartbeatEvery: minIdle / 3,
 		MaxAttempts:    int64(attempts),
 		Logger:         log,
