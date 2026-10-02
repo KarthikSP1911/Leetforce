@@ -55,7 +55,7 @@ Design: [ADR 0005](../adr/0005-problem-format-and-test-set-version.md). Decision
 
 ### Unit 4: `feat/2-checkers` (2026-10-02)
 1. Claude (repo): created `judge/checker/checker.go` (`Check(mode, expected, actual) (verdict.Verdict, error)`) and `judge/checker/checker_test.go`. `tokens` compares `bytes.Fields` of both sides; `exact` is byte-for-byte after removing one trailing `\n` from each side. An unknown mode returns an error with no verdict. The package imports `problem` for the mode names and `verdict` for AC/WA; it runs on the host on bytes returned by the sandbox, so the program cannot see the expected output.
-2. Tests: 21 table-driven cases (CRLF, blank lines, split and joined tokens, case, order, empty output, trailing newline rules in exact mode) plus the unknown-mode error.
+2. Tests: 22 table-driven cases (CRLF, blank lines, split and joined tokens, case, order, empty output, trailing newline rules in exact mode) plus the unknown-mode error.
 3. Mistake: the first commit was rejected by commitlint (a body line over 72 characters); the branch was pushed with no new commit, then the commit was redone with shorter lines and pushed. Nothing was lost.
 4. Workflow change: this time the host got the code with `git fetch`/`git pull` of the pushed unit branch, not `scp`, so no untracked copies or stash entries were created. Host: `make fmt lint` 0 issues, `go test ./judge/checker` ok, working tree clean. No sandbox code changed.
 
