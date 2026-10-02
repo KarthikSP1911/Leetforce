@@ -8,7 +8,7 @@
 - [x] `feat/4-migrations`: schema (`problems`, `submissions`, `verdicts`), migration tool, `make migrate-up`
 - [x] `feat/4-api-skeleton`: `api/` module (Gin, pgx), config, `/healthz`, pool settings
 - [x] `feat/4-problems-endpoints`: `GET /problems`, `GET /problems/:slug`
-- [ ] `feat/4-submissions`: `POST /submissions`, `GET /submissions/:id`, enqueue with the test-set version
+- [x] `feat/4-submissions`: `POST /submissions`, `GET /submissions/:id`, enqueue with the test-set version
 - [ ] `feat/4-verdict-ingest`: results-stream consumer writing idempotent verdicts; dead-letter watcher marks `IE`
 - [ ] `test/4-idempotency`: duplicate verdicts change nothing; API to runner end-to-end
 - [ ] `docs/4-adr-report`: ADR, `docs/FLOW.md`, report, summary, `PROGRESS.md` to in review
@@ -53,6 +53,15 @@
 6. Mistake and fix: the first version set `search_path` as a connection startup parameter and it was ignored, so the test's migration ran against the real `public` schema and failed with `relation "problems" already exists` (the first statement failed, so nothing was changed; `make migrate-status` afterwards still showed only version 1). Fix: `SET search_path` in `AfterConnect`, plus a guard that checks `current_schema()` equals the throwaway schema and aborts the test otherwise, so a test can never touch the real tables.
 7. Verified on the host: `make fmt lint` 0 issues in all four modules; store and catalog tests pass with the real Neon database; `bin/api` against the real Neon and Upstash: `GET /problems` listed `sample-sum`, `GET /problems/sample-sum` returned two samples (tests 01 and 02) and not the three hidden ones, an unknown slug gave `404`. The real `problems` table now has the `sample-sum` row, written by the startup sync.
 
+### Unit 4: `feat/4-submissions` (2026-10-02)
+1. Claude (repo): `api/internal/store/submissions.go`: `InsertSubmission` is a single `INSERT ... SELECT ... FROM problems`, so the test-set version stamped on the submission is the one in force at that instant (returns `ErrNotFound` for an unknown problem); `DeleteSubmission`; `GetSubmission` joins the verdict if one exists (`s.id::text = $1`, so a malformed id is a clean "not found" instead of a Postgres cast error). `Submission` and `VerdictView` carry no source, test data or stderr, and the test-set version is `json:"-"`.
+2. `api/internal/server/submissions.go`: `POST /submissions` (`{problem, language, source}`): 400 not JSON, 422 missing problem or source or an unsupported language, 413 source over 64 KiB (`MaxSourceBytes` mirrors `judge/engine.MaxSourceBytes`; the API does not import the engine because it pulls in Linux-only sandbox code) or body over about 260 KiB (`http.MaxBytesReader`), 404 unknown problem, then the row is inserted with a new UUID and the job is enqueued; response `202 {"id", "status":"queued"}`. If the enqueue fails the row is deleted (using `context.WithoutCancel`) and the client gets 503, so no row waits for a job that was never queued. `GET /submissions/:id` returns status and, once judged, the verdict, runtime, memory and passed/total counts. Internal errors are logged and returned as a generic 500.
+3. Dependency: `github.com/google/uuid` for ids.
+4. Tests: `server/submissions_test.go` (accepted stores and queues the right job; every rejection stores and queues nothing; queue failure removes the row and does not leak the error text; DB failure is a generic 500; GET never contains the test-set version, source, stderr, expected or input), `store/submissions_test.go` (real Postgres: unknown problem, version stamped at accept time survives a later problem version change, malformed id, duplicate id, language outside the four rejected by the schema, delete).
+5. Verified on the host: `make fmt lint` 0 issues in all four modules; both store tests pass against Neon in throwaway schemas; live run of `bin/api` (Neon and Upstash, queue prefix `p4smoke`): `POST /submissions` for `sample-sum` returned 202, `GET` returned `status: queued` with no verdict, an unknown problem and a malformed id both gave 404. `bin/lfq destroy` removed the `p4smoke` keys.
+6. Left behind: that live run inserted one real `submissions` row (id `31b379ac-3721-468b-84b1-d2b39bc098a7`, status `queued`, no verdict, its job was destroyed with the throwaway queue). It is harmless dev data; there is no cleanup script yet.
+7. Known gap (deferred): a crash between the insert and the enqueue leaves a `queued` row with no job; a reaper for stale queued rows belongs with the live-status work in Phase 5.
+
 ## File and path index
 - `docs/phases/phase-4-log.md`: this log
 - `api/migrations/00001_init.sql`: schema (problems, submissions, verdicts)
@@ -66,5 +75,7 @@
 - `api/internal/catalog/catalog.go`, `catalog_test.go`: problems directory loader and samples-only view
 - `api/internal/store/problems.go`, `problems_test.go`, `testdb_test.go`: problem queries and the throwaway-schema test helper
 - `api/internal/server/problems.go`, `problems_test.go`: problem endpoints
+- `api/internal/store/submissions.go`, `submissions_test.go`: submission queries
+- `api/internal/server/submissions.go`, `submissions_test.go`: submission endpoints
 - `go.work`: `./api` added; `Makefile`: `api` in `GO_MODULES`, `build-api`
 - `.env.example`: added `DATABASE_URL`, `LEETFORCE_MIGRATE_DATABASE_URL`
