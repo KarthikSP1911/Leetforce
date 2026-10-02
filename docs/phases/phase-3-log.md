@@ -7,8 +7,8 @@
 ## Units of work
 - [x] `feat/3-compose`: Compose file for Redis and MinIO, `.env.example`, Redis on the dev host for tests
 - [x] `feat/3-queue-package`: job and result types, stream, consumer group, ack, `XAUTOCLAIM`
-- [ ] `feat/3-runner-module`: `runner/` module and agent loop calling `engine.Judge`
-- [ ] `feat/3-runner-reporting`: verdicts to a `results` stream, idempotent by submission ID
+- [x] `feat/3-runner-module`: `runner/` module, agent loop calling `engine.Judge`, verdict reporting to the `results` stream (idempotent by submission ID). This also covers the planned `feat/3-runner-reporting`: reporting is one `Publish` call in the agent, so it was not worth a separate unit
+- [ ] `feat/3-lfq-tool`: small `lfq` command (enqueue, results) for demos and the crash test
 - [ ] `test/3-crash-reclaim`: kill a runner mid-job, job reclaimed and judged once; no DB in `runner/go.mod`
 
 ## Decisions (2026-10-02)
@@ -40,6 +40,16 @@
 6. Fact for later: Upstash round trips are slow from the host's region, so the production queue needs `MinIdle` well above the round trip (default 30 s is fine) and the heartbeat interval should be far below it.
 7. Mistake (tooling): the first attempt to create the files with a long shell heredoc failed to parse; nothing was written. Files were then created with the editor tool. No effect on the repo.
 
+### Unit 3: `feat/3-runner-module` (2026-10-02)
+1. Claude (repo): new module `runner/` (`leetforce/runner`, no third-party dependencies of its own; it imports `leetforce/judge` and `leetforce/queue` through `go.work`). Removed `runner/.gitkeep`. Added `runner` to `go.work` and `GO_MODULES`, plus `make build-runner`.
+2. `runner/internal/agent/agent.go`: `Agent.Run` (receive loop; a job already started finishes on `context.WithoutCancel` so shutdown does not abandon it) and `Agent.Process`: (a) if a verdict already exists for the submission, ack without judging; (b) start a heartbeat (`Touch` every `HeartbeatEvery`; on `ErrLost` it cancels the judging and the result is discarded); (c) validate the slug against `^[a-z0-9]+(-[a-z0-9]+)*$` (the job comes from a queue, so it must never become a path like `../x`), load the problem, call the engine with `Detail` off (Submit); (d) a host error leaves the job unacknowledged for redelivery, except on the last attempt (`MaxAttempts`) where an `IE` verdict is reported; a bad job (bad slug, unknown problem, `ErrUnknownLanguage`, `ErrSourceTooLarge`) reports `IE` at once; (e) `Publish` then `Ack`. The result has no failing-test name, input, expected output or stderr; only a CE carries the compiler message (Phase 2 decision B default). `IE` is a platform verdict outside the judge's set; its result carries no error text.
+3. `runner/cmd/runner/main.go`: config from env (`LEETFORCE_REDIS_URL`, `LEETFORCE_PROBLEMS_DIR`, `LEETFORCE_RUNNER_ID`, `LEETFORCE_JOB_MIN_IDLE`, `LEETFORCE_JOB_MAX_ATTEMPTS`), refuses to start without root (the sandbox needs it), heartbeat = MinIdle / 3, SIGINT and SIGTERM stop the loop, JSON logs on stderr.
+4. `queue/queue.go` gained `Published` (verdict marker exists) and `Destroy` (delete a throwaway prefix, for tests); `queue.Result.MemoryKB` became `uint64`.
+5. Tests (`runner/internal/agent/agent_test.go`, real Redis, fake judger): verdict mapping, WA result hides the failing test, CE carries compiler text, four bad-job cases get IE and are acked, host failure leaves the job pending then IE on the last attempt, a redelivered job with a recorded verdict is not judged, heartbeats happen while judging (at least 3 in a 400 ms job), a lost claim cancels judging in under 2 s and publishes nothing, `Run` processes two jobs and stops on cancel.
+6. Results on the host: `go vet` clean; `make fmt lint`: 0 issues in judge, queue and runner; `go test ./queue/... ./runner/...` all ok against local Redis (agent tests 5.3 s). Agent tests were not run against Upstash (their sleeps assume a local round trip).
+7. Mistakes and fixes: (a) the first `make lint` on the host reported gosec G115 for `int64(uint64)`; fixed by making `MemoryKB` unsigned (separate `fix(runner)` commit). (b) The first runner commit lacked the `Co-Authored-By` trailer; amended before it was pushed. (c) `go vet` on the Windows checkout fails in `judge/verdict` (`syscall.SIGXCPU` is Linux-only); expected, all Go checks run on the host.
+8. Not yet verified: the runner binary has not run against the real sandbox and Upstash; that is the next unit and the crash test.
+
 ## File and path index
 - `queue/go.mod`, `go.sum`, `queue.go`, `queue_test.go`: Redis Streams queue module
 - `go.work`, `Makefile` (`GO_MODULES`): include `queue`
@@ -48,3 +58,5 @@
 - `docker-compose.yml`, `.env.example`, `Makefile` (`dev`, `down`): local Redis and MinIO
 - `docs/phases/phase-3-log.md`: this log
 - `docs/PROGRESS.md`: phase 3 in progress
+- `runner/go.mod`, `runner/cmd/runner/main.go`, `runner/internal/agent/agent.go`, `agent_test.go`: the runner
+- `go.work`, `Makefile` (`GO_MODULES`, `build-runner`): include `runner`; `bin/runner` is the build output (git-ignored)

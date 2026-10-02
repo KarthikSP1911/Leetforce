@@ -45,7 +45,7 @@ type Result struct {
 	SubmissionID   string `json:"submission_id"`
 	Verdict        string `json:"verdict"`
 	RuntimeMS      int64  `json:"runtime_ms"`
-	MemoryKB       int64  `json:"memory_kb"`
+	MemoryKB       uint64 `json:"memory_kb"`
 	TestSetVersion string `json:"test_set_version"`
 	Passed         int    `json:"passed"`
 	Total          int    `json:"total"`
@@ -284,6 +284,17 @@ func (q *Queue) Publish(ctx context.Context, r Result) (bool, error) {
 	return n == 1, nil
 }
 
+// Published reports whether a verdict for the submission was already recorded,
+// so a runner that gets a redelivered job can acknowledge it without judging
+// it again.
+func (q *Queue) Published(ctx context.Context, submissionID string) (bool, error) {
+	n, err := q.rdb.Exists(ctx, q.marker(submissionID)).Result()
+	if err != nil {
+		return false, fmt.Errorf("check verdict: %w", err)
+	}
+	return n == 1, nil
+}
+
 // Results lists published verdicts after the given stream ID ("-" for all).
 // The API consumes the stream with its own group in Phase 4; this is for
 // tests and tools.
@@ -314,4 +325,24 @@ func (q *Queue) DeadLetters(ctx context.Context) (int64, error) {
 		return 0, fmt.Errorf("dead letter length: %w", err)
 	}
 	return n, nil
+}
+
+// Destroy deletes every key under this queue's prefix. It is for tests and
+// tools that use a throwaway prefix; never call it on the production prefix.
+func (q *Queue) Destroy(ctx context.Context) error {
+	var cursor uint64
+	for {
+		keys, next, err := q.rdb.Scan(ctx, cursor, q.cfg.Prefix+":*", 100).Result()
+		if err != nil {
+			return fmt.Errorf("scan: %w", err)
+		}
+		if len(keys) > 0 {
+			if err := q.rdb.Del(ctx, keys...).Err(); err != nil {
+				return fmt.Errorf("delete: %w", err)
+			}
+		}
+		if cursor = next; cursor == 0 {
+			return nil
+		}
+	}
 }
