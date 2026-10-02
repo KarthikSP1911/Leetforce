@@ -2,7 +2,7 @@
 
 **Branch:** `phase/3-queue-runner`
 **Range:** `phase-3-start..phase-3-done`
-**Status:** in review (report and summary written; waiting for the owner's review answers)
+**Status:** done (merged into main; see the closing entry)
 
 ## Units of work
 - [x] `feat/3-compose`: Compose file for Redis and MinIO, `.env.example`, Redis on the dev host for tests
@@ -12,7 +12,7 @@
 - [x] `test/3-no-db-dependency`: fails if the runner's dependency graph contains a database package
 - [x] `docs/3-adr-flow`: ADR 0008, `docs/FLOW.md`, log for units 4 and 5
 - [x] `docs/3-report`: phase report and summary, `PROGRESS.md` set to in review
-- [ ] review with the owner (CLAUDE.md section 7.3), record the Q&A, merge to `main`, tag `phase-3-done`
+- [x] review skipped at the owner's request, Q&A recorded as unanswered, merge to `main`, tag `phase-3-done`
 
 ## Decisions (2026-10-02)
 - Owner asked for the recap question and session plan; the recap question was not answered. The owner replied "upstash url i will provide you later, remaining you decide which is good", so Claude chose the defaults below. Who decided: Claude, on the owner's delegation.
@@ -74,6 +74,11 @@
 2. While there, Claude fixed stale lines: the "Current state" status (phases 0 to 2 done, phase 3 in review) and the planned-commands note (`make dev` and `make down` exist since Phase 3); added `build-runner`, `test-crash`, `dev` and `down` to the Commands block.
 3. Not done: Trivy is not installed on the dev host or locally, so none of the scan commands has been run, and no `make scan` target or `setup-dev-host.sh` step exists yet. The commands are the standard Trivy CLI, but they are unverified here. Installing Trivy, running the first scan of the repo and wiring `make scan` would be a host change plus a unit of work; it was not requested yet.
 4. Commit: `docs(claude): ...` (scope `claude` is allowed by `commitlint.config.mjs`), merged into `phase/3-queue-runner` with git's default message.
+
+### Review skipped and phase closed (2026-10-02)
+1. The owner pasted the five understanding questions with "ans"; Claude gave its own explanations in chat (recorded in the summary as Claude's, not the owner's). The owner then asked "is phase 3 done completely"; Claude said no (review, merge, tag and handoff outstanding) and listed what was missing. The owner replied "merge to main", which Claude treated as an explicit request to skip the review (CLAUDE.md allows following the user). Decisions A, B, C stay unanswered.
+2. Claude (repo): recorded this in `phase-3-summary.md` ("Review Q&A", "Open decisions", "Handoff") and set `PROGRESS.md` to done with resume point "start Phase 4". Then `git merge --no-ff` of `phase/3-queue-runner` into `main` with git's default message, tag `phase-3-done` (no milestone: M2 is Phase 5), push of `main`, the phase branch and the tags. The result is in the closing entry below.
+3. Not done: the EC2 instance `leetforce-dev` was not stopped (billable, owner's call); the Trivy install and first scan were not run (not requested); the Upstash token was not rotated (owner's action).
 
 ## File and path index
 - `CLAUDE.md`: Trivy section, command list and status refreshed

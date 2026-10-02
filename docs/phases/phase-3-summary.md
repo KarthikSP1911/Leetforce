@@ -136,15 +136,19 @@ Decisions for you:
 - **C.** Phase 2's open decisions (A: problem format, B: compile errors on Submit, C: Go and Java compile speed) are still on the defaults. Phase 4 needs B (the API stores what the runner returns).
 
 ## Review Q&A
-Pending: the review has not happened yet (to be filled in after the owner answers).
+Review skipped at the owner's request (2026-10-02: after the report and summary were pushed, the owner wrote "merge to main").
+
+**Understanding questions 1 to 5: not answered by the owner.** After the questions, the owner pasted them back with "ans"; Claude read that as a request for the answers and gave its own explanations in chat (they are not the owner's answers and do not show what the owner understands). The explanations were: (1) a Go compile takes 10 to 20 s, so the kill is provably mid-job, while a 50 ms job could finish before the kill and never exercise reclaim; (2) heartbeat calls fail and are retried, after `MinIdle` another runner reclaims, and the old runner's next `Touch` gets `ErrLost` and discards its work, with idempotent `Publish` as the second safety; (3) delivery is at-least-once, the verdict is exactly-once through the atomic `SET NX` plus `XADD` script and the `Published` check; (4) `XCLAIM` with min-idle 0 would reassign the job to a slow runner, so the owner check and claim are one Lua script; (5) the slug check fails, the engine never runs, the runner publishes `IE` with no text and acknowledges, the user sees only `IE`. They can serve as the recap question at the start of the next session.
+
+**Decisions A, B and C: not answered.** Defaults stay in force: the Upstash token is not rotated and tests share the one Upstash database (the owner may change this); leftover job folders are not swept (deferred to Phase 6, per-runner work folder recommended); Phase 2 decisions A, B and C keep their defaults.
 
 ## Open decisions
 - Phase 2 decisions A, B, C remain on their defaults (B affects Phase 4, A affects 7 and 8, C affects 6 and 13).
-- Review decisions A, B, C above (Upstash token and test database, job folder cleanup).
+- Review decisions A, B, C above: not answered at the review (skipped); defaults stay until the owner decides.
 - Runner privilege model: Phase 6.
 
 ## Handoff
-- **State:** branch `phase/3-queue-runner`, tag `phase-3-start`; not merged to `main` and no `phase-3-done` tag yet (the review comes first). Everything is pushed to `origin`. The EC2 instance `leetforce-dev` is running (billable); its checkout is on this branch; Redis is running there; `~/Leetforce/.env` holds the Upstash URL (mode 600). No runners are left running. `web/AGENTS.md` and `web/CLAUDE.md` are still untracked.
+- **State:** branch `phase/3-queue-runner`, tag `phase-3-start`; Phase 3 is merged into `main` and tagged `phase-3-done`; `phase-3-start` marks the start. The branch `phase/3-queue-runner` is kept. Everything is pushed to `origin`. The EC2 instance `leetforce-dev` is running (billable); its checkout is on this branch; Redis is running there; `~/Leetforce/.env` holds the Upstash URL (mode 600). No runners are left running. `web/AGENTS.md` and `web/CLAUDE.md` are still untracked.
 - **Next phase:** 4 - API and database. Goal: accept submissions through a Gin API, store them and the verdicts in Neon Postgres with idempotent verdict writes, record the test-set version, and read the results stream. Before it starts: have the Neon connection string ready (`DATABASE_URL`, never committed), and decide Phase 2 decision B (compile errors on Submit).
 - **Next session prompt:**
   ```
