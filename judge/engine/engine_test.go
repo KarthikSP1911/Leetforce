@@ -141,7 +141,7 @@ func TestJudgeVerdicts(t *testing.T) {
 					t.Fatal(err)
 				}
 				if rep.Overall.Verdict != tc.want || rep.Overall.Failed != tc.failed {
-					t.Fatalf("verdict = %s (failed %q), want %s (failed %q); cases %+v", rep.Overall.Verdict, rep.Overall.Failed, tc.want, tc.failed, rep.Cases)
+					t.Fatalf("verdict = %s (failed %q), want %s (failed %q); cases %+v; compile output: %s", rep.Overall.Verdict, rep.Overall.Failed, tc.want, tc.failed, rep.Cases, rep.CompileOutput)
 				}
 				if rep.TestSetVersion != p.TestSetVer || rep.Language != language {
 					t.Errorf("report header = %+v", rep)
