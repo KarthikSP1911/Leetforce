@@ -10,7 +10,7 @@
 - [x] `feat/1-nsjail-wrapper`: `judge/sandbox` Spec/Run, bounded output capture
 - [x] `feat/1-cgroup-limits`: cgroup v2 memory/pids/cpu limits, whole-cgroup kill, measurements
 - [x] `feat/1-result-channel`: dedicated fd for the harness result
-- [ ] `test/1-adversarial`: `make test-adversarial` suite
+- [x] `test/1-adversarial`: `make test-adversarial` suite
 - [ ] `docs/1-adrs-report`: ADR 0004, phase report, phase summary
 
 ## Exit criteria (from PLAN.md)
@@ -146,3 +146,41 @@ Same workflow as units 2 and 3 (edit on Windows, `tar | ssh` to the host, test a
 **Verification (EC2 host).** `make fmt lint`: `0 issues.` `make test`: ok. `make test-sandbox`: all PASS. 25 rounds of the result, forgery, background, basics, memory and kill tests: ok in 34.7 s. After the runs, with root: 0 `job-*` cgroup directories, 0 processes in `/sys/fs/cgroup/leetforce`, `nr_descendants 0`; `pgrep` found 0 nsjail and 0 sleep processes; no `/var/tmp/lf-sandbox-*` directories; host memory unchanged (about 490 MiB available). A first leftover check printed 0 only because a non-root `ls` of the root-only cgroup directory was denied; I repeated it with sudo to be sure.
 
 **Host state changes in this unit.** Only `/tmp/spike/fd4.sh`, `fd4log.txt` and `fd4out.txt` (scratch). No system settings changed.
+
+### `test/1-adversarial` (2026-10-02)
+Same workflow (edit on Windows, `tar | ssh` to the host, test as root, commit after everything passed). The dangerous attacks were introduced in stages with a host health check between each, and every check was repeated with sudo where the directory is root-only.
+
+**What was built.**
+- `judge/sandbox/adversarial_test.go` (build tags `linux && adversarial`): 11 test functions. Attack programs are small C programs compiled with gcc (fork bomb, thread bomb, memory bomb, 8-process aggregate memory, spinners, a signal-ignoring spinner, a no-newline two-stream flood, and an `escape.c` probe that tries about 40 ways out) plus shell and Python one-liners. They run only inside the sandbox.
+- `make test-adversarial` (Makefile): builds the test binary as the normal user (`go test -tags adversarial -c -o bin/sandbox-adversarial.test ./judge/sandbox`), then runs it as root inside `systemd-run --scope -p MemoryMax=600M -p MemorySwapMax=0 -p TasksMax=1500`, so a containment failure cannot take down the 1 GiB host. `RUN=<regex>` selects tests. The target also runs all the ordinary sandbox tests (the forged-result cases in `result_test.go` are part of the gate).
+- `requireNoProcess` in `cgroup_run_test.go` now flags a process only if its command line matches and it is still in the `leetforce` cgroup tree (see mistakes below). `-pthread` was added to the C test compiler.
+
+**Coverage (every Phase 1 exit-criterion item).**
+| Criterion | Tests |
+|---|---|
+| fork bomb | `TestAdversarialForkBomb` (pid limit hit, peak at most 64, no process left); `TestAdversarialThreadBomb` (threads count against pids.max) |
+| memory bomb | `TestAdversarialMemoryBomb` (OOM-killed, peak within 110% of the limit); `TestAdversarialAggregateMemory` (8 x 20 MiB across processes under a 64 MiB group limit); tmpfs fill (writes refused by the 8 MiB tmpfs); file-size limit (writer killed, file capped at exactly 1 MiB) |
+| infinite loop | busy loop, sleeping forever and a signal-ignoring spinner all end at the 2 s wall limit with SIGKILL; a CPU spinner is killed at 1 s of CPU; an infinite unread stdin does not hold the run |
+| output flood | stdout lines, stderr lines, no-newline writes on both streams, binary zeros: all capped at 4096 bytes and stopped in under 5 s |
+| network | python3 in the sandbox tries TCP to the host's loopback and private address (a real listener on the host counts connections), 1.1.1.1, 8.8.8.8 and the cloud metadata address, UDP and DNS: all fail and the host listener accepted 0 connections |
+| file-system / privilege escape | `escape.c`: reads of `/etc/shadow`, `/etc/passwd`, `/root`, `/home`, `/proc`, `/sys/fs/cgroup`, `../` traversal three ways, the host repo path, writes to `/usr`, `/bin`, `/lib`, `/dev/mem`, `/dev/kmsg`, `/dev/sda`, mknod, hard link, symlink to `/etc`, mount tmpfs and bind, umount, chroot, pivot_root, unshare (user and mount), setns, ptrace, bpf, keyctl, perf_event_open, init_module, kexec_load, swapon, setuid(0), setgid(0), raw ICMP and packet sockets, raising the hard NOFILE limit: every one denied; the program runs as uid 65534 |
+| orphans | `setsid`, subshell and `nohup` background sleeps are all gone after Run |
+| host health | `TestAdversarialZHostSurvives` runs last: no job cgroup and no nsjail or attack process left |
+
+**Findings during the unit (all recorded, none hidden).**
+1. **Test expectation wrong: loopback.** The network test first failed with `CONNECTED loopback to itself`. nsjail brings up the loopback interface of the sandbox's own private network namespace, so a program can connect to a server it started itself; that reaches nothing outside. Every attempt to reach the host or the internet was already blocked and the host listener accepted nothing. I kept loopback (some runtimes use it; `--iface_no_lo` would disable it) and changed the test to require 8 blocked attempts plus the private loopback.
+2. **Test expectation wrong: file size.** The test inspected the shell's exit status instead of `dd`'s. A direct probe showed `dd` killed by SIGXFSZ (status 153) with the file capped at exactly 1,048,576 bytes. The test now checks `dd`'s status and the file size.
+3. **Behavior to remember for Phase 2: CPU-limit kills use SIGKILL.** nsjail sets the soft and hard `RLIMIT_CPU` equal (`ulimit -St` and `-Ht` both printed 1), so the kernel sends SIGKILL, not SIGXCPU. The result is `Signal=SIGKILL, TimedOut=false` with `CPUTime` about 1 s. The judge must classify a CPU time-limit kill from the measured `CPUTime` against the limit, never from the signal alone. Moved to Phase 2.
+4. **Helper bug: false leak report.** `requireNoProcess` matched any process whose command line contained the word, and found my own ssh monitoring command (which contained `forkbomb`). It now also requires the process to be in the `leetforce` cgroup tree, which identifies exactly a leaked sandbox process.
+5. **The seccomp denylist is defence in depth.** The escape probe's denials (mount, chroot, unshare, ptrace and so on) also come from the unprivileged user namespace having no capabilities, so the probe cannot tell which layer stopped each call. Both layers are in place; a test that isolates the seccomp layer is deferred to Phase 6 (sandbox hardening).
+6. **Spike slip:** a probe script forgot to mount `/dev/zero`, so `dd` never ran and told me nothing; I redid it with the mount.
+
+**Does the suite actually fail when the sandbox is weak? (mutation check).** On the host's copy only, I added `--disable_clone_newnet` to `args.go` and ran the network and args tests: both failed (the sandbox reached 1.1.1.1 and the host listener accepted 2 connections from the sandbox; the args test flagged the forbidden flag). I then restored the file with `git checkout -- judge/sandbox/args.go` and confirmed 0 occurrences and an empty `git diff`. No other mutation was tried; weakening memory or process limits was judged too risky on the 1 GiB host.
+
+**Verification (EC2 host, 2026-10-02).** `make fmt lint`: `0 issues.` (also `go vet -tags adversarial`). `make test-adversarial`: exit 0, 32 PASS, 0 FAIL, 0 SKIP, run four times in total (one plus three more in a loop), all identical. After the runs: 0 nsjail processes, 0 `job-*` cgroups, 0 `/var/tmp/lf-sandbox-*` directories, memory about 516 MiB available (unchanged), 0 global OOM events. `dmesg` shows 54 OOM events before the last rounds, all `oom-kill:constraint=CONSTRAINT_MEMCG` (cgroup-limited) and all killing our own test programs (`alloc`, `membomb`, `aggmem`); none is host-wide. The three-round check also found 0 non-MEMCG constraints.
+
+**Host state changes in this unit.** Created `bin/sandbox-adversarial.test` in `~/Leetforce` (git-ignored); logs `/tmp/adv-full.log`, `/tmp/adv-1.log` to `/tmp/adv-3.log`; scratch `/tmp/spike/fsize.sh` and `fsize2.sh`; no system settings changed. The `/sys/fs/cgroup/leetforce` directory from unit 3 is still present and empty. The test-only memory backstop and the systemd scopes are transient (they disappear with the run).
+
+**Not done / moved on.** Phase 2: CPU-limit classification from `CPUTime` (finding 3). Phase 6: a seccomp-only test (finding 5), per-job cgroup resource accounting for the runner, and reviewing running nsjail as root. The remaining Phase 1 work is unit 6 (ADR 0004, phase report, phase summary).
+
+**Carried over from unit 4 (missing from its entry).** After unit 4 was merged I ran `git checkout -- .` and `git clean -fdq judge Makefile` on the host to discard the files copied with `tar`, then `git fetch`, `git checkout phase/1-sandbox-core`, `git pull --ff-only` (host at the merge commit, clean working tree).
