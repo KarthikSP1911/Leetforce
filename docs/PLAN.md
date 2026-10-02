@@ -25,7 +25,7 @@ Milestones: **M1** judge works locally (end of Phase 2), **M2** end-to-end on on
 ## Phase 3 - Queue and runner
 
 - **Goal:** jobs flow through Redis to runners.
-- **Build:** `runner/` module; Redis Streams consumer groups; `XAUTOCLAIM` for crashed runners; runner talks only to Redis and the API; Docker Compose for Redis/MinIO.
+- **Build:** `runner/` module; Redis Streams consumer groups on Upstash (`LEETFORCE_REDIS_URL`, supplied by the owner); `XAUTOCLAIM` for crashed runners; runner talks only to Redis and the API; Docker Compose for Redis/MinIO.
 - **Exit:** killing a runner mid-job results in the job being reclaimed and judged once; no DB dependency in `runner/go.mod`.
 
 ## Phase 4 - API and database
@@ -77,7 +77,7 @@ Milestones: **M1** judge works locally (end of Phase 2), **M2** end-to-end on on
 
 ## Phase 12 - Infrastructure as code
 
-- **Build:** Terraform `infra/neon` and `infra/aws` (separate state); Packer runner AMI; Ansible hardening; README cost table. Nothing is applied without explicit confirmation.
+- **Build:** Terraform `infra/neon` and `infra/aws` (separate state; default VPC only, no custom VPC, endpoints or NAT; `arena.sh up|down|status`, where `down` destroys `infra/aws` only after a typed confirmation); Packer runner AMI; Ansible hardening; README cost table. Nothing is applied without explicit confirmation.
 - **Exit:** `terraform plan` clean; AMI builds; destroy of `infra/aws` never touches `infra/neon`.
 
 ## Phase 13 - Cloud deployment (M4)
