@@ -26,6 +26,7 @@ var languages = []string{"python", "cpp", "java", "go"}
 type SubmissionStore interface {
 	InsertSubmission(ctx context.Context, id, problem, language, source string) (testSetVersion string, err error)
 	DeleteSubmission(ctx context.Context, id string) error
+	MarkEnqueued(ctx context.Context, id string) error
 	GetSubmission(ctx context.Context, id string) (store.Submission, error)
 }
 
@@ -88,6 +89,12 @@ func (d Deps) createSubmission(c *gin.Context) {
 		}
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "could not queue the submission, try again"})
 		return
+	}
+	// Without this mark the reaper would queue the job a second time after its
+	// grace period. That is harmless (a verdict is stored once), so a failure
+	// here is logged and the submission is still accepted.
+	if err := d.Submissions.MarkEnqueued(context.WithoutCancel(ctx), id); err != nil {
+		d.Logger.Warn("mark submission enqueued", "id", id, "err", err)
 	}
 	c.JSON(http.StatusAccepted, gin.H{"id": id, "status": store.StatusQueued})
 }

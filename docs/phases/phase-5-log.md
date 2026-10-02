@@ -9,7 +9,7 @@
 - [x] `feat/5-test-storage`: problem tests in MinIO keyed by test-set version; API and runner read them from there
 - [x] `feat/5-judging-state`: runner publishes a Judging event; API ingests it
 - [x] `feat/5-sse-status`: `GET /submissions/:id/events` (SSE)
-- [ ] `feat/5-reaper`: re-enqueue rows stored but never queued
+- [x] `feat/5-reaper`: re-enqueue rows stored but never queued
 - [ ] `test/5-e2e-redaction`: SSE end-to-end and hidden-data leak tests
 - [ ] `docs/5-adr-report`: ADR, `docs/FLOW.md`, report, summary
 
@@ -63,3 +63,14 @@ Design (Claude): the handler polls Postgres every 500 ms and emits only changes,
 3. Verified on the host: `make fmt lint` 0 issues (5 modules); `make test` all ok.
 4. Live check on the host (throwaway prefix `smoke5`; API with the problems directory, runner with `LEETFORCE_PROBLEMS_DIR=/nonexistent` so tests came from S3, empty runner cache): submitted `problems/sample-sum/solutions/python/ac.py` with no runner running, opened `curl -sN .../submissions/<id>/events`, then started the runner. Output with receive times: `16:42:55.1 status {"status":"queued"}`, runner started 16:42:57, `16:43:00.7 status {"status":"judging"}`, `16:43:01.2 verdict {"status":"judged","verdict":{"verdict":"AC","runtime_ms":51,"memory_kb":10776,"passed":5,"total":5}}`. The 3 s between runner start and "judging" is process start, the first bundle download and the watcher's blocking read (up to 5 s). `bin/lfq destroy`, no nsjail left; one more Neon submission and verdict row.
 5. Trivy before merging (host, Trivy 0.75.0): exit 0 (no new dependencies in this unit).
+
+### Unit 5: `feat/5-reaper` (2026-10-02)
+Problem (from the Phase 4 summary): `POST /submissions` inserts the row and then queues the job; if the API dies between the two, the row stays `queued` with no job. Design (Claude): a nullable `enqueued_at` set after a successful enqueue identifies exactly those rows (a row with a job in the queue but no runner running is not an orphan, so a plain "old and queued" rule would pile up duplicate jobs while runners are down).
+1. Claude (repo): `api/migrations/00003_enqueued_at.sql`: column `enqueued_at timestamptz`, existing rows backfilled with `created_at`, partial index `submissions_unqueued_idx` on `(created_at) WHERE enqueued_at IS NULL AND status = 'queued'` (down drops both).
+2. Claude (repo): `store.MarkEnqueued` and `store.ReapUnqueued` (`api/internal/store/reap.go`): one transaction, `SELECT ... FOR UPDATE SKIP LOCKED` of old unmarked queued rows, calls the enqueue function per row, marks the ones that succeeded, commits. SKIP LOCKED means two API instances never take the same row; a crash before the commit rolls the marks back, and the worst case is one duplicate job, which is harmless (a runner skips a job whose verdict exists, and the verdict write is idempotent). A row whose enqueue fails stays unmarked for the next sweep.
+3. Claude (repo): `api/internal/reaper` (`Reaper.Sweep`/`Run`: a sweep at startup, then every `LEETFORCE_REAPER_INTERVAL`, default 15 min; grace `LEETFORCE_REAPER_GRACE`, default 2 min; batch 50) and `createSubmission` now calls `MarkEnqueued` after the enqueue (failure only logged: the reaper would later queue a harmless duplicate).
+4. Cost trade-off (to record in the ADR and tell the owner): every sweep is a Neon query, and Neon suspends an idle database after a few minutes. A 30 s poll would keep it awake all day. Startup sweep plus a 15 min interval covers the actual failure (an API crash is noticed when it restarts) at one short wake-up per 15 min. The owner's Neon plan and limits are still unchecked.
+5. Claude (host): `git checkout -B feat/5-reaper origin/feat/5-reaper`; `make migrate-up` applied 00003 to the real Neon database (about 350 ms), `migrate-down` then `migrate-up` round trip worked, version 3. This changes the shared dev database.
+6. Verified on the host: `make fmt lint` 0 issues (5 modules); `make test` all ok including `TestReapUnqueued` (old orphan requeued, young row within grace left alone, already-enqueued and already-judged rows never candidates, a failing enqueue stays for the next sweep and is picked up by it, a third sweep does nothing, `limit` respected) and the reaper and server tests. Mutation check: removing `AND enqueued_at IS NULL` from the query made `TestReapUnqueued` ("queued 2, want 1") and `TestReapUnqueuedRespectsLimit` fail; restored with `git checkout`, passes again.
+7. Trivy before merging (host, Trivy 0.75.0): exit 0 (no new dependencies).
+8. Not yet shown against the real stack: an orphan row re-queued and judged end to end. That goes in the unit 6 end-to-end test (needs a way to create an orphan row; `psql` is not installed on the host, see unit 6).
