@@ -34,7 +34,7 @@ Rules that shape the flow (from CLAUDE.md): runners never connect to the databas
 | 3 | Queue and runner `[x]` | Stages 3-4 and 8: Redis Streams, runner module, crash recovery; the runner talks only to Redis and the API | `job in Redis -> runner -> judge -> sandbox -> verdict sent to the API` |
 | 4 | API and database `[x]` | Stages 1-2 and 9: Gin API, Neon Postgres, migrations, idempotent verdict writes, test-set version recorded | `curl -> API -> Postgres + Redis -> runner -> Redis -> API ingest -> Postgres` (verdict idempotent; poll `GET /submissions/:id`) |
 | 5 | Live status and storage (M2) `[x]` | Stage 10 and test data: SSE status stream, S3-compatible bucket for tests (RustFS locally, ADR 0011), the Judging state, hidden-test redaction checked end to end, a reaper for rows never queued | `curl submit -> API -> queue -> runner (tests from the bucket) -> sandbox -> verdict -> SSE`, end to end on one machine |
-| 6 | Sandbox hardening | Inside stage 6: gVisor vs nsjail decision, seccomp tuning, bigger adversarial suite | same flow, stronger box |
+| 6 | Sandbox hardening `[x]` | Inside stage 6: gVisor vs nsjail decision, seccomp tuning, bigger adversarial suite | same flow, stronger box |
 | 7 | Web: problems and workspace | Browser side of stage 1 with real data: problem list, split-pane workspace, Monaco | `browser shows real problems` |
 | 8 | Web: run, submit, results | Stages 1 and 10 in the UI: Run and Submit, console, result panel, SSE client | `browser submit -> ... -> verdict shown in the page` |
 | 9 | Auth and limits (M3) | Sign-up/login, sessions, rate limits per user and per IP, solved status in front of stage 1 | usable product on one machine |
