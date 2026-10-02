@@ -106,6 +106,8 @@ The owner said "complete this phase fully". Claude did all steps; the review wit
 ### Review skipped and phase closed (2026-10-02)
 The owner replied "did u write all and push" (Claude confirmed everything was pushed and that the merge waited for the review) and then "merge it". Claude treated that as an explicit request to skip the review (CLAUDE.md allows it). Review questions and decisions A, B, C stay unanswered and are recorded as such in `phase-2-summary.md`; `PROGRESS.md` says done with resume point "start Phase 3". Then: `git merge --no-ff` of `phase/2-judge-engine` into `main` with git's default message, tags `phase-2-done` and `M1`, push of `main` and the tags (result in the closing entry below).
 
+**Closing entry (written after the merge).** `main` was fast-checked against `origin/main` (both at `2c4e63c`, the merge commit with git's default message). Tags pushed: `phase-2-start` (`14c63c9`), `phase-2-done` (`2c4e63c`), `M1` (`2c4e63c`). The phase branch is kept. This entry could not be part of that merge, so it was added on the phase branch afterwards and merged into `main` with a second merge commit; the tags stay on `2c4e63c` (documentation-only difference). Not done: the EC2 instance `leetforce-dev` was not stopped (billable, owner's call) and the four stash entries and test binaries on the host were not cleaned up.
+
 ## File and path index
 - `judge/cmd/judge/main.go`, `main_test.go`: the `judge` CLI
 - `Makefile`: `build-judge` target (output `bin/judge`, git-ignored)
