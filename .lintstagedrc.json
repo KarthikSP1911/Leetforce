@@ -1,0 +1,7 @@
+{
+  "web/**/*.{ts,tsx,js,jsx,mjs}": [
+    "npm --prefix web exec -- prettier --write",
+    "npm --prefix web exec -- eslint --fix --no-warn-ignored"
+  ],
+  "web/**/*.{json,css,md}": "npm --prefix web exec -- prettier --write"
+}

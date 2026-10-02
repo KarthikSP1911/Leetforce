@@ -1,0 +1,48 @@
+// Conventional Commits with the LeetForce scope list (see CLAUDE.md, section 3).
+export default {
+  extends: ["@commitlint/config-conventional"],
+  rules: {
+    "type-enum": [
+      2,
+      "always",
+      [
+        "feat",
+        "fix",
+        "refactor",
+        "test",
+        "docs",
+        "chore",
+        "build",
+        "ci",
+        "perf",
+        "security",
+      ],
+    ],
+    "scope-enum": [
+      2,
+      "always",
+      [
+        "sandbox",
+        "judge",
+        "runner",
+        "api",
+        "web",
+        "brand",
+        "db",
+        "queue",
+        "infra",
+        "packer",
+        "ansible",
+        "k8s",
+        "ci",
+        "obs",
+        "contest",
+        "leaderboard",
+        "docs",
+        "claude",
+      ],
+    ],
+    "header-max-length": [2, "always", 72],
+    "body-max-line-length": [2, "always", 72],
+  },
+};
