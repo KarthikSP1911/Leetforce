@@ -2,7 +2,7 @@
 
 **Branch:** `phase/4-api-database`
 **Range:** `phase-4-start..phase-4-done`
-**Status:** in review
+**Status:** done (merged into main; see the closing entry)
 
 ## Units of work
 - [x] `feat/4-migrations`: schema (`problems`, `submissions`, `verdicts`), migration tool, `make migrate-up`
@@ -12,7 +12,7 @@
 - [x] `feat/4-verdict-ingest`: results-stream consumer writing idempotent verdicts; dead-letter watcher marks `IE`
 - [x] `test/4-idempotency`: duplicate verdicts change nothing; API to runner end-to-end
 - [x] `docs/4-adr-report`: ADR, `docs/FLOW.md`, report, summary, `PROGRESS.md` to in review
-- [ ] review, merge to `main`, tag `phase-4-done`
+- [x] review ended at the owner's request, merge to `main`, tag `phase-4-done`
 
 ## Decisions (2026-10-02)
 - Recap question: not answered by the owner; the owner replied with the Neon connection string and "remaining all okay", so the defaults of the session plan apply. Who decided: Claude, on the owner's delegation.
@@ -87,6 +87,11 @@
 
 ### Review decisions (2026-10-02)
 1. Claude asked five understanding questions and decisions A, B, C in chat. The owner replied "a dont rotate , b and c your wish". Recorded in the summary under Review Q&A: A is the owner's answer (no rotation); B and C are Claude's choices on the owner's delegation (leave the test rows; MinIO in Docker on the dev host in Phase 5). The understanding questions were not answered, so they stay open until the owner answers or says to skip.
+
+### Closing entry (2026-10-02)
+1. Owner: wrote "end it if all done". Claude took it as ending the review: understanding questions recorded as unanswered, decisions as recorded above. `PROGRESS.md` set to done with resume point "start Phase 5".
+2. Claude (repo): `git checkout main`, `git merge --no-ff phase/4-api-database` (default message), `git tag phase-4-done`, pushed `main` and the tags. The phase branch is kept.
+3. Not done, by design: the EC2 instance was not stopped (billable, the owner's call).
 
 ## File and path index
 - `docs/phases/phase-4-log.md`: this log

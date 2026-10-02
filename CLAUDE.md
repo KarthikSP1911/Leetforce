@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working in this
 
 ## Current state
 
-Phases 0 (web shell), 1 (sandbox core), 2 (judge engine) and 3 (queue and runner) are done; Phase 4 (API and database) is built and in review, see `docs/PROGRESS.md`. Parts below describe the planned system and may not exist yet. `docs/PLAN.md` (the 0–16 phase plan) and `docs/PROGRESS.md` (phase tracker and resume point) are the sources of truth. Do not invent build or test commands that no Makefile defines.
+Phases 0 (web shell), 1 (sandbox core), 2 (judge engine), 3 (queue and runner) and 4 (API and database) are done; Phase 4 (API and database) is done, see `docs/PROGRESS.md`. Parts below describe the planned system and may not exist yet. `docs/PLAN.md` (the 0–16 phase plan) and `docs/PROGRESS.md` (phase tracker and resume point) are the sources of truth. Do not invent build or test commands that no Makefile defines.
 
 ## Project
 

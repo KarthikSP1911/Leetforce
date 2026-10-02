@@ -129,7 +129,7 @@ Decisions for you:
 - **C.** Phase 5 needs MinIO (object storage for test data). Docker is still not installed on the EC2 host and Docker Desktop was off on your PC. Where should MinIO run for Phase 5: Docker on the EC2 host (I install it), Docker Desktop on your PC, or skip MinIO until S3 in the cloud?
 
 ## Review Q&A
-**Understanding questions 1 to 5: not answered yet** (the owner answered only the decisions below; recorded 2026-10-02).
+**Understanding questions 1 to 5: not answered; the review was ended at the owner's request** (2026-10-02: after answering the decisions below, the owner wrote "end it if all done", which Claude took as skipping the remaining questions). They can serve as the recap question at the start of the next session.
 
 **Decisions (the owner's words: "dont rotate, b and c your wish"):**
 - **A (owner):** do not rotate the Neon password or the Upstash token. The secrets stay as they are; they remain only in the git-ignored `.env` files. The owner did not say which Neon plan is in use, so the plan and its limits remain unchecked, and no separate Neon test branch was requested, so tests keep using throwaway schemas.
@@ -142,4 +142,9 @@ Decisions for you:
 - Runner privilege model: Phase 6.
 
 ## Handoff
-(To be filled in after the review and merge.)
+- **State:** Phase 4 is merged into `main` and tagged `phase-4-done` (`phase-4-start` marks the start); the branch `phase/4-api-database` is kept. Everything is pushed to `origin`. The EC2 instance `leetforce-dev` is still running (billable; stopping it is the owner's call); its checkout is on `feat/4-migrations` from the early syncs, so run `git fetch && git checkout main && git pull` there first. No API or runner is left running. Neon holds the schema (goose version 1) and the test leftovers (1 problem, 6 submissions, 5 verdicts).
+- **Next phase:** 5 - Live status and storage (M2). Goal: end-to-end on one machine: an SSE status stream (Queued, Judging, verdict), MinIO for test data, hidden-test redaction for Submit. Decided: MinIO in Docker on the dev host. Phase 5 also takes the reaper for submissions stored but never queued. Before it starts: nothing is required from you; the Neon plan check is still open.
+- **Next session prompt:**
+  ```
+  Continue LeetForce. Read CLAUDE.md, docs/PROGRESS.md and docs/phases/phase-4-summary.md, then start Phase 5 (Live status and storage). Ask me the recap question and show me the session plan before writing any code.
+  ```
