@@ -140,8 +140,8 @@ var languages = map[string]Language{
 		// size the compiler's own JVM; JAVA_TOOL_OPTIONS is not used because it
 		// would print a notice into the compiler output.
 		Compile: func(dir string) []string {
-			script := fmt.Sprintf("javac -J-Xmx192m -J-XX:+UseSerialGC -J-XX:-UsePerfData -d /tmp/out %q"+
-				" && jar -J-Xmx64m -J-XX:+UseSerialGC -J-XX:-UsePerfData cfe /tmp/main.jar Main -C /tmp/out ."+
+			script := fmt.Sprintf(javaHome+"/bin/javac -J-Xmx192m -J-XX:+UseSerialGC -J-XX:-UsePerfData -d /tmp/out %q"+
+				" && "+javaHome+"/bin/jar -J-Xmx64m -J-XX:+UseSerialGC -J-XX:-UsePerfData cfe /tmp/main.jar Main -C /tmp/out ."+
 				" && cat /tmp/main.jar >&4", filepath.Join(dir, "src", "Main.java"))
 			return []string{"/bin/sh", "-c", script}
 		},

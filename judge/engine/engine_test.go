@@ -127,7 +127,16 @@ var verdictCases = []struct {
 	{"ce", verdict.CE, "compile"},
 }
 
-var extensions = map[string]string{"python": "py", "go": "go", "cpp": "cpp", "java": "java"}
+// ceMarkers is text each language's real compiler puts in the message for the
+// ce.* solutions.
+var ceMarkers = map[string]string{
+	"python": "SyntaxError",
+	"go":     "cannot use",
+	"cpp":    "error:",
+	"java":   "incompatible types",
+}
+
+var extensions =map[string]string{"python": "py", "go": "go", "cpp": "cpp", "java": "java"}
 
 func TestJudgeVerdicts(t *testing.T) {
 	requireSandbox(t)
@@ -155,8 +164,10 @@ func TestJudgeVerdicts(t *testing.T) {
 						t.Error("no peak memory recorded")
 					}
 				case verdict.CE:
-					if rep.CompileOutput == "" {
-						t.Error("compile error has no output")
+					// The message must come from the language's compiler: a missing
+					// tool or a broken sandbox would also end in CE.
+					if !strings.Contains(rep.CompileOutput, ceMarkers[language]) {
+						t.Errorf("compile output does not look like a %s compiler error: %q", language, rep.CompileOutput)
 					}
 					if strings.Contains(rep.CompileOutput, "leetforce-job") {
 						t.Errorf("host path leaked: %q", rep.CompileOutput)
