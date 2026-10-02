@@ -7,6 +7,9 @@
 //	LEETFORCE_QUEUE_PREFIX  queue key prefix (default "leetforce")
 //	LEETFORCE_S3_ENDPOINT   object storage host:port; when set, problem bundles are published
 //	                        to the bucket at startup (LEETFORCE_S3_ACCESS_KEY, _SECRET_KEY, _BUCKET, _USE_TLS)
+//	LEETFORCE_REAPER_INTERVAL  how often stored-but-never-queued submissions are re-queued (default 15m;
+//	                        it also sweeps once at startup. Each sweep wakes Neon, so keep it long)
+//	LEETFORCE_REAPER_GRACE  how old such a submission must be before it is re-queued (default 2m)
 package main
 
 import (
@@ -22,6 +25,7 @@ import (
 
 	"leetforce/api/internal/catalog"
 	"leetforce/api/internal/ingest"
+	"leetforce/api/internal/reaper"
 	"leetforce/api/internal/server"
 	"leetforce/api/internal/store"
 	"leetforce/queue"
@@ -120,6 +124,18 @@ func run() error {
 	statusDone := make(chan struct{})
 	go func() { watcher.Run(ctx); close(statusDone) }()
 
+	every, err := envDuration("LEETFORCE_REAPER_INTERVAL")
+	if err != nil {
+		return err
+	}
+	grace, err := envDuration("LEETFORCE_REAPER_GRACE")
+	if err != nil {
+		return err
+	}
+	rp := reaper.New(db, q, log, reaper.Config{Every: every, Grace: grace})
+	reaperDone := make(chan struct{})
+	go func() { rp.Run(ctx); close(reaperDone) }()
+
 	srv := &http.Server{
 		Addr:              addr,
 		Handler:           server.New(server.Deps{Logger: log, Ready: ready, Problems: db, Samples: cat, Submissions: db, Queue: q}),
@@ -142,6 +158,21 @@ func run() error {
 	stop()
 	<-ingestDone
 	<-statusDone
+	<-reaperDone
 	log.Info("api stopped")
 	return nil
+}
+
+// envDuration reads a positive duration from the environment; unset means 0,
+// which the callee replaces with its default.
+func envDuration(name string) (time.Duration, error) {
+	v := os.Getenv(name)
+	if v == "" {
+		return 0, nil
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil || d <= 0 {
+		return 0, fmt.Errorf("%s: %q is not a positive duration", name, v)
+	}
+	return d, nil
 }
