@@ -284,6 +284,17 @@ func (q *Queue) Publish(ctx context.Context, r Result) (bool, error) {
 	return n == 1, nil
 }
 
+// Published reports whether a verdict for the submission was already recorded,
+// so a runner that gets a redelivered job can acknowledge it without judging
+// it again.
+func (q *Queue) Published(ctx context.Context, submissionID string) (bool, error) {
+	n, err := q.rdb.Exists(ctx, q.marker(submissionID)).Result()
+	if err != nil {
+		return false, fmt.Errorf("check verdict: %w", err)
+	}
+	return n == 1, nil
+}
+
 // Results lists published verdicts after the given stream ID ("-" for all).
 // The API consumes the stream with its own group in Phase 4; this is for
 // tests and tools.

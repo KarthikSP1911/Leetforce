@@ -216,6 +216,12 @@ func TestPublishIsIdempotentPerSubmission(t *testing.T) {
 	if err != nil || second {
 		t.Fatalf("second publish = %v, %v (want false)", second, err)
 	}
+	if ok, err := q.Published(ctx, "s1"); err != nil || !ok {
+		t.Fatalf("Published(s1) = %v, %v", ok, err)
+	}
+	if ok, err := q.Published(ctx, "other"); err != nil || ok {
+		t.Fatalf("Published(other) = %v, %v", ok, err)
+	}
 	got, err := q.Results(ctx, "-")
 	if err != nil || len(got) != 1 || got[0] != r {
 		t.Fatalf("results = %+v, %v", got, err)
