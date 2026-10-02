@@ -166,6 +166,7 @@ func TestGVisorBackendRuns(t *testing.T) {
 		})
 	}
 	requireNoRunCgroups(t)
+	requireNoGVisorLeftovers(t)
 }
 
 func TestGVisorBackendWallLimitKillsRun(t *testing.T) {
@@ -180,6 +181,7 @@ func TestGVisorBackendWallLimitKillsRun(t *testing.T) {
 		t.Errorf("TimedOut=%v WallTime=%v, want a timeout within the grace period", res.TimedOut, res.WallTime)
 	}
 	requireNoRunCgroups(t)
+	requireNoGVisorLeftovers(t)
 }
 
 func TestGVisorBackendProgramThatCannotStartIsAHostError(t *testing.T) {
@@ -187,5 +189,20 @@ func TestGVisorBackendProgramThatCannotStartIsAHostError(t *testing.T) {
 	_, err := Run(context.Background(), Spec{Argv: []string{"/bin/does-not-exist"}, Limits: DefaultLimits(), Backend: BackendGVisor})
 	if err == nil || !strings.Contains(err.Error(), ErrSandbox.Error()) {
 		t.Errorf("err = %v, want ErrSandbox", err)
+	}
+}
+
+// requireNoGVisorLeftovers fails if a finished run left runsc state behind: the
+// null network namespace bind mount (see deleteRunsc).
+func requireNoGVisorLeftovers(t *testing.T) {
+	t.Helper()
+	mi, err := os.ReadFile("/proc/self/mountinfo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range strings.Split(string(mi), "\n") {
+		if strings.Contains(line, "/lf-gvisor-") && strings.Contains(line, "null-netns") {
+			t.Errorf("runsc mount leaked: %s", line)
+		}
 	}
 }

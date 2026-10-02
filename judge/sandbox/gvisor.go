@@ -363,10 +363,14 @@ func mountPoints(rootfs string, spec Spec) []string {
 	return append(dirs, filepath.Join(rootfs, jailTmp), filepath.Join(rootfs, "dev"))
 }
 
-// deleteRunsc removes runsc's per-container state after the run; failures only
-// leave files in the state directory, which the caller removes with the work dir.
+// deleteRunsc removes runsc's state after the run. With --network=none runsc
+// bind-mounts an empty network namespace file at <state>/null-netns on the host
+// and never unmounts it; left alone, every run would leak a mount and keep a
+// network namespace alive, so it is detached here before the caller removes the
+// work directory.
 func deleteRunsc(bin, stateDir, id string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	_ = exec.CommandContext(ctx, bin, "--root", stateDir, "delete", "--force", id).Run() //nolint:gosec // fixed arguments
+	_ = syscall.Unmount(filepath.Join(stateDir, "null-netns"), syscall.MNT_DETACH)       // EINVAL if never mounted
 }
