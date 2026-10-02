@@ -2,9 +2,9 @@
 # Go components are separate modules joined by go.work (ADR 0002); add each new
 # module (runner, api) to GO_MODULES when it is created.
 
-GO_MODULES := judge queue
+GO_MODULES := judge queue runner
 
-.PHONY: dev down fmt lint test build-judge test-matrix test-sandbox test-adversarial
+.PHONY: dev down fmt lint test build-judge build-runner test-runner test-matrix test-sandbox test-adversarial
 
 # Local Redis and MinIO (needs Docker and LEETFORCE_MINIO_PASSWORD in .env).
 dev:
@@ -27,6 +27,12 @@ test:
 build-judge:
 	@mkdir -p bin
 	cd judge && go build -o ../bin/judge ./cmd/judge
+
+# Builds the runner to bin/runner. It needs root and LEETFORCE_REDIS_URL, for example:
+#   sudo -n env LEETFORCE_REDIS_URL=... bin/runner
+build-runner:
+	@mkdir -p bin
+	cd runner && go build -o ../bin/runner ./cmd/runner
 
 # Phase 2 exit criterion: judges the sample problem with one solution per
 # verdict (AC, WA, TLE, MLE, RE, OLE, CE) in each of Python, C++, Java and Go

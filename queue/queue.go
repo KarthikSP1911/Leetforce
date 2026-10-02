@@ -326,3 +326,23 @@ func (q *Queue) DeadLetters(ctx context.Context) (int64, error) {
 	}
 	return n, nil
 }
+
+// Destroy deletes every key under this queue's prefix. It is for tests and
+// tools that use a throwaway prefix; never call it on the production prefix.
+func (q *Queue) Destroy(ctx context.Context) error {
+	var cursor uint64
+	for {
+		keys, next, err := q.rdb.Scan(ctx, cursor, q.cfg.Prefix+":*", 100).Result()
+		if err != nil {
+			return fmt.Errorf("scan: %w", err)
+		}
+		if len(keys) > 0 {
+			if err := q.rdb.Del(ctx, keys...).Err(); err != nil {
+				return fmt.Errorf("delete: %w", err)
+			}
+		}
+		if cursor = next; cursor == 0 {
+			return nil
+		}
+	}
+}
