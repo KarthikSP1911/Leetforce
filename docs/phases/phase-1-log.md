@@ -241,3 +241,11 @@ Added so that every file and path touched in the phase, inside and outside the r
 - The five understanding questions and decisions A, B and C were posted in chat. The owner did not answer them. At the owner's request ("ans") Claude wrote its own answers to the five understanding questions in chat as an explanation; these are not the owner's answers and are not recorded as such.
 - The owner also asked for explanations of what nsjail is, what the Go code does around it, and what each attack test means; those were chat explanations only and changed no files.
 - Not done yet: the Q&A record in `phase-1-summary.md`, setting `PROGRESS.md` to done, the merge into `main`, the `phase-1-done` tag, and the handoff message. They wait for the owner's answers or an explicit "skip".
+
+### `docs/1-flow-docs` (2026-10-02): flow of each phase
+Added after the owner said the flow of each phase should be written down. Windows repo only; no host changes.
+1. Read `docs/PLAN.md` in full (Phases 0 to 16) so the per-phase flow follows the plan and only Phases 1 to 3 are treated as firm.
+2. Created `docs/FLOW.md`: (1) the end-to-end submission flow diagram, (2) a table of what each of the 17 phases adds to the flow, with later phases marked as my reading of the plan's outlines, (3) the as-built flow of Phase 0 and the detailed 10-step internal flow of `sandbox.Run` with the file for each step, (4) a rule for keeping it current.
+3. Checked every name used in the Phase 1 flow against the code: `Spec.Validate` in `judge/sandbox/spec.go`; `newCgroupJob`, `(*cgroupJob).kill`, `.stats`, `.remove` in `cgroup.go`; `runJob` and `Run` in `run.go`; `nsjailArgs` in `args.go`; `parseLog` in `log.go`; `cappedBuffer` in `capture.go`. Checked the Phase 0 flow paths: `web/src/lib/sample-problems.ts`, `web/src/app/globals.css`, the redirect to `/problems` in `web/src/app/page.tsx`, the theme key `lf-theme` in `web/src/app/layout.tsx` and `web/src/components/layout/ThemeToggle.tsx`.
+4. Replaced the three-line flow strip in `docs/phases/phase-1-summary.md` ("Where this phase fits") with a two-row diagram marking built, added-now and to-come, plus a pointer to `docs/FLOW.md`.
+5. Added a rule to `CLAUDE.md` ("Documenting every step"): every phase updates `docs/FLOW.md` and keeps the summary diagram in line with it.
