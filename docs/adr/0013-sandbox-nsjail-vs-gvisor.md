@@ -1,6 +1,6 @@
 # 0013. Sandbox: nsjail or gVisor (and seccomp tuning)
 
-**Status:** PROPOSED (Phase 6), awaiting the owner's confirmation at the phase review. Numbers marked "noisy" come from one run on a shared host (load average 3.3, other agents running tests); the clean rerun is recorded in `docs/phases/phase-6-log.md`.
+**Status:** PROPOSED (Phase 6), awaiting the owner's confirmation at the phase review. Micro-benchmark rows are from a clean run; compile rows are marked noisy (see Measurements). Raw output is in `docs/phases/phase-6-log.md`.
 
 ## Context
 Phase 1 chose nsjail with cgroup v2 limits ([ADR 0004](0004-sandbox-design.md)). nsjail shares the host kernel: user code makes real system calls to it, restricted by namespaces, a seccomp filter and capability dropping. A kernel bug reachable through an allowed syscall is therefore a path out of the box. gVisor (`runsc`) interposes a user-space kernel, so user code talks to gVisor and only gVisor talks to the host, which shrinks the host attack surface at some cost in speed and compatibility. Phase 6 must raise isolation confidence and record a measured decision (PLAN.md, Phase 6: "decision recorded with measurements; suite passes on the chosen sandbox").
@@ -11,7 +11,7 @@ Phase 1 chose nsjail with cgroup v2 limits ([ADR 0004](0004-sandbox-design.md)).
 - Default: nsjail with the tightened seccomp policy (this phase) and the unprivileged runner ([ADR 0014](0014-runner-privilege-model.md)). The full adversarial suite passes on it.
 - Opt-in: `LEETFORCE_SANDBOX=gvisor` (or `Spec.Backend`) runs the same jobs under gVisor (`systrap` platform; the EC2 host has no KVM). It judges all 28 cases of the verdict matrix correctly.
 
-Why not make gVisor the default: syscall-heavy work is about 17x slower, every job costs about 130 ms more, and the first run after a cold cache is about 10x slower, which hurts a judge that runs thousands of short jobs. It also does not enforce the pids limit inside the guest (guest threads are not host threads, so `PIDLimitHit` stays false and a fork past the host pids cap kills the sentry instead of returning `EAGAIN`), and three adversarial tests assume nsjail's behaviour (see Consequences). CPU-bound work is close (1.2x), so the cost is mostly in syscalls and startup.
+Why not make gVisor the default: syscall-heavy work is about 18x slower, every job costs about 85 ms more (15 ms vs 100 ms for hello world), and the first run after a cold cache is about 6x slower, which hurts a judge that runs thousands of short jobs. It also does not enforce the pids limit inside the guest (guest threads are not host threads, so `PIDLimitHit` stays false and a fork past the host pids cap kills the sentry instead of returning `EAGAIN`), and three adversarial tests assume nsjail's behaviour (see Consequences). CPU-bound work is close (1.2x), so the cost is mostly in syscalls and startup.
 
 Revisit if: a kernel escape reachable through an allowed syscall is published and not fixable by the seccomp denylist; the host gets KVM (the `kvm` platform is faster than `systrap`); or the product starts running code from users we trust less than today.
 
@@ -22,20 +22,20 @@ Revisit if: a kernel escape reachable through an allowed syscall is published an
 - **Both layered:** gVisor already creates its own namespaces, limits and syscall filtering, so stacking nsjail around it adds cost for little gain. Kept as a per-job choice instead.
 
 ## Measurements
-Same host, same programs, same limits for both columns. Median / p95, 15 micro repetitions, 3 compile repetitions. **Noisy:** single run on a shared host; see the log for the clean rerun.
+Same host, same programs, same limits for both columns. Median / p95, 15 micro repetitions, 3 compile repetitions. The micro rows are a **clean run** (host otherwise idle, load 1.4, 7 reps, `make bench-sandbox BENCH_ARGS="-reps 7 -skip-langs"`). The three compile rows are **noisy** (Agent B's run on a shared host, load 3.3); the quick rerun skipped them.
 
 | Measurement | nsjail | gVisor | Ratio | Notes |
 |---|---|---|---|---|
-| Cold start (first run, caches dropped) | 74 ms | 746 ms | 10.1x | |
-| Per-job overhead (hello world, wall) | 29 / 30 ms | 161 / 177 ms | 5.5x | |
-| CPU-bound (600M multiply-add) | 815 / 878 ms | 962 / 1074 ms | 1.2x | |
-| Syscall-heavy (200k syscalls) | 128 / 163 ms | 2230 / 3729 ms | 17.4x | |
-| Memory touch 64 MiB (wall) | 67 / 93 ms | 183 / 208 ms | 2.7x | |
-| Peak memory, hello (raw cgroup) | 0.5 MiB | 18.5 MiB | | gVisor adds about 18 MiB, 36 host pids and 100 ms CPU per run; reported peaks are discounted by these baselines, `Result.Raw*` keeps the raw values |
+| Cold start (first run, caches dropped) | 116 ms | 672 ms | 5.8x | |
+| Per-job overhead (hello world, wall) | 15 / 21 ms | 100 / 114 ms | 6.5x | |
+| CPU-bound (600M multiply-add) | 799 / 813 ms | 916 / 918 ms | 1.1x | |
+| Syscall-heavy (200k syscalls) | 121 / 135 ms | 2197 / 2271 ms | 18.1x | |
+| Memory touch 64 MiB (wall) | 54 / 55 ms | 158 / 173 ms | 2.9x | |
+| Peak memory, hello (raw cgroup) | 0.5 MiB | 18.0 MiB | | gVisor adds about 18 MiB, 36 host pids and 100 ms CPU per run; reported peaks are discounted by these baselines, `Result.Raw*` keeps the raw values |
 | C++ compile + 5 tests | 0.6 s | 2.4 s | 3.9x | |
 | Go compile + 5 tests | 17.5 / 20.5 s | 27.7 / 29.0 s | 1.6x | |
 | Java compile + 5 tests | 9.9 / 10.0 s | 4.3 / 4.3 s | 0.4x | Java is faster under gVisor (javac CPU 9.6 s vs 3 s); cause not found, suspects unverified |
-| Adversarial suite | see Consequences | 36 of 39 top-level tests pass | | None of the 3 failures is a containment failure |
+| Adversarial suite | all pass (`make test-adversarial`, merged tree) | 36 of 39 top-level tests pass | | None of the 3 failures is a containment failure |
 
 ## Seccomp tuning
 Policy moved to `judge/sandbox/seccomp.go` (`seccompPolicy()`), kept as a strong denylist, not an allowlist: the runtimes' syscall sets shift with glibc, JVM and kernel versions (`clone3`, `faccessat2`, `rseq` appeared recently) and an allowlist would break judging after routine upgrades. Measured needs per runtime (`strace -f` on Python, static C++, Go, Java and the compile steps) are in the file header.
