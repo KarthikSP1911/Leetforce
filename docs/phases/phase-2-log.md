@@ -8,7 +8,7 @@
 - [x] `docs/2-runtimes`: JDK on the dev host, setup script updated
 - [x] `feat/2-problem-format`: `problem.yaml`, loader, test-set version hash, sample problem
 - [x] `feat/2-verdicts`: verdict classification from host-measured facts
-- [ ] `feat/2-checkers`: host-side output comparison
+- [x] `feat/2-checkers`: host-side output comparison
 - [ ] `feat/2-drivers-python-go`
 - [ ] `feat/2-drivers-cpp-java`
 - [ ] `feat/2-judge-cli`: `judge run problems/<slug> <file>`
@@ -53,7 +53,14 @@ Design: [ADR 0005](../adr/0005-problem-format-and-test-set-version.md). Decision
 4. Tests (table-driven, 17 classify cases, one test that stdout/stderr/result-fd text cannot change the verdict, 4 summarize cases). Host: `make fmt lint` 0 issues, `go test ./judge/verdict` ok. No sandbox code changed, so the adversarial suite was not re-run for this unit (it runs at the end of the phase).
 5. Note: the package imports `syscall.SIGXCPU`, so it builds on Linux only, like the sandbox.
 
+### Unit 4: `feat/2-checkers` (2026-10-02)
+1. Claude (repo): created `judge/checker/checker.go` (`Check(mode, expected, actual) (verdict.Verdict, error)`) and `judge/checker/checker_test.go`. `tokens` compares `bytes.Fields` of both sides; `exact` is byte-for-byte after removing one trailing `\n` from each side. An unknown mode returns an error with no verdict. The package imports `problem` for the mode names and `verdict` for AC/WA; it runs on the host on bytes returned by the sandbox, so the program cannot see the expected output.
+2. Tests: 21 table-driven cases (CRLF, blank lines, split and joined tokens, case, order, empty output, trailing newline rules in exact mode) plus the unknown-mode error.
+3. Mistake: the first commit was rejected by commitlint (a body line over 72 characters); the branch was pushed with no new commit, then the commit was redone with shorter lines and pushed. Nothing was lost.
+4. Workflow change: this time the host got the code with `git fetch`/`git pull` of the pushed unit branch, not `scp`, so no untracked copies or stash entries were created. Host: `make fmt lint` 0 issues, `go test ./judge/checker` ok, working tree clean. No sandbox code changed.
+
 ## File and path index
+- `judge/checker/checker.go`, `checker_test.go`: output comparison (`tokens`, `exact`)
 - `judge/verdict/verdict.go`, `verdict_test.go`: verdict classification and summary
 - Host: a second stash entry "pre-sync copy of feat/2-verdicts files" (identical to the branch, can be dropped; same cause as the first: files were copied with scp before being committed)
 - `docs/phases/phase-2-log.md`: this log
