@@ -2,7 +2,7 @@
 
 **Current phase:** 2 - Judge engine
 **Status:** in progress
-**Resume point:** unit 6 `feat/2-drivers-cpp-java` (branch off `phase/2-judge-engine`)
+**Resume point:** unit 7 `feat/2-judge-cli` (branch off `phase/2-judge-engine`)
 **Open decisions:** at the Phase 2 review: stdin/stdout problems instead of function-signature templates (ADR 0005); compile errors shown on Submit vs the "no raw stderr" rule (log, unit 5)
 
 | Phase | Name | Status | Sessions | Summary |

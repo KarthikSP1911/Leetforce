@@ -98,7 +98,7 @@ Trust rule in this flow: steps 7 and 8 come from nsjail's own log and the kernel
 
 How the attack tests exercise it (`adversarial_test.go`, run by `make test-adversarial`): each test builds a hostile program, runs steps 1 to 10, and then checks that the attack was stopped, `Run` returned promptly, and no process or cgroup folder is left. The design reasoning is in [ADR 0004](adr/0004-sandbox-design.md); the full explanation is in [phase-1-summary.md](phases/phase-1-summary.md).
 
-### Phase 2: Judge engine (in progress: Python and Go work; C++, Java and the CLI are still to come)
+### Phase 2: Judge engine (in progress: all four languages work; the CLI and the final verdict matrix are still to come)
 What `engine.Judge(ctx, problem, language, source, opts)` does today (`judge/engine/engine.go`):
 ```
  problems/<slug>/ ---> problem.Load ---> Problem{Spec, Tests, TestSetVer}   judge/problem/problem.go, version.go
@@ -107,12 +107,14 @@ What `engine.Judge(ctx, problem, language, source, opts)` does today (`judge/eng
         |                              1. lang.Get(language): source name, compile argv, run argv, limits   judge/lang/lang.go
         v                              2. write <job dir>/src/main.<ext> (host, world-readable, under /var/tmp)
  3. COMPILE (if the language has one) in sandbox.Run: only src/ is visible, read-only
-      python: compile() syntax check          go: go build -o /tmp/main, then cat /tmp/main >&4
+      python: compile() syntax check          go / cpp: go build or g++ -static to /tmp/main, then cat /tmp/main >&4
+      java: javac, jar into /tmp/main.jar, then cat /tmp/main.jar >&4   (JDK needs LD_LIBRARY_PATH and a bind of /etc/java-21-openjdk)
       the artifact comes back over fd 4 (ResultData); the host writes it to <job dir>/bin/main
       any non-zero exit, signal, timeout or OOM  ->  verdict CE with the (cleaned, 4 KiB) compiler output; stop
  4. for each test, in name order: sandbox.Run with the whole job dir read-only, test input on stdin, limits from
       problem.yaml (CPU limit + 1 s kill slack, wall 2x + 1 s, memory limit, output cap from the expected size)
  5. verdict.Classify(result, limits)        host facts only: OLE > MLE > TLE > RE, else Completed      judge/verdict/verdict.go
+      (MLE also when the exit status equals the language's OOMExitCode: the JVM exits 3 on heap exhaustion)
  6. if Completed: checker.Check(mode, expected, stdout) -> AC or WA                                       judge/checker/checker.go
  7. stop at the first non-AC (or run all with ContinueOnFail); verdict.Summarize -> Overall{verdict, first failed test, max time, max memory}
  8. remove the job dir; return Report{TestSetVersion, Overall, Cases, CompileOutput}
