@@ -7,10 +7,17 @@
 
 ## Where this phase fits
 ```
-browser --> API --> queue --> runner --> sandbox --> verdict --> browser
-[shell]    [todo]  [todo]    [todo]     [BUILT NOW]  [todo]     [shell]
- Phase 0    4,5     3          3         *Phase 1*    2,3        7,8
+ browser ---> API ---> Redis queue ---> runner ---> judge engine ---> SANDBOX ---> measured result
+ [shell]     [todo]     [todo]          [todo]       [todo]          [ADDED NOW]  [ADDED NOW]
+ Phase 0     Ph 4       Ph 3            Ph 3         Ph 2            Phase 1      Phase 1
+                                                                     (nsjail+cgroup)
+
+ verdict <--- API <---- runner <-------- judge engine <------------- SANDBOX
+ [todo]       [todo]    [todo]           [todo]                      [ADDED NOW]
+ (shown in browser, Ph 8; live status over SSE, Ph 5)
 ```
+Inside the part added now (one call to `sandbox.Run`): check the spec, make a cgroup folder, start nsjail, read the output with caps, read nsjail's log and the cgroup totals, kill and delete the cgroup, return the result. The detailed step list with file paths is in [docs/FLOW.md](../FLOW.md) (section 3), and the flow of every phase is in section 2 of that file.
+
 - **Built before:** the web page shell (Phase 0).
 - **Added this phase:** the sandbox (`judge/sandbox`) and its attack tests.
 - **Still to come:** judging answers (Phase 2), queue and runner (Phase 3), API and database (Phase 4), live status (Phase 5), and the real website pages (Phases 7-8).
