@@ -145,7 +145,7 @@ var languages = map[string]Language{
 				" && cat /tmp/main.jar >&4", filepath.Join(dir, "src", "Main.java"))
 			return []string{"/bin/sh", "-c", script}
 		},
-		CompileEnv: []string{sysPath, "JAVA_HOME=" + javaHome},
+		CompileEnv: []string{sysPath, "JAVA_HOME=" + javaHome, javaLibPath},
 		CompileLimits: CompileLimits{
 			Time: 45 * time.Second, MemoryBytes: 420 << 20, PIDs: 128, TmpfsBytes: 32 << 20, MaxFileBytes: 32 << 20,
 			MaxArtifactBytes: 8 << 20,
@@ -164,6 +164,7 @@ var languages = map[string]Language{
 			}
 		},
 		// The Debian JDK keeps its configuration in /etc and links to it.
+		RunEnv:  []string{javaLibPath},
 		Binds:   []string{"/etc/java-21-openjdk"},
 		RunPIDs: 64,
 	},
@@ -188,3 +189,8 @@ func Names() []string {
 	}
 	return out
 }
+
+// javaLibPath lets the JDK tools find their shared libraries. They normally
+// locate them through an $ORIGIN rpath, which glibc resolves via /proc/self/exe,
+// and the sandbox has no /proc.
+const javaLibPath = "LD_LIBRARY_PATH=" + javaHome + "/lib:" + javaHome + "/lib/server"
