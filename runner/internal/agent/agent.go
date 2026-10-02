@@ -36,6 +36,7 @@ type JobQueue interface {
 	Touch(ctx context.Context, consumer, id string) error
 	Publish(ctx context.Context, r queue.Result) (bool, error)
 	Published(ctx context.Context, submissionID string) (bool, error)
+	PublishStatus(ctx context.Context, e queue.StatusEvent) error
 }
 
 // Config configures an Agent.
@@ -128,6 +129,11 @@ func (a *Agent) Process(ctx context.Context, d *queue.Delivery) {
 		a.heartbeat(hbCtx, log, d.ID, &lost, cancelJudge)
 	}()
 
+	// Best effort: the status only drives the live "Judging" display, so a
+	// failure here must never stop the job.
+	if err := a.q.PublishStatus(ctx, queue.StatusEvent{SubmissionID: d.Job.SubmissionID, State: queue.StateJudging, RunnerID: a.cfg.ID}); err != nil {
+		log.Warn("publish judging status failed; continuing", "err", err)
+	}
 	log.Info("judging", "problem", d.Job.Problem, "language", d.Job.Language)
 	res, permanent, err := a.judge(judgeCtx, d.Job)
 	stopHeartbeat()

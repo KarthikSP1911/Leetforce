@@ -313,3 +313,41 @@ func TestRunProcessesJobsUntilCancelled(t *testing.T) {
 		t.Fatal("Run did not stop after cancel")
 	}
 }
+
+// statusFail wraps the real queue but fails every status publish.
+type statusFail struct{ *queue.Queue }
+
+func (statusFail) PublishStatus(context.Context, queue.StatusEvent) error {
+	return errors.New("status stream down")
+}
+
+func TestProcessReportsJudgingBeforeVerdict(t *testing.T) {
+	q := newQueue(t, 300*time.Millisecond)
+	ctx := context.Background()
+	d := enqueueAndReceive(t, q, sampleJob("s1"))
+	newAgent(q, &fakeJudger{rep: acReport()}).Process(ctx, d)
+
+	evs, _, err := q.ReadStatus(ctx, "0-0", time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := queue.StatusEvent{SubmissionID: "s1", State: queue.StateJudging, RunnerID: "r1"}
+	if len(evs) != 1 || evs[0] != want {
+		t.Fatalf("status events = %+v, want [%+v]", evs, want)
+	}
+	if len(results(t, q)) != 1 {
+		t.Fatal("verdict missing")
+	}
+}
+
+func TestStatusFailureDoesNotStopTheJob(t *testing.T) {
+	q := newQueue(t, 300*time.Millisecond)
+	d := enqueueAndReceive(t, q, sampleJob("s1"))
+	newAgent(statusFail{q}, &fakeJudger{rep: acReport()}).Process(context.Background(), d)
+	if got := results(t, q); len(got) != 1 || got[0].Verdict != "AC" {
+		t.Fatalf("results = %+v, want one AC even though the status publish failed", got)
+	}
+	if stillPending(t, q) {
+		t.Fatal("job was not acknowledged")
+	}
+}
