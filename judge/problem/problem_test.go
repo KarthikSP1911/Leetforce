@@ -1,7 +1,9 @@
 package problem
 
 import (
+	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -138,6 +140,33 @@ func TestVersion(t *testing.T) {
 				t.Errorf("version equal = %v, want %v", got, tc.wantEqual)
 			}
 		})
+	}
+}
+
+// A broad ignore rule such as *.out once hid every expected-output file from
+// git, so a fresh clone could not load the sample problem even though all tests
+// passed on the machine that had the files. No problem test file may be ignored.
+func TestProblemTestFilesAreNotGitIgnored(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed")
+	}
+	root := filepath.Join("..", "..", "problems")
+	files, err := filepath.Glob(filepath.Join(root, "*", "tests", "*"))
+	if err != nil || len(files) == 0 {
+		t.Fatalf("no problem test files found under %s (err %v)", root, err)
+	}
+	for _, f := range files {
+		cmd := exec.Command("git", "check-ignore", "-q", f) //nolint:gosec // fixed command, paths from our own glob
+		err := cmd.Run()
+		var exit *exec.ExitError
+		switch {
+		case err == nil:
+			t.Errorf("%s is ignored by git, so it would be missing from a fresh clone", f)
+		case errors.As(err, &exit) && exit.ExitCode() == 1:
+			// not ignored: good
+		default:
+			t.Skipf("git check-ignore is not usable here: %v", err)
+		}
 	}
 }
 
