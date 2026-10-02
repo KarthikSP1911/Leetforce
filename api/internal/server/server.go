@@ -20,6 +20,9 @@ type Deps struct {
 	Logger *slog.Logger
 	// Ready lists the dependencies /readyz checks, by name (database, redis).
 	Ready map[string]Pinger
+
+	Problems ProblemStore
+	Samples  SampleSource
 }
 
 // New returns the router. /healthz says the process is up and does no I/O;
@@ -47,6 +50,9 @@ func New(d Deps) *gin.Engine {
 		}
 		c.JSON(code, gin.H{"checks": checks})
 	})
+
+	r.GET("/problems", d.listProblems)
+	r.GET("/problems/:slug", d.getProblem)
 	return r
 }
 
