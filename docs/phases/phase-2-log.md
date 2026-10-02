@@ -29,6 +29,9 @@
 1. Claude (host): `sudo apt-get install -y openjdk-21-jdk-headless`. Result: `java` and `javac` 21.0.12.1. Disk after: 6.6G free (about 0.4G used).
 2. Claude (repo): added `openjdk-21-jdk-headless` to the apt list in `scripts/setup-dev-host.sh`. g++ comes from `build-essential`, Go from the existing script step.
 
+### Host checkout moved (2026-10-02)
+Owner said "retry". Claude (host): `git checkout -- judge/sandbox/run.go` (discarded the whitespace-only gofmt edit), `git fetch`, `git checkout phase/2-judge-engine`, `git pull --ff-only`. Result: clean, at `a7dddac`, tracking `origin/phase/2-judge-engine`. Resolves the blocked step above.
+
 ## File and path index
 - `docs/phases/phase-2-log.md`: this log
 - `scripts/setup-dev-host.sh`: now also installs the JDK
