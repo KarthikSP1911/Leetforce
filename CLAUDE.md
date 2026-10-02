@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working in this
 
 ## Current state
 
-The repo currently contains only `README.md`. Everything below describes the planned system and conventions; the commands and directories do not exist yet. `docs/PLAN.md` (the 0–16 phase plan) and `docs/PROGRESS.md` (phase tracker and resume point) are the sources of truth once they are created. Do not invent build or test commands that no Makefile defines yet.
+Phase 0 (web shell) is done; Phase 1 (sandbox core) is in progress, see `docs/PROGRESS.md`. Parts below describe the planned system and may not exist yet. `docs/PLAN.md` (the 0–16 phase plan) and `docs/PROGRESS.md` (phase tracker and resume point) are the sources of truth. Do not invent build or test commands that no Makefile defines.
 
 ## Project
 
@@ -18,14 +18,22 @@ Redis is hosted on Upstash; the connection string comes from `LEETFORCE_REDIS_UR
 
 Naming: `LeetForce` in UI copy, docs and titles; lowercase `leetforce` in Go module paths, image/db/k8s/Terraform names, and metric prefixes; `LEETFORCE_` prefix for project-specific env vars.
 
-## Planned commands
+## Commands
+
+Go targets run per module in `GO_MODULES` (Makefile) on a Linux host; Phase 1 development happens on the EC2 dev host (ADR 0003, `scripts/setup-dev-host.sh`).
 
 ```bash
-make dev | down | fmt | lint | test | test-adversarial | migrate-up
-judge run problems/<slug> <solution-file>   # local judge CLI, from Phase 2
+make fmt                 # golangci-lint fmt (gofmt + goimports) per Go module
+make lint                # go vet + golangci-lint run per Go module
+make test                # go test per Go module
+make test-adversarial    # sandbox containment suite (build tag `adversarial`, runs via sudo -n)
+
+# single test
+cd judge && go test -run TestName ./sandbox/...
+sudo -n env "PATH=$PATH" go test -tags adversarial -run TestForkBomb -v ./judge/sandbox/...
 ```
 
-Add real targets here as they are created, including how to run a single test.
+Planned, not defined yet: `make dev | down | migrate-up`, and `judge run problems/<slug> <solution-file>` (local judge CLI, from Phase 2).
 
 ## Session model: one phase per session
 
