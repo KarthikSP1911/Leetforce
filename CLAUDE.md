@@ -118,6 +118,7 @@ Every action taken in a session must be written down in the repo docs in detail,
 - Never write secrets, key contents, or public IPs in docs. Name the file or variable instead.
 - Anything repeatable goes into a script under `scripts/` as well, and the log points to it.
 - The phase report and phase summary are built from this log; a step missing from the log is treated as not done.
+- Every phase also updates `docs/FLOW.md`: tick the phase in the per-phase table, add its detailed "as built" flow (numbered steps with file paths), and fix the planned rows if the plan changed. The phase summary's flow diagram must match it.
 
 ## Working style
 
