@@ -7,7 +7,7 @@
 ## Units of work
 - [x] `feat/5-dev-host-docker`: Docker on the dev host, MinIO from `docker-compose.yml`, `trivy image`
 - [x] `feat/5-test-storage`: problem tests in MinIO keyed by test-set version; API and runner read them from there
-- [ ] `feat/5-judging-state`: runner publishes a Judging event; API ingests it
+- [x] `feat/5-judging-state`: runner publishes a Judging event; API ingests it
 - [ ] `feat/5-sse-status`: `GET /submissions/:id/events` (SSE)
 - [ ] `feat/5-reaper`: re-enqueue rows stored but never queued
 - [ ] `test/5-e2e-redaction`: SSE end-to-end and hidden-data leak tests
@@ -44,3 +44,14 @@ Design (Claude): the API publishes each problem as one bundle (`problem.yaml` + 
 8. Claude (host): `git stash push -u` of stale synced copies of Phase 4 files (stash message "phase5-start: stale synced files from phase 4 (all now in git)"), then `git checkout -B feat/5-test-storage origin/feat/5-test-storage`; the branch is pushed to `origin` for this. The host has its own Redis listening on `127.0.0.1:6379` (not from our Compose file), so `docker compose up redis` failed on the port; the tests use that Redis and the Compose `redis` service is not started on this host.
 9. Verified on the host: `make fmt lint` 0 issues in all 5 modules; `make test` all ok (agent tests run against the host Redis); `storage` `TestRoundTrip` PASS against the real RustFS (includes: identical put is a no-op, changed bytes under the same version are replaced, metadata hash preserved).
 10. Smoke test on the host (throwaway queue prefix `smoke5`, cache `/tmp/lf-smoke-cache`): API log "problem bundles published ... written 1", `/readyz` `{"database":"ok","redis":"ok","storage":"ok"}`; the runner started with `LEETFORCE_PROBLEMS_DIR=/nonexistent` (so it could only use S3) judged a submission and the API returned `judged`, verdict WA 0/5 (the test solution wrongly summed the leading count; the sandbox judged it correctly). The cache directory is root-owned (runner under sudo). `bin/lfq destroy`, no nsjail left. One Neon submission row left behind.
+Trivy before merging unit 2 (Claude, host, Trivy 0.75.0, `git archive HEAD` of the tree so the git-ignored `.env` is not scanned): `trivy fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --exit-code 1`, exit 0, 0 findings in api, judge, queue, runner, storage `go.mod` and `web/package-lock.json`. It was run after the merge by mistake (the rule is before); nothing needed fixing.
+
+### Unit 3: `feat/5-judging-state` (2026-10-02)
+Design (Claude): the runner reports "judging" over Redis (it never touches the database or HTTP); the API copies it into Postgres, so the SSE endpoint (unit 4) has one source of truth. Status is best effort: a lost event only leaves a submission "queued" until its verdict arrives.
+1. Claude (repo): `api/migrations/00002_judging_status.sql` drops and recreates `submissions_status_check` to allow `queued | judging | judged` (down: judging rows back to queued first). `store.MarkJudging` is `UPDATE ... WHERE status = 'queued'`, so a late or repeated event never moves a judged submission back.
+2. Claude (repo): `queue/status.go`: `PublishStatus` (XADD capped at about 5000 entries), `StatusTail`, `ReadStatus` (plain XREAD from a tracked ID). Chosen over a consumer group on purpose: nothing to acknowledge, no pending entries that can get stuck, one Redis command per poll (the Upstash command count matters), and every API instance applies the same idempotent update.
+3. Claude (repo): the runner agent publishes the event before judging; a failed publish is a warning and the job continues. `JobQueue` gained `PublishStatus`.
+4. Claude (repo): `api/internal/ingest/status.go` (`StatusWatcher`: starts at the stream tail, dropped-on-failure writes) started from `api/cmd/api/main.go` next to the verdict ingester and stopped with it.
+5. Claude (host): `git checkout -B feat/5-judging-state origin/feat/5-judging-state`; `make migrate-status` showed 00002 pending; `make migrate-up` applied it to the real Neon database (about 320 ms), `migrate-down` then `migrate-up` round trip worked, final version 2. This changes the shared dev database: it only widens a CHECK constraint.
+6. Verified on the host: `make fmt lint` 0 issues in 5 modules; `make test` all ok including the database tests (`TestMarkJudging` ran, 11 s for the store package) and the agent tests against Redis. Mutation check: removing `AND status = 'queued'` from `MarkJudging` made `TestMarkJudging` fail ("repeated MarkJudging = true ... want false"); restored with `git checkout`, passes again.
+7. Trivy before merging (host, Trivy 0.75.0, `git archive HEAD`): `trivy fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --exit-code 1`, exit 0, 0 findings in all six targets.
