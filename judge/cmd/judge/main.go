@@ -167,4 +167,3 @@ func formatTime(d time.Duration) string {
 func formatMemory(b uint64) string {
 	return fmt.Sprintf("%.1f MiB", float64(b)/(1<<20))
 }
-

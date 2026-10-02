@@ -211,7 +211,7 @@ func TestRunEndToEnd(t *testing.T) {
 	}
 
 	// An explicit -lang overrides the extension.
-	code, _, stderr := runCLI(t, "run", "-lang", "cobol", sampleDir, sol("ac.py"))
+	code, _, stderr = runCLI(t, "run", "-lang", "cobol", sampleDir, sol("ac.py"))
 	if code != 2 || !strings.Contains(stderr, "unknown language") {
 		t.Errorf("-lang cobol: exit %d, stderr %q", code, stderr)
 	}
