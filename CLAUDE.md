@@ -77,11 +77,25 @@ Add real targets here as they are created, including how to run a single test.
 
 The IA follows LeetCode (problem list, split-pane workspace, console, verdict panel) but must not copy its logo, icons, copy, colors, or problem statements; problems must be original or licensed.
 
-- **Logo:** exactly one file, `web/public/brand/logo.svg`, used as-is everywhere (navbar, favicon, loading screen, README, OG image). Never redraw, recolor, crop, trace, or create variants, and do not edit its contents or metadata. Show it as a rounded-square tile (`border-radius: 8px`) in light and dark mode, with "LeetForce" as plain text beside it (Inter 700). If the file is missing, ask the user; do not substitute anything.
+- **Logo:** three files, all used as-is (`logo-mark-light.svg` is `logo-mark.svg` with only the centre bar fill changed to dark grey (`--lf-ink-700`); the navbar shows it in light theme and `logo-mark.svg` in dark theme): `web/public/brand/logo-mark.svg` (no background; used in the navbar and as the favicon, drawn directly on the page with no tile) and `web/public/brand/logo.svg` (black background, used for README and OG image, shown as a rounded tile). Never redraw, recolor, crop, trace, or create further variants, and do not edit its contents or metadata. Show it as a rounded-square tile (`border-radius: 8px`) in light and dark mode, with "LeetForce" as plain text beside it (system UI font, bold). If the file is missing, ask the user; do not substitute anything.
 - **Color tokens** (CSS variables only, never raw hex in components): `--lf-blue-600 #0050FF` primary; `--lf-sky-400 #00B4FF` accent/focus ring/"Judging"; `--lf-navy-900 #071A3D` text and dark bg; `--lf-navy-800 #0D2247` dark panels; `--lf-navy-700 #163463` dark borders; `--lf-surface #F4F7FC`; `--lf-border #DCE4F2`; `--lf-muted #5B6B86`; `--lf-success #16A34A` (AC, Easy); `--lf-warning #F59E0B` (TLE/MLE/OLE, Medium); `--lf-danger #E5484D` (WA/RE/CE, Hard). The logo's orange and red are not UI colors.
 - White text on sky fails contrast; use navy text on sky. Never show a verdict by color alone; always include the label.
-- **Fonts:** Inter for UI; JetBrains Mono for code, editor, console, and test I/O.
+- **Fonts:** LeetCode's system UI stack for UI (no web fonts); `Menlo, Monaco, Consolas, Courier New` for code, editor, console, and test I/O.
 - **Layout:** top nav (logo, Problems, Contest, Leaderboard, theme toggle, user menu); resizable split-pane workspace (left: Description/Submissions tabs; right: language selector + Monaco, Run secondary and Submit primary blue; bottom: console with Testcase/Result tabs). Result panel shows the verdict largest, then runtime and memory, with failing-case details only for Run. Light/dark follow the system by default.
+
+### Professional design standard (applies to every UI change)
+
+Target the polish of the official LeetCode site: dense, calm, utilitarian, no decoration for its own sake. Colors come **only** from the LeetForce tokens above.
+
+- **Palette discipline:** no raw hex, no Tailwind default palette colors (`bg-blue-500`, `text-gray-600`, ...) in components. Use the theme aliases defined in `web/src/app/globals.css` (`bg-panel`, `border-panel-border`, `text-muted`, `bg-primary`, `text-success|warning|danger`, `bg-hover`). Hex values exist only in the token block of `globals.css`. White is the one non-token neutral and is exposed as `--lf-white`.
+- **Surfaces:** page = `--background`, cards/tables/panels = `--panel` with a 1px `--panel-border`, radius 8px (`rounded-lg`), no heavy shadows or gradients. Hover state = `--hover`. Dark mode surfaces are neutral black/grey (`--lf-ink-950/900/800/700`: page, panel, hover, border), like LeetCode's dark theme; navy tokens are for text and brand accents, not dark backgrounds.
+- **Type:** 14px base, LeetCode's system font stack (`-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Arial`); page titles 24px bold; table headers 12px uppercase muted; numbers and code in `Menlo, Monaco, Consolas, Courier New`.
+- **Difficulty and verdict color:** Easy = success, Medium = warning, Hard = danger (text color, semibold). Verdicts always carry their text label.
+- **Primary actions** (Submit, Sign in) use `bg-primary` with white text; secondary actions (Run) are bordered panels. Sky is for focus rings and "Judging" only, with navy text if used as a background.
+- **Layout:** content max width 1152px (`max-w-6xl`), 56px sticky top nav, 16px page gutters, tables that collapse secondary columns on small screens.
+- **Theme:** follows the system by default; the nav toggle sets `data-theme` on `<html>` and persists to `localStorage` (`lf-theme`). Every new component must be checked in both themes.
+- **Accessibility:** visible sky focus ring, `aria-label` on icon-only buttons, AA contrast.
+- Before finishing UI work: `npm run lint`, `npm run typecheck`, `npm run build` in `web/`, and look at the page in light and dark mode.
 
 ## Working style
 
