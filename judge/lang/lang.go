@@ -96,7 +96,7 @@ var languages = map[string]Language{
 		},
 		// GOCACHE is in the sandbox's tmpfs, so every compile starts cold
 		// (about 11 s and 260 MB on the dev host; see ADR 0006).
-		CompileEnv: []string{sysPath, "GOCACHE=/tmp/gocache", "GOTOOLCHAIN=local", "CGO_ENABLED=0", "GOFLAGS=-p=1"},
+		CompileEnv: []string{sysPath, "GOROOT=/usr/local/go", "GOCACHE=/tmp/gocache", "GOTELEMETRY=off", "GOTOOLCHAIN=local", "CGO_ENABLED=0", "GOFLAGS=-p=1"},
 		CompileLimits: CompileLimits{
 			Time: 60 * time.Second, MemoryBytes: 400 << 20, PIDs: 128, TmpfsBytes: 96 << 20,
 			MaxArtifactBytes: 32 << 20,
