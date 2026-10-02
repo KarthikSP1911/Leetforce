@@ -6,7 +6,7 @@
 
 ## Units of work
 - [x] `feat/4-migrations`: schema (`problems`, `submissions`, `verdicts`), migration tool, `make migrate-up`
-- [ ] `feat/4-api-skeleton`: `api/` module (Gin, pgx), config, `/healthz`, pool settings
+- [x] `feat/4-api-skeleton`: `api/` module (Gin, pgx), config, `/healthz`, pool settings
 - [ ] `feat/4-problems-endpoints`: `GET /problems`, `GET /problems/:slug`
 - [ ] `feat/4-submissions`: `POST /submissions`, `GET /submissions/:id`, enqueue with the test-set version
 - [ ] `feat/4-verdict-ingest`: results-stream consumer writing idempotent verdicts; dead-letter watcher marks `IE`
@@ -36,10 +36,23 @@
 6. Claude (host): installed Trivy from the official Aqua apt repository (key dearmored into `/usr/share/keyrings/trivy.gpg`, source file `/etc/apt/sources.list.d/trivy.list`, package `trivy`), version 0.75.0. The same steps are in `scripts/setup-dev-host.sh`. The `apt-get install` also printed the usual "services need restarting" notice; nothing was restarted.
 7. Claude (repo): `scripts/scan-staged.sh` runs `trivy fs --scanners secret --exit-code 1` on the staged tree (`git archive $(git write-tree)` piped to the host), because scanning the working directory would see the git-ignored `.env`. Result for this unit: clean, exit 0.
 
+### Unit 2: `feat/4-api-skeleton` (2026-10-02)
+1. Claude (repo): new module `api/` (`leetforce/api`, dependencies gin v1.12.0 and pgx v5.11.0), added to `go.work` and to `GO_MODULES`. `go.mod` also has `replace leetforce/queue => ../queue` so `go mod tidy` works (the runner module relies on `go.work` alone; both work).
+2. `api/internal/store/store.go`: pgx pool for Neon: `MaxConnIdleTime` 30 s (idle connections close long before Neon suspends the compute), `MaxConnLifetime` 30 min, `MaxConns` 10, health check 30 s, and `QueryExecModeCacheDescribe` because the Neon pooler is pgbouncer in transaction mode where named prepared statements are unreliable.
+3. `api/internal/server/server.go`: Gin router with request logging and recovery. `/healthz` does no I/O; `/readyz` pings the database and Redis and returns 503 with `down` per failing dependency, without the error text (it can name hosts; the text goes to the log). `api/cmd/api/main.go`: config from env (`DATABASE_URL`, `LEETFORCE_REDIS_URL`, `LEETFORCE_API_ADDR` default `:8080`, `LEETFORCE_QUEUE_PREFIX`), graceful shutdown. `make build-api`.
+4. Test: `TestHealthAndReady` (healthz ignores a down dependency; readyz 200 when all up; 503 and no error text when one is down).
+5. Mistake and fix: `make lint` on the host flagged `httptest.NewRequest` (noctx); changed to `NewRequestWithContext`. The first host run was also lost because the SSH command moved to the background; rerunning with the output saved to `/tmp/p4-unit2.log` on the host worked. The first compile of gin and pgx on the 1 GB host took several minutes.
+6. Verified on the host: `make fmt lint test` all green (0 issues in every module); `bin/api` started with the real `DATABASE_URL` and Upstash URL (queue prefix `p4smoke`): `/healthz` 200, `/readyz` 200 with `database: ok, redis: ok` (326 ms), SIGTERM gave "api stopped". `bin/lfq destroy` removed the `p4smoke` keys. Trivy staged secret scan: see the commit step (clean).
+
 ## File and path index
 - `docs/phases/phase-4-log.md`: this log
 - `api/migrations/00001_init.sql`: schema (problems, submissions, verdicts)
 - `Makefile`: `migrate-up`, `migrate-down`, `migrate-status`
 - `scripts/setup-dev-host.sh`: goose and Trivy install steps
 - `scripts/scan-staged.sh`: Trivy secret scan of the staged tree via the dev host
+- `api/go.mod`, `api/go.sum`: the API module (gin, pgx)
+- `api/cmd/api/main.go`: API entry point
+- `api/internal/store/store.go`: pgx pool for Neon
+- `api/internal/server/server.go`, `server_test.go`: router, health endpoints, test
+- `go.work`: `./api` added; `Makefile`: `api` in `GO_MODULES`, `build-api`
 - `.env.example`: added `DATABASE_URL`, `LEETFORCE_MIGRATE_DATABASE_URL`
