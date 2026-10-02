@@ -136,11 +136,18 @@ Decisions for you:
 - **C.** Cost checks: can you look at your Neon plan limits and Upstash usage, and is a 15-minute reaper interval (one database wake-up per interval) fine for you?
 
 ## Review Q&A
-(Filled in after the review: each question, your answer, and my feedback.)
+**Understanding questions 1 to 5: not answered; the review was skipped at the owner's request** (2026-10-02: the owner replied "skip"). They can serve as the recap question at the start of the next session.
+
+**Decisions A, B and C: not answered.** Claude's recommendations stand as the defaults and stay open to change: A, RustFS 1.0.0 for local storage; B, the runner no-database guard narrowed to allow `database/sql/driver` and `database/sql/internal`; C, reaper every 15 minutes with the Neon plan and Upstash usage still unchecked.
 
 ## Open decisions
-- A, B and C above (Phase 6 onwards for A and B; C before real traffic).
+- A, B and C above are unanswered and on Claude's defaults (A and B matter from Phase 6; C before real traffic).
 - Carried over: the Neon plan and limits (unchecked); runner privilege model (Phase 6); Phase 2 decisions A (problem format; Phases 7 and 8) and C (Go and Java compile speed; Phases 6 and 13) on their defaults; `web/AGENTS.md` and `web/CLAUDE.md` stay untracked.
 
 ## Handoff
-(Filled in at the end of the session, after the review and the merge into `main`.)
+- **State:** Phase 5 is merged into `main` and tagged `phase-5-done` and `M2` (`phase-5-start` marks the start); the branch `phase/5-live-status-storage` is kept. Everything is pushed to `origin`. The EC2 instance `leetforce-dev` is still running (billable; stopping it is the owner's call); its checkout is on `test/5-e2e-redaction`, so run `git fetch && git checkout main && git pull` there first; Docker is installed and the RustFS container (`leetforce-s3-1`) is running; a stash on the host holds stale Phase 4 copies. No API or runner is left running. Neon is at goose version 3 with test leftovers (1 problem, 31 submissions, 30 verdicts).
+- **Next phase:** 6 - Sandbox hardening. Goal: raise isolation confidence: evaluate gVisor vs nsjail with measurements (ADR), tune seccomp, grow the adversarial suite; the suite must pass on the chosen sandbox. Think about before the session: how much complexity and slowdown you accept for gVisor on the small x86 host, and the runner privilege model (runners run as root today).
+- **Next session prompt:**
+  ```
+  Continue LeetForce. Read CLAUDE.md, docs/PROGRESS.md and docs/phases/phase-5-summary.md, then start Phase 6 (Sandbox hardening). Ask me the recap question and show me the session plan before writing any code.
+  ```
