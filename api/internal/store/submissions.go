@@ -11,8 +11,9 @@ import (
 
 // Submission statuses.
 const (
-	StatusQueued = "queued"
-	StatusJudged = "judged"
+	StatusQueued  = "queued"
+	StatusJudging = "judging"
+	StatusJudged  = "judged"
 )
 
 // Submission is what the API returns about a submission: its state and, once
@@ -92,4 +93,18 @@ func (s *Store) GetSubmission(ctx context.Context, id string) (Submission, error
 		sub.Verdict = &VerdictView{Verdict: *v.Verdict, RuntimeMS: *v.RuntimeMS, MemoryKB: *v.MemoryKB, Passed: *v.Passed, Total: *v.Total}
 	}
 	return sub, nil
+}
+
+// MarkJudging records that a runner took the submission's job. It only moves a
+// queued submission forward: a judged one (or one already judging) is left
+// alone, so a late or repeated event can never undo a verdict. It returns true
+// if the status changed.
+func (s *Store) MarkJudging(ctx context.Context, id string) (bool, error) {
+	tag, err := s.pool.Exec(ctx, `
+		UPDATE submissions SET status = 'judging', updated_at = now()
+		WHERE id = $1::uuid AND status = 'queued'`, id)
+	if err != nil {
+		return false, fmt.Errorf("mark judging %s: %w", id, err)
+	}
+	return tag.RowsAffected() == 1, nil
 }

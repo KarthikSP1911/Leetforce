@@ -55,3 +55,43 @@ func TestSubmissions(t *testing.T) {
 		t.Fatalf("after delete err = %v, want ErrNotFound", err)
 	}
 }
+
+// MarkJudging moves a queued submission forward once and never undoes a verdict.
+func TestMarkJudging(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	const id = "33333333-3333-4333-8333-333333333333"
+	if err := s.UpsertProblem(ctx, Problem{Slug: "sum", Title: "Sum", Difficulty: "easy"}, "v1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.InsertSubmission(ctx, id, "sum", "python", "print(1)"); err != nil {
+		t.Fatal(err)
+	}
+
+	if changed, err := s.MarkJudging(ctx, id); err != nil || !changed {
+		t.Fatalf("first MarkJudging = %v, %v; want true", changed, err)
+	}
+	if got, _ := s.GetSubmission(ctx, id); got.Status != StatusJudging {
+		t.Fatalf("status = %q, want judging", got.Status)
+	}
+	if changed, err := s.MarkJudging(ctx, id); err != nil || changed {
+		t.Fatalf("repeated MarkJudging = %v, %v; want false (already judging)", changed, err)
+	}
+
+	if _, err := s.RecordVerdict(ctx, VerdictRecord{SubmissionID: id, Verdict: "AC"}); err != nil {
+		t.Fatal(err)
+	}
+	// A late "judging" event after the verdict must not move the submission back.
+	if changed, err := s.MarkJudging(ctx, id); err != nil || changed {
+		t.Fatalf("MarkJudging after the verdict = %v, %v; want false", changed, err)
+	}
+	if got, _ := s.GetSubmission(ctx, id); got.Status != StatusJudged || got.Verdict == nil {
+		t.Fatalf("after a late judging event: %+v, want judged with its verdict", got)
+	}
+	if changed, err := s.MarkJudging(ctx, "44444444-4444-4444-8444-444444444444"); err != nil || changed {
+		t.Fatalf("MarkJudging of an unknown submission = %v, %v; want false, nil", changed, err)
+	}
+	if _, err := s.MarkJudging(ctx, "not-a-uuid"); !IsPermanent(err) {
+		t.Fatalf("MarkJudging with a malformed id err = %v, want a permanent error", err)
+	}
+}
