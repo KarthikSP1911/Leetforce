@@ -54,7 +54,7 @@ func requireSandbox(t *testing.T) {
 
 func readSolution(t *testing.T, language, name string) []byte {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join(sampleDir, "solutions", language, name))
+	b, err := os.ReadFile(filepath.Join(sampleDir, "solutions", language, name)) //nolint:gosec // fixed test fixtures
 	if err != nil {
 		t.Fatal(err)
 	}
