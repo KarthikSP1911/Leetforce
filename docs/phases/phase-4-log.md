@@ -9,7 +9,7 @@
 - [x] `feat/4-api-skeleton`: `api/` module (Gin, pgx), config, `/healthz`, pool settings
 - [x] `feat/4-problems-endpoints`: `GET /problems`, `GET /problems/:slug`
 - [x] `feat/4-submissions`: `POST /submissions`, `GET /submissions/:id`, enqueue with the test-set version
-- [ ] `feat/4-verdict-ingest`: results-stream consumer writing idempotent verdicts; dead-letter watcher marks `IE`
+- [x] `feat/4-verdict-ingest`: results-stream consumer writing idempotent verdicts; dead-letter watcher marks `IE`
 - [ ] `test/4-idempotency`: duplicate verdicts change nothing; API to runner end-to-end
 - [ ] `docs/4-adr-report`: ADR, `docs/FLOW.md`, report, summary, `PROGRESS.md` to in review
 - [ ] review, merge to `main`, tag `phase-4-done`
@@ -62,6 +62,14 @@
 6. Left behind: that live run inserted one real `submissions` row (id `31b379ac-3721-468b-84b1-d2b39bc098a7`, status `queued`, no verdict, its job was destroyed with the throwaway queue). It is harmless dev data; there is no cleanup script yet.
 7. Known gap (deferred): a crash between the insert and the enqueue leaves a `queued` row with no job; a reaper for stale queued rows belongs with the live-status work in Phase 5.
 
+### Unit 5: `feat/4-verdict-ingest` (2026-10-02)
+1. Claude (repo), queue side: `queue/ingest.go` adds the API's own consumer group `api` (`APIGroup`) on the results stream and on the dead-letter stream: `SetupAPI` (idempotent, reads from the start so earlier verdicts are not lost), `ReceiveResult`/`AckResult`, `ReceiveDead`/`AckDead`. Reading is "reclaim entries idle for `MinIdle` (a crashed API instance), then new entries", the same pattern as the runners' jobs. Acknowledging only clears the API group's pending record and does not delete the entry, so `lfq results` and the crash test still see every verdict. Tests (`queue/ingest_test.go`, real Redis): verdict delivered once and kept in the stream, an unacknowledged verdict is reclaimed by a second consumer, an undecodable entry is flagged, a dead-lettered job reaches the API, an undecodable dead letter has no job.
+2. Claude (repo), database side: `api/internal/store/verdicts.go`, `RecordVerdict`, is one SQL statement: a CTE `INSERT INTO verdicts ... SELECT ... FROM submissions WHERE id = $1::uuid ON CONFLICT (submission_id) DO NOTHING RETURNING submission_id`, then `UPDATE submissions SET status = 'judged'` only for the rows the CTE inserted. This is the idempotency mechanism: the verdicts primary key plus `DO NOTHING` means a second write (even with a different verdict, runner or version) changes nothing, and the status flips only on the insert that really happened, atomically. It returns `true` only for the call that stored the verdict. An empty test-set version (internal errors) falls back to the submission's own version. `IsPermanent` classifies Postgres data and constraint errors (class 22 and 23) as "retrying cannot work".
+3. `api/internal/ingest/ingest.go`: the loop. Each poll takes one verdict (5 s block), stores it and acknowledges it. A duplicate or unknown submission is acknowledged and ignored. A transient database error leaves the entry pending, and it is redelivered after `MinIdle` (30 s). A permanent error, an undecodable entry or an invalid submission id (a non-UUID never reaches the database) is logged and acknowledged so it cannot block the stream. Every 30 s it drains the dead-letter stream and writes an `IE` verdict (runner id `dead-letter`) for each dead-lettered job, which closes the Phase 3 gap "a poison job ends with no verdict". `cmd/api/main.go` starts it after `SetupAPI` and waits for it on shutdown.
+4. Cost note: polling is the main Upstash command spend. The results poll is `XAUTOCLAIM` plus `XREADGROUP BLOCK 5s` per 5 s (about 35,000 commands per day while idle) and the dead-letter check is about 2 commands per 30 s. The runners already poll the same way. Not measured against the Upstash bill yet; if the count matters, the block time and `DeadEvery` are the knobs.
+5. Tests: `store/verdicts_test.go` `TestRecordVerdictIsIdempotent` (the exit criterion: after a first AC, a repeat of it, a conflicting WA and an IE leave the submission, verdict, runner id, test-set version and created time unchanged, and exactly one row exists) and `TestRecordVerdictEdgeCases` (unknown submission stores nothing and is not an error, a bad UUID and a bad verdict string are permanent errors and change nothing, an IE takes the submission's version, a timeout is not permanent); `ingest/ingest_test.go` with fakes (every failure class: acknowledged or left pending as designed, field mapping, dead letter to IE, `Run` handles both streams and stops on cancel).
+6. Verified on the host: `make fmt lint` 0 issues in all modules; store tests (4) pass against Neon; ingest tests pass; `queue` tests (including the Phase 3 ones) pass against the host's Redis.
+
 ## File and path index
 - `docs/phases/phase-4-log.md`: this log
 - `api/migrations/00001_init.sql`: schema (problems, submissions, verdicts)
@@ -77,5 +85,8 @@
 - `api/internal/server/problems.go`, `problems_test.go`: problem endpoints
 - `api/internal/store/submissions.go`, `submissions_test.go`: submission queries
 - `api/internal/server/submissions.go`, `submissions_test.go`: submission endpoints
+- `queue/ingest.go`, `queue/ingest_test.go`: the API's consumer groups on the results and dead-letter streams
+- `api/internal/store/verdicts.go`, `verdicts_test.go`: idempotent verdict write
+- `api/internal/ingest/ingest.go`, `ingest_test.go`: results and dead-letter loop
 - `go.work`: `./api` added; `Makefile`: `api` in `GO_MODULES`, `build-api`
 - `.env.example`: added `DATABASE_URL`, `LEETFORCE_MIGRATE_DATABASE_URL`
