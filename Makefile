@@ -15,10 +15,12 @@ lint:
 test:
 	@for m in $(GO_MODULES); do (cd $$m && go test -count=1 ./...) || exit 1; done
 
-# Runs real programs inside nsjail (functional sandbox tests). Same host
-# requirements as test-adversarial; plain `make test` skips these.
+# Runs real programs inside nsjail (functional sandbox tests, including the
+# engine's verdict tests). Same host requirements as test-adversarial; plain
+# `make test` skips these. Packages run one at a time (-p 1): they share one
+# cgroup root and a memory cap, and a Go compile alone uses most of it.
 test-sandbox:
-	sudo -n env "PATH=$$PATH" go test -count=1 -v ./judge/...
+	sudo -n env "PATH=$$PATH" go test -p 1 -timeout 20m -count=1 -v ./judge/...
 
 # Sandbox containment suite: hostile programs (fork, memory and output bombs,
 # network and file-system escapes) that must all be contained. Needs Linux,
