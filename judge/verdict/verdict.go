@@ -1,5 +1,4 @@
-case r.OOMKilled || r.PeakMemoryBytes > l.MemoryBytes ||
-		(l.OOMExitCode != 0 && r.Signal == 0 && r.ExitCode == l.OOMExitCode):// Package verdict turns what the host measured about a sandboxed run into a
+// Package verdict turns what the host measured about a sandboxed run into a
 // verdict. It looks only at the host-side facts in sandbox.Result (exit
 // status, signal, CPU time, memory, output cap) and never at what the program
 // printed or wrote to the result fd.
@@ -58,7 +57,8 @@ func Classify(r sandbox.Result, l Limits) Verdict {
 	switch {
 	case r.OutputExceeded:
 		return OLE
-	case r.OOMKilled || r.PeakMemoryBytes > l.MemoryBytes:
+	case r.OOMKilled || r.PeakMemoryBytes > l.MemoryBytes ||
+		(l.OOMExitCode != 0 && r.Signal == 0 && r.ExitCode == l.OOMExitCode):
 		return MLE
 	case r.TimedOut || r.CPUTime > l.Time || r.Signal == syscall.SIGXCPU:
 		return TLE
