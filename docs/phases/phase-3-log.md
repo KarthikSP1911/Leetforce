@@ -69,7 +69,14 @@
 3. Exit criteria: both met (crash reclaim, no database dependency). Partly met or unverified, stated in the report: the runner reports to the Redis results stream because the API does not exist yet; `docker-compose.yml` was never run.
 4. Not done on purpose: no merge to `main`, no `phase-3-done` tag, until the owner has answered the review or said to skip it. The EC2 instance was not stopped (billable, owner's call).
 
+### CLAUDE.md: Trivy added (2026-10-02, during the review wait)
+1. Owner asked: "could you update claude.md to also use trivy". Claude edited `CLAUDE.md` (repo root of `Leetforce/`) on branch `docs/3-claude-trivy`: new section "Security scanning with Trivy" (secret scan on every commit; full `trivy fs` scan before merging; `trivy config` for Terraform, Kubernetes and Compose; `trivy image` for any image; findings policy with a committed `.trivyignore` that has reason and expiry, and never for secrets; record command and version in the phase log); the "Before committing" rule now includes `trivy fs --scanners secret .`; the Commands block lists the Trivy commands and says there is no make target yet (`make scan` is listed as planned).
+2. While there, Claude fixed stale lines: the "Current state" status (phases 0 to 2 done, phase 3 in review) and the planned-commands note (`make dev` and `make down` exist since Phase 3); added `build-runner`, `test-crash`, `dev` and `down` to the Commands block.
+3. Not done: Trivy is not installed on the dev host or locally, so none of the scan commands has been run, and no `make scan` target or `setup-dev-host.sh` step exists yet. The commands are the standard Trivy CLI, but they are unverified here. Installing Trivy, running the first scan of the repo and wiring `make scan` would be a host change plus a unit of work; it was not requested yet.
+4. Commit: `docs(claude): ...` (scope `claude` is allowed by `commitlint.config.mjs`), merged into `phase/3-queue-runner` with git's default message.
+
 ## File and path index
+- `CLAUDE.md`: Trivy section, command list and status refreshed
 - `docs/phases/phase-3.md`, `phase-3-summary.md`: report and summary
 - `queue/cmd/lfq/main.go`, `main_test.go`: queue tool (`bin/lfq`, git-ignored)
 - `scripts/test-crash-reclaim.sh`, `Makefile` (`test-crash`): crash-reclaim exit test

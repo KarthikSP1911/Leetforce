@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working in this
 
 ## Current state
 
-Phases 0 (web shell) and 1 (sandbox core) are done; Phase 2 (judge engine) is in progress, see `docs/PROGRESS.md`. Parts below describe the planned system and may not exist yet. `docs/PLAN.md` (the 0–16 phase plan) and `docs/PROGRESS.md` (phase tracker and resume point) are the sources of truth. Do not invent build or test commands that no Makefile defines.
+Phases 0 (web shell), 1 (sandbox core) and 2 (judge engine) are done; Phase 3 (queue and runner) is built and in review, see `docs/PROGRESS.md`. Parts below describe the planned system and may not exist yet. `docs/PLAN.md` (the 0–16 phase plan) and `docs/PROGRESS.md` (phase tracker and resume point) are the sources of truth. Do not invent build or test commands that no Makefile defines.
 
 ## Project
 
@@ -30,13 +30,21 @@ make test-sandbox        # functional sandbox and judge-engine tests: real progr
 make build-judge         # build the local judge CLI to bin/judge
 sudo -n bin/judge run [-all] [-detail] [-lang NAME] problems/<slug> <solution-file>   # judge a solution locally (exit 0 = AC)
 make test-adversarial    # sandbox containment suite (build tag `adversarial`), run as root in a memory-capped systemd scope
+make build-runner        # build bin/runner and bin/lfq (queue tool: enqueue, results, destroy)
+make test-crash          # Phase 3 exit test: kill a runner mid-job, another reclaims it, one verdict (needs LEETFORCE_REDIS_URL in .env)
+make dev | make down     # local Redis and MinIO via docker-compose.yml (needs Docker)
+
+# Trivy security scans (see "Security scanning with Trivy"; no make target yet)
+trivy fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --exit-code 1 .
+trivy config infra/ k8s/ docker-compose.yml          # IaC and Compose misconfiguration
+trivy image <image:tag>                              # any container image we build or pull
 
 # single test
 cd judge && go test -run TestName ./sandbox/...
 make test-adversarial RUN=TestAdversarialForkBomb   # one adversarial test (RUN is a go test -run regex)
 ```
 
-Planned, not defined yet: `make dev | down | migrate-up`.
+Planned, not defined yet: `make migrate-up`, `make scan` (wrapping the Trivy commands above).
 
 ## Session model: one phase per session
 
@@ -55,7 +63,7 @@ Planned, not defined yet: `make dev | down | migrate-up`.
 - Never commit directly to `main` (the initial README commit was the one bootstrap exception). Never force-push `main` or `phase/*`.
 - Merge units into the phase branch with `--no-ff` and git's default message (`Merge branch 'feat/<N>-<slug>' into phase/<N>-<slug>`), which commitlint ignores by design; delete the unit branch. Keep phase branches after merging to `main`.
 - Conventional Commits with scope (`sandbox`, `judge`, `runner`, `api`, `web`, `brand`, `db`, `queue`, `infra`, `packer`, `ansible`, `k8s`, `ci`, `obs`, `contest`, `leaderboard`, `docs`) and a `Refs: phase-<N>` footer. Commit at every meaningful step (~30–150 lines) that builds and passes tests.
-- Before committing: `make fmt lint`, tests for the touched area, review `git diff --staged` for secrets/binaries, and stage specific paths.
+- Before committing: `make fmt lint`, tests for the touched area, review `git diff --staged` for secrets/binaries, run `trivy fs --scanners secret .` (a finding blocks the commit), and stage specific paths.
 - Push branches and tags after each merge only if a remote is configured (it is: `origin` → `KarthikSP1911/Leetforce`).
 
 ## Security rules (non-negotiable)
@@ -66,6 +74,18 @@ Planned, not defined yet: `make dev | down | migrate-up`.
 - Kill the whole cgroup on timeout or limit breach.
 - Runners never connect to the database; they talk only to Redis and the API.
 - Any sandbox change must pass the full adversarial suite (`make test-adversarial`) before merging.
+
+## Security scanning with Trivy
+
+Trivy scans dependencies, secrets, container images and IaC. It complements, and never replaces, the adversarial suite, which tests the sandbox itself.
+
+- **Every commit:** `trivy fs --scanners secret .` (see "Before committing").
+- **Before merging a unit or phase branch:** `trivy fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --exit-code 1 .` (Go modules, `web/package-lock.json`, Compose, Dockerfiles).
+- **Terraform, Kubernetes, Compose changes:** also `trivy config <dir>`. **Any container image** we build, push or add to Compose: `trivy image <image:tag>` before it is used; the Packer runner AMI build also runs a Trivy scan.
+- **Findings:** fix HIGH and CRITICAL, or record why not (ADR or the phase log, with the CVE or rule ID and the phase that will fix it). Suppress only in a committed `.trivyignore`, one ID per line with a comment giving reason and expiry. A secret finding is never suppressed: rotate the secret, remove it from history if it was committed, and say so in the log.
+- **Record in the phase log:** the exact command, Trivy and database version, and the result summary. Phase reports list unresolved findings under "Known issues".
+- **Cloud and cost rules still apply:** Trivy is local and free; do not enable paid or hosted scanning without confirmation.
+- Trivy is not installed on the dev host yet. Installing it is a host change: add it to `scripts/setup-dev-host.sh` and log it. Never pipe an installer from the internet into a shell without telling the owner; prefer the official apt repository.
 
 ## Data model rules
 
