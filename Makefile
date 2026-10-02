@@ -4,7 +4,7 @@
 
 GO_MODULES := judge
 
-.PHONY: fmt lint test test-adversarial
+.PHONY: fmt lint test test-sandbox test-adversarial
 
 fmt:
 	@for m in $(GO_MODULES); do (cd $$m && golangci-lint fmt ./...) || exit 1; done
@@ -14,6 +14,11 @@ lint:
 
 test:
 	@for m in $(GO_MODULES); do (cd $$m && go test -count=1 ./...) || exit 1; done
+
+# Runs real programs inside nsjail (functional sandbox tests). Same host
+# requirements as test-adversarial; plain `make test` skips these.
+test-sandbox:
+	sudo -n env "PATH=$$PATH" go test -count=1 -v ./judge/...
 
 # Sandbox containment suite. Needs Linux, cgroup v2, nsjail and passwordless sudo
 # (see ADR 0003). Runs as root because nsjail and cgroup writes need it.
