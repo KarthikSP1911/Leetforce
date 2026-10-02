@@ -55,6 +55,7 @@ Design: [ADR 0005](../adr/0005-problem-format-and-test-set-version.md). Decision
 
 ## File and path index
 - `judge/verdict/verdict.go`, `verdict_test.go`: verdict classification and summary
+- Host: a second stash entry "pre-sync copy of feat/2-verdicts files" (identical to the branch, can be dropped; same cause as the first: files were copied with scp before being committed)
 - `docs/phases/phase-2-log.md`: this log
 - `scripts/setup-dev-host.sh`: now also installs the JDK
 - `judge/problem/problem.go`, `version.go`, `problem_test.go`: problem loader, validation, test-set version, tests
