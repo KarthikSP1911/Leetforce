@@ -138,6 +138,36 @@ var ceMarkers = map[string]string{
 
 var extensions = map[string]string{"python": "py", "go": "go", "cpp": "cpp", "java": "java"}
 
+// The exit criterion is every verdict in every language. This needs no
+// sandbox, so a missing solution file fails even a plain `make test`.
+func TestVerdictMatrixIsComplete(t *testing.T) {
+	if len(verdictCases) != 7 {
+		t.Fatalf("verdictCases has %d entries, want the 7 verdicts AC, WA, TLE, MLE, RE, OLE, CE", len(verdictCases))
+	}
+	seen := map[verdict.Verdict]bool{}
+	for _, tc := range verdictCases {
+		seen[tc.want] = true
+	}
+	for _, v := range []verdict.Verdict{verdict.AC, verdict.WA, verdict.TLE, verdict.MLE, verdict.RE, verdict.OLE, verdict.CE} {
+		if !seen[v] {
+			t.Errorf("no matrix case produces %s", v)
+		}
+	}
+	for _, language := range problem.Languages {
+		ext, ok := extensions[language]
+		if !ok {
+			t.Errorf("no file extension for language %q in the test", language)
+			continue
+		}
+		for _, tc := range verdictCases {
+			path := filepath.Join(sampleDir, "solutions", language, tc.file+"."+ext)
+			if _, err := os.Stat(path); err != nil {
+				t.Errorf("missing solution: %v", err)
+			}
+		}
+	}
+}
+
 func TestJudgeVerdicts(t *testing.T) {
 	requireSandbox(t)
 	p := loadSample(t)

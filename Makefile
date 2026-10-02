@@ -4,7 +4,7 @@
 
 GO_MODULES := judge
 
-.PHONY: fmt lint test build-judge test-sandbox test-adversarial
+.PHONY: fmt lint test build-judge test-matrix test-sandbox test-adversarial
 
 fmt:
 	@for m in $(GO_MODULES); do (cd $$m && golangci-lint fmt ./...) || exit 1; done
@@ -20,6 +20,12 @@ test:
 build-judge:
 	@mkdir -p bin
 	cd judge && go build -o ../bin/judge ./cmd/judge
+
+# Phase 2 exit criterion: judges the sample problem with one solution per
+# verdict (AC, WA, TLE, MLE, RE, OLE, CE) in each of Python, C++, Java and Go
+# (28 runs, about 4 minutes on the dev host, mostly cold Go and Java compiles).
+test-matrix:
+	sudo -n env "PATH=$$PATH" go test -p 1 -timeout 20m -count=1 -v -run 'TestVerdictMatrixIsComplete|TestJudgeVerdicts' ./judge/engine/
 
 # Runs real programs inside nsjail (functional sandbox tests, including the
 # engine's verdict tests). Same host requirements as test-adversarial; plain
