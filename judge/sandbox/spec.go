@@ -16,6 +16,7 @@ type Limits struct {
 	MaxFileBytes   uint64        // largest file the program may write (RLIMIT_FSIZE)
 	MaxOpenFiles   uint64        // RLIMIT_NOFILE
 	MaxOutputBytes int64         // cap per stream (stdout, stderr); excess is discarded and the run is killed
+	MaxResultBytes int64         // cap on the harness result fd; excess is discarded and the run is killed
 	TmpfsBytes     uint64        // size of the writable /tmp
 	MemoryBytes    uint64        // cgroup memory.max for the program and its children; swap is disabled
 	MaxPIDs        uint64        // cgroup pids.max: processes and threads
@@ -31,6 +32,7 @@ func DefaultLimits() Limits {
 		MaxFileBytes:   8 << 20,
 		MaxOpenFiles:   64,
 		MaxOutputBytes: 1 << 20,
+		MaxResultBytes: 1 << 20,
 		TmpfsBytes:     64 << 20,
 		MemoryBytes:    256 << 20,
 		MaxPIDs:        64,
@@ -73,6 +75,9 @@ func (s Spec) Validate() error {
 	if l.MaxOutputBytes <= 0 {
 		return errors.New("spec: output limit must be positive")
 	}
+	if l.MaxResultBytes <= 0 {
+		return errors.New("spec: result limit must be positive")
+	}
 	if l.MemoryBytes == 0 {
 		return errors.New("spec: memory limit must be positive")
 	}
@@ -88,6 +93,10 @@ func (s Spec) Validate() error {
 type Result struct {
 	Stdout []byte
 	Stderr []byte
+	// ResultData is what the program wrote to ResultFD (fd 4). It is data from
+	// inside the sandbox, never a verdict: exit status, signal, time and memory
+	// below come from the host and are the only facts to trust about the run.
+	ResultData []byte
 	// ExitCode is the program's exit status, or -1 if it was killed by a signal.
 	ExitCode int
 	// Signal is the terminating signal, or 0 if the program exited normally.
@@ -95,7 +104,7 @@ type Result struct {
 	// TimedOut is true when the wall-time limit killed the run.
 	TimedOut bool
 	// OutputExceeded is true when stdout or stderr passed MaxOutputBytes.
-	OutputExceeded bool
+	OutputExceeded bool // stdout, stderr or the result fd passed its cap
 	WallTime       time.Duration
 
 	// Host-side measurements, read from the run's cgroup.

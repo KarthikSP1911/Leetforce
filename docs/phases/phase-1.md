@@ -9,7 +9,7 @@
 - [x] `feat/1-go-workspace`: `go.work`, `judge/go.mod`, `.golangci.yml`, `Makefile`, `.env.example`
 - [x] `feat/1-nsjail-wrapper`: `judge/sandbox` Spec/Run, bounded output capture
 - [x] `feat/1-cgroup-limits`: cgroup v2 memory/pids/cpu limits, whole-cgroup kill, measurements
-- [ ] `feat/1-result-channel`: dedicated fd for the harness result
+- [x] `feat/1-result-channel`: dedicated fd for the harness result
 - [ ] `test/1-adversarial`: `make test-adversarial` suite
 - [ ] `docs/1-adrs-report`: ADR 0004, phase report, phase summary
 
@@ -128,3 +128,21 @@ Same workflow as unit 2: edit on Windows, `tar czf - Makefile judge | ssh leetfo
 - **Test binaries.** The tests compile C programs into `/var/tmp/lf-sandbox-*` and remove them afterwards; none were left after the runs.
 - **Host checkout after the merge.** After unit 3 was merged I ran `git checkout -- .` and `git clean -fdq judge Makefile` on the host to discard the files copied with `tar`, then `git fetch`, `git checkout phase/1-sandbox-core`, `git pull --ff-only`. The host is at the merge commit with a clean working tree.
 - **No kernel or system settings were changed** beyond the cgroup directory above.
+
+### `feat/1-result-channel` (2026-10-02)
+Same workflow as units 2 and 3 (edit on Windows, `tar | ssh` to the host, test as root, commit after everything passed). This time the log was written during the unit.
+
+**Spike on the host.** Script `/tmp/spike/fd4.sh` (run as root) started nsjail with `--log_fd 3 --pass_fd 4` redirected to files and a shell that wrote to fd 4 and fd 3. Result: the write to fd 4 reached the file (`via-fd4`); the write to fd 3 failed with `Bad file descriptor`; `/proc` is not mounted so `ls /proc/self/fd` failed as expected. So `--pass_fd` keeps exactly the one extra descriptor open and the nsjail log descriptor stays closed to the program.
+
+**Design.**
+- A second pipe is passed as `ExtraFiles[1]`, which is fd 4 in nsjail (`ResultFD = 4`), kept open for the program with `--pass_fd 4`. The host reads it separately from stdout and stderr into a capped buffer (`Limits.MaxResultBytes`, default 1 MiB). Exceeding the cap discards the excess and kills the whole run, like an output flood (`Result.OutputExceeded`).
+- `Result.ResultData` is data from inside the sandbox, never a verdict. Exit status, signal, wall time, CPU time, peak memory, OOM kills and pid-limit hits remain host-measured (nsjail log on fd 3 and cgroup files) and are the only facts to trust.
+- Known limit, to be written into ADR 0004: a harness that runs in the same process as user code (Python, Java drivers in Phase 2) cannot keep fd 4 secret from that code, so user code can forge the *content* of ResultData. That is acceptable only because the content is the program's output data; Phase 2 must compare outputs on the host side with the checker and never let ResultData decide a verdict or override the measured facts.
+
+**Code.** `spec.go` (`MaxResultBytes`, `Result.ResultData`, `OutputExceeded` now also covers the result fd, validation), `args.go` (`ResultFD`, `--pass_fd`), `run.go` (second pipe, `copyAsync` and `drain` helpers shared by the log and result readers), tests in `unit_test.go` and the new `result_test.go`.
+
+**Tests added (run as root via `make test-sandbox`).** `TestRunResultFD` (result, stdout and stderr stay separate); `TestRunForgedResultsDoNotChangeOutcome` (five cases: fake verdict JSON on stdout and stderr with real exit 3; a fake nsjail "exited with status: 0" line on stdout and stderr with real exit 4; the same fake line written to fd 3, which fails, with real exit 5; a success claim on fd 4 with real exit 6; nothing written to fd 4 gives empty ResultData); `TestRunResultFDCap` (`yes >&4` is cut at 1000 bytes and stopped promptly); `TestRunBackgroundResultHolderIsCleanedUp` (a background `sleep` holding fd 4 does not hold the run open, and the process and cgroup are gone afterwards).
+
+**Verification (EC2 host).** `make fmt lint`: `0 issues.` `make test`: ok. `make test-sandbox`: all PASS. 25 rounds of the result, forgery, background, basics, memory and kill tests: ok in 34.7 s. After the runs, with root: 0 `job-*` cgroup directories, 0 processes in `/sys/fs/cgroup/leetforce`, `nr_descendants 0`; `pgrep` found 0 nsjail and 0 sleep processes; no `/var/tmp/lf-sandbox-*` directories; host memory unchanged (about 490 MiB available). A first leftover check printed 0 only because a non-root `ls` of the root-only cgroup directory was denied; I repeated it with sudo to be sure.
+
+**Host state changes in this unit.** Only `/tmp/spike/fd4.sh`, `fd4log.txt` and `fd4out.txt` (scratch). No system settings changed.
