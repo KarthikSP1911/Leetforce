@@ -30,7 +30,7 @@ Rules that shape the flow (from CLAUDE.md): runners never connect to the databas
 |---|---|---|---|
 | 0 | Foundation `[x]` | The browser-side page shell: navbar, theme, problem table with sample data; repo rules and layout | `browser (shell only, sample data)` |
 | 1 | Sandbox core `[x]` | Stage 6 and 7: run untrusted code in nsjail + cgroup and return host-measured facts | `Go test -> sandbox.Run -> nsjail box -> measured result` |
-| 2 | Judge engine (M1) | Stage 5: drivers for Python, C++, Java, Go; compile step; checkers; verdicts; `problem.yaml`; test-set versions; `judge run` CLI | `judge CLI -> judge engine -> sandbox -> verdict` (local, one machine, no network) |
+| 2 | Judge engine (M1) `[x]` | Stage 5: drivers for Python, C++, Java, Go; compile step; checkers; verdicts; `problem.yaml`; test-set versions; `judge run` CLI | `judge CLI -> judge engine -> sandbox -> verdict` (local, one machine, no network) |
 | 3 | Queue and runner | Stages 3-4 and 8: Redis Streams, runner module, crash recovery; the runner talks only to Redis and the API | `job in Redis -> runner -> judge -> sandbox -> verdict sent to the API` |
 | 4 | API and database | Stages 1-2 and 9: Gin API, Neon Postgres, migrations, idempotent verdict writes, test-set version recorded | `API <-> Postgres`, plus the runner reporting to the API |
 | 5 | Live status and storage (M2) | Stage 10 and test data: SSE status stream, MinIO/S3 for tests, hidden-test redaction for Submit | `curl submit -> queue -> runner -> sandbox -> verdict -> SSE`, end to end on one machine |
@@ -97,6 +97,32 @@ caller (a test today; the judge in Phase 2; the runner in Phase 3)
 Trust rule in this flow: steps 7 and 8 come from nsjail's own log and the kernel, which the program cannot write to. Stdout, stderr and the fd 4 result are data from the program and are never used to decide what happened.
 
 How the attack tests exercise it (`adversarial_test.go`, run by `make test-adversarial`): each test builds a hostile program, runs steps 1 to 10, and then checks that the attack was stopped, `Run` returned promptly, and no process or cgroup folder is left. The design reasoning is in [ADR 0004](adr/0004-sandbox-design.md); the full explanation is in [phase-1-summary.md](phases/phase-1-summary.md).
+
+### Phase 2: Judge engine (as built; done)
+What `engine.Judge(ctx, problem, language, source, opts)` does today (`judge/engine/engine.go`):
+```
+ sudo bin/judge run [-all] [-detail] problems/<slug> <file>   judge/cmd/judge/main.go: picks the language from the
+        |   file extension, loads the problem, calls engine.Judge, prints the verdict table; exit 0 = AC, 1 = other, 2 = error
+        v
+ problems/<slug>/ ---> problem.Load ---> Problem{Spec, Tests, TestSetVer}   judge/problem/problem.go, version.go
+                                                  |
+ source text + language name                      v
+        |                              1. lang.Get(language): source name, compile argv, run argv, limits   judge/lang/lang.go
+        v                              2. write <job dir>/src/main.<ext> (host, world-readable, under /var/tmp)
+ 3. COMPILE (if the language has one) in sandbox.Run: only src/ is visible, read-only
+      python: compile() syntax check          go / cpp: go build or g++ -static to /tmp/main, then cat /tmp/main >&4
+      java: javac, jar into /tmp/main.jar, then cat /tmp/main.jar >&4   (JDK needs LD_LIBRARY_PATH and a bind of /etc/java-21-openjdk)
+      the artifact comes back over fd 4 (ResultData); the host writes it to <job dir>/bin/main
+      any non-zero exit, signal, timeout or OOM  ->  verdict CE with the (cleaned, 4 KiB) compiler output; stop
+ 4. for each test, in name order: sandbox.Run with the whole job dir read-only, test input on stdin, limits from
+      problem.yaml (CPU limit + 1 s kill slack, wall 2x + 1 s, memory limit, output cap from the expected size)
+ 5. verdict.Classify(result, limits)        host facts only: OLE > MLE > TLE > RE, else Completed      judge/verdict/verdict.go
+      (MLE also when the exit status equals the language's OOMExitCode: the JVM exits 3 on heap exhaustion)
+ 6. if Completed: checker.Check(mode, expected, stdout) -> AC or WA                                       judge/checker/checker.go
+ 7. stop at the first non-AC (or run all with ContinueOnFail); verdict.Summarize -> Overall{verdict, first failed test, max time, max memory}
+ 8. remove the job dir; return Report{TestSetVersion, Overall, Cases, CompileOutput}
+```
+Details of a failing test (input, expected, actual, stderr) are recorded only for sample tests and only when the caller sets `Options.Detail` (Run); hidden tests never get any. Design reasoning: [ADR 0005](adr/0005-problem-format-and-test-set-version.md) and [ADR 0006](adr/0006-compile-in-sandbox-artifact-over-fd4.md).
 
 ## 4. Keeping this file true
 At the end of each phase: tick the phase in section 2, add its "as built" flow to section 3 (the detailed step list with file paths), and correct the "planned" rows if the plan changed.

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working in this
 
 ## Current state
 
-Phase 0 (web shell) is done; Phase 1 (sandbox core) is in progress, see `docs/PROGRESS.md`. Parts below describe the planned system and may not exist yet. `docs/PLAN.md` (the 0–16 phase plan) and `docs/PROGRESS.md` (phase tracker and resume point) are the sources of truth. Do not invent build or test commands that no Makefile defines.
+Phases 0 (web shell) and 1 (sandbox core) are done; Phase 2 (judge engine) is in progress, see `docs/PROGRESS.md`. Parts below describe the planned system and may not exist yet. `docs/PLAN.md` (the 0–16 phase plan) and `docs/PROGRESS.md` (phase tracker and resume point) are the sources of truth. Do not invent build or test commands that no Makefile defines.
 
 ## Project
 
@@ -25,8 +25,10 @@ Go targets run per module in `GO_MODULES` (Makefile) on a Linux host; Phase 1 de
 ```bash
 make fmt                 # golangci-lint fmt (gofmt + goimports) per Go module
 make lint                # go vet + golangci-lint run per Go module
-make test                # go test per Go module
-make test-sandbox        # functional sandbox tests: real programs in nsjail (sudo -n)
+make test                # go test per Go module (sandbox-backed tests skip without root)
+make test-sandbox        # functional sandbox and judge-engine tests: real programs in nsjail (sudo -n, packages run serially)
+make build-judge         # build the local judge CLI to bin/judge
+sudo -n bin/judge run [-all] [-detail] [-lang NAME] problems/<slug> <solution-file>   # judge a solution locally (exit 0 = AC)
 make test-adversarial    # sandbox containment suite (build tag `adversarial`), run as root in a memory-capped systemd scope
 
 # single test
@@ -34,7 +36,7 @@ cd judge && go test -run TestName ./sandbox/...
 make test-adversarial RUN=TestAdversarialForkBomb   # one adversarial test (RUN is a go test -run regex)
 ```
 
-Planned, not defined yet: `make dev | down | migrate-up`, and `judge run problems/<slug> <solution-file>` (local judge CLI, from Phase 2).
+Planned, not defined yet: `make dev | down | migrate-up`.
 
 ## Session model: one phase per session
 

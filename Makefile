@@ -4,7 +4,7 @@
 
 GO_MODULES := judge
 
-.PHONY: fmt lint test test-sandbox test-adversarial
+.PHONY: fmt lint test build-judge test-matrix test-sandbox test-adversarial
 
 fmt:
 	@for m in $(GO_MODULES); do (cd $$m && golangci-lint fmt ./...) || exit 1; done
@@ -15,10 +15,24 @@ lint:
 test:
 	@for m in $(GO_MODULES); do (cd $$m && go test -count=1 ./...) || exit 1; done
 
-# Runs real programs inside nsjail (functional sandbox tests). Same host
-# requirements as test-adversarial; plain `make test` skips these.
+# Builds the local judge CLI to bin/judge. It needs root to run, for example:
+#   sudo -n bin/judge run problems/sample-sum problems/sample-sum/solutions/python/ac.py
+build-judge:
+	@mkdir -p bin
+	cd judge && go build -o ../bin/judge ./cmd/judge
+
+# Phase 2 exit criterion: judges the sample problem with one solution per
+# verdict (AC, WA, TLE, MLE, RE, OLE, CE) in each of Python, C++, Java and Go
+# (28 runs, about 3 minutes on the dev host, mostly cold Go and Java compiles).
+test-matrix:
+	sudo -n env "PATH=$$PATH" go test -p 1 -timeout 20m -count=1 -v -run 'TestVerdictMatrixIsComplete|TestJudgeVerdicts' ./judge/engine/
+
+# Runs real programs inside nsjail (functional sandbox tests, including the
+# engine's verdict tests). Same host requirements as test-adversarial; plain
+# `make test` skips these. Packages run one at a time (-p 1): they share one
+# cgroup root and a memory cap, and a Go compile alone uses most of it.
 test-sandbox:
-	sudo -n env "PATH=$$PATH" go test -count=1 -v ./judge/...
+	sudo -n env "PATH=$$PATH" go test -p 1 -timeout 20m -count=1 -v ./judge/...
 
 # Sandbox containment suite: hostile programs (fork, memory and output bombs,
 # network and file-system escapes) that must all be contained. Needs Linux,
