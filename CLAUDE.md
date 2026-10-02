@@ -26,6 +26,7 @@ Go targets run per module in `GO_MODULES` (Makefile) on a Linux host; Phase 1 de
 make fmt                 # golangci-lint fmt (gofmt + goimports) per Go module
 make lint                # go vet + golangci-lint run per Go module
 make test                # go test per Go module
+make test-sandbox        # functional sandbox tests: real programs in nsjail (sudo -n)
 make test-adversarial    # sandbox containment suite (build tag `adversarial`, runs via sudo -n)
 
 # single test

@@ -7,7 +7,7 @@
 ## Units of work
 - [x] `docs/1-dev-environment`: ADR 0003, `scripts/setup-dev-host.sh`, README cost table
 - [x] `feat/1-go-workspace`: `go.work`, `judge/go.mod`, `.golangci.yml`, `Makefile`, `.env.example`
-- [ ] `feat/1-nsjail-wrapper`: `judge/sandbox` Spec/Run, bounded output capture
+- [x] `feat/1-nsjail-wrapper`: `judge/sandbox` Spec/Run, bounded output capture
 - [ ] `feat/1-cgroup-limits`: cgroup v2 memory/pids/cpu limits, whole-cgroup kill, measurements
 - [ ] `feat/1-result-channel`: dedicated fd for the harness result
 - [ ] `test/1-adversarial`: `make test-adversarial` suite
@@ -52,4 +52,26 @@ Done by Claude, on the Windows repo then verified on the EC2 host.
 3. Updated CLAUDE.md: the commands section now lists the real targets and how to run a single test.
 4. Committed (`build(judge): add go workspace, judge module and Makefile`), pushed `feat/1-go-workspace`, then on the host: `git checkout feat/1-go-workspace && git pull`.
 5. Verified on the host: `make fmt lint test` printed `0 issues.` and `[no test files]`; `make test-adversarial` ran `sudo -n env PATH=... go test -tags adversarial` successfully (no tests yet).
-6. Mistake worth noting: a `python3` probe on Windows hung on the Microsoft Store stub; I stopped it. The host and Windows both lack a needed Python, and none is required.
+6. Mistake worth noting: a `python3` probe on Windows hung on the Microsoft Store stub, so I stopped it and used the editor tool. This was only a tooling slip; no Python is needed by the repo. (An earlier version of this line wrongly claimed neither machine has Python; that was never checked and has been removed. The EC2 host does have `/usr/bin/python3`, which one sandbox test uses.)
+
+### `feat/1-nsjail-wrapper` (2026-10-02)
+Developed on the Windows repo; each iteration was copied to the EC2 host with `tar czf - Makefile judge | ssh leetforce-dev 'cd ~/Leetforce && tar xzf -'` and tested there as root. Committed only once everything passed.
+
+**Spike on the host (harmless programs only, no bombs).** Commands run as root through `ssh leetforce-dev`, from scratch files in `/tmp/spike` (small C programs compiled with gcc: a null-pointer dereference, `abort()`, and one that writes to fd 3). Verified facts:
+1. `nsjail -Mo ... --user 65534 ... -R /usr -R /lib -R /lib64 -R /bin -T /tmp --disable_proc` runs programs; `/usr` is read-only, `/tmp` is writable, and `/etc/shadow` does not exist inside.
+2. Network: Python `socket.connect` to `1.1.1.1:53` and `169.254.169.254:80` fails with `Network is unreachable` (new network namespace is nsjail's default).
+3. nsjail reports a signal-killed child as exit code `128+signal` (139 for SIGSEGV, 137 for the time-limit SIGKILL). That is ambiguous with a real exit code, so the wrapper reads nsjail's own log instead.
+4. `sudo` closes inherited fds above 2, so `--log_fd 3` through `sudo` failed with 255 and an empty log. The Go process itself must run as root (`sudo go test`) so it can start nsjail directly and pass fd 3.
+5. With `--log_fd 3` the child gets `EBADF` writing to fd 3 (the log fd is closed before the program starts), so user code cannot forge log lines.
+6. Log formats: `pid=N (...) exited with status: N`, `pid=N (...) terminated with signal: NAME (N)`, `pid=N run time >= time limit (...)`, `[E]`/`[F]` lines for nsjail's own failures, and an `Executing '<path>' for ...` line once the jail is built.
+7. With `--user 65534` alone nsjail maps the jailed user to host **root** (`Uid map: inside_uid:65534 outside_uid:0`), so file permission checks would treat the program as root. The wrapper uses `--user 65534:65534:1` (and the same for `--group`) to map to an unprivileged host user.
+8. `RLIMIT_NPROC` counts processes per host uid across all jobs, so it cannot be a per-job process cap; the process limit will be cgroup `pids.max` in the next unit. No fork-bomb-style test was run in this unit.
+9. Kafel (seccomp) rejected `umount2` as an unknown identifier; the final denylist omits it (`mount` is denied, so it is not needed) and nsjail accepts the policy.
+
+**Code (judge/sandbox).** `spec.go` (Spec, Limits, Result), `args.go` (nsjail command line, seccomp denylist, env defaults), `capture.go` (output cap that discards overflow and cancels the run once), `log.go` (nsjail log parser), `run.go` (starts nsjail with the log on fd 3, caps output, wall-time context, SIGTERM then force-kill), tests in `unit_test.go` and `run_test.go`, and a new `make test-sandbox` target.
+
+**Bug found and fixed during this unit.** `TestRunSandboxFailure` (a missing bind-mount source) passed about 4 runs in 5. A 100-iteration loop showed nsjail sometimes ends a failed jail setup with `terminated with signal: SIGKILL` instead of `exited with status: 255`, so my first rule ("error lines plus exit 255") returned a fake result for a program that never ran. Fix: a run counts as started only if nsjail logged `Executing '...'`; otherwise `Run` returns `ErrSandbox`. A regression case in `TestParseLog` covers it. A shell `sed` edit also mangled a regex and a test table once; both were rewritten with full-file writes before any commit.
+
+**Verification (EC2 host, 2026-10-02).** `make fmt` and `make lint`: `0 issues.` `make test`: ok. `make test-sandbox`: all tests PASS. `go test -count=200 -run TestRunSandboxFailure`: ok. `go test -count=30 -run TestRun`: ok (about 35 s). After the runs `pgrep -c nsjail` printed 0 (no leaked processes).
+
+**Not done here (moved to later units).** Memory and process-count limits, CPU cgroup limit, whole-cgroup kill and peak-memory measurement (unit `feat/1-cgroup-limits`); a result fd for the harness (unit `feat/1-result-channel`); the containment test cases (unit `test/1-adversarial`). The seccomp denylist is only checked for being accepted by nsjail so far; its effect is tested in the adversarial suite.
