@@ -32,7 +32,7 @@ func compileC(t *testing.T, name, src string) (dir, bin string) {
 		t.Fatal(err)
 	}
 	bin = filepath.Join(dir, name)
-	if out, err := exec.CommandContext(context.Background(), "gcc", "-O0", "-o", bin, srcPath).CombinedOutput(); err != nil { //nolint:gosec // fixed test inputs
+	if out, err := exec.CommandContext(context.Background(), "gcc", "-O0", "-pthread", "-o", bin, srcPath).CombinedOutput(); err != nil { //nolint:gosec // fixed test inputs
 		t.Fatalf("gcc: %v\n%s", err, out)
 	}
 	return dir, bin
@@ -152,14 +152,21 @@ func TestRunCPUTimeMeasured(t *testing.T) {
 	}
 }
 
+// requireNoProcess fails if a process whose command line contains needle is
+// still alive inside the sandbox cgroup tree. Matching on the cgroup as well as
+// the text means unrelated host processes (a shell that mentions the word, the
+// test binary itself) are never mistaken for a leaked sandbox process.
 func requireNoProcess(t *testing.T, needle string) {
 	t.Helper()
 	paths, _ := filepath.Glob("/proc/[0-9]*/cmdline")
 	for _, p := range paths {
 		b, err := os.ReadFile(p) //nolint:gosec // /proc scan
-		if err == nil && strings.Contains(strings.ReplaceAll(string(b), "\x00", " "), needle) &&
-			!strings.Contains(string(b), "go.test") && !strings.Contains(string(b), ".test") {
-			t.Errorf("process still running after Run: %s: %q", p, b)
+		if err != nil || !strings.Contains(strings.ReplaceAll(string(b), "\x00", " "), needle) {
+			continue
+		}
+		cg, err := os.ReadFile(filepath.Join(filepath.Dir(p), "cgroup")) //nolint:gosec // /proc scan
+		if err == nil && strings.Contains(string(cg), "/leetforce") {
+			t.Errorf("sandbox process still running after Run: %s: %q (cgroup %s)", p, b, strings.TrimSpace(string(cg)))
 		}
 	}
 }
