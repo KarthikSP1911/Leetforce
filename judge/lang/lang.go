@@ -50,6 +50,9 @@ type CompileLimits struct {
 	MemoryBytes uint64
 	PIDs        uint64
 	TmpfsBytes  uint64 // writable /tmp; counts against the memory limit
+	// MaxFileBytes is the largest single file the compiler may write (build
+	// archives can be large); zero keeps the sandbox default.
+	MaxFileBytes uint64
 	// MaxArtifactBytes caps what the compile step may write to fd 4.
 	MaxArtifactBytes int64
 }
@@ -98,7 +101,7 @@ var languages = map[string]Language{
 		// (about 11 s and 260 MB on the dev host; see ADR 0006).
 		CompileEnv: []string{sysPath, "GOROOT=/usr/local/go", "GOCACHE=/tmp/gocache", "GOTELEMETRY=off", "GOTOOLCHAIN=local", "CGO_ENABLED=0", "GOFLAGS=-p=1"},
 		CompileLimits: CompileLimits{
-			Time: 60 * time.Second, MemoryBytes: 400 << 20, PIDs: 128, TmpfsBytes: 96 << 20,
+			Time: 60 * time.Second, MemoryBytes: 400 << 20, PIDs: 128, TmpfsBytes: 96 << 20, MaxFileBytes: 64 << 20,
 			MaxArtifactBytes: 32 << 20,
 		},
 		Run: func(dir string, _ uint64) []string {

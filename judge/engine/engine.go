@@ -197,6 +197,9 @@ func (e *Engine) compile(ctx context.Context, dir string, lg lang.Language) (out
 	limits.MemoryBytes = cl.MemoryBytes
 	limits.MaxPIDs = cl.PIDs
 	limits.TmpfsBytes = cl.TmpfsBytes
+	if cl.MaxFileBytes > 0 {
+		limits.MaxFileBytes = cl.MaxFileBytes
+	}
 	limits.MaxOutputBytes = maxCompileOutput
 	limits.MaxResultBytes = cl.MaxArtifactBytes
 
