@@ -120,6 +120,19 @@ Every action taken in a session must be written down in the repo docs in detail,
 - The phase report and phase summary are built from this log; a step missing from the log is treated as not done.
 - Every phase also updates `docs/FLOW.md`: tick the phase in the per-phase table, add its detailed "as built" flow (numbered steps with file paths), and fix the planned rows if the plan changed. The phase summary's flow diagram must match it.
 
+### Update the docs on your own, in the same response (mandatory)
+
+The owner must never have to ask for documentation. Before ending any response that changed a file, ran a command on a host, or settled a decision, update the docs in that same response:
+
+1. Add or extend the entry in `docs/phases/phase-<N>-log.md` with exact paths, commands, results, mistakes and corrections, and add new paths to its file and path index.
+2. Update `docs/FLOW.md` if the flow of any phase changed.
+3. Update `docs/PROGRESS.md` (status and resume point) whenever the state changed.
+4. If the phase is in review or done, also refresh the phase report (file list regenerated from `git diff --name-status`, branches, stats) and the phase summary.
+5. Check every number and name you write against git, the code or the host; fix anything that does not match.
+6. Commit the docs with the work (separate `docs(docs)` commit), then say in the reply which docs were updated and where.
+
+Answers given in chat are not review answers unless the owner wrote them; record who answered what.
+
 ## Working style
 
 If an explicit user instruction conflicts with this file, follow the user and suggest updating this file. Explain non-obvious choices in one line as you go so the end-of-phase review has no surprises.
