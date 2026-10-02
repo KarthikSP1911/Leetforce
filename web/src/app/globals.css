@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+/* LeetForce brand tokens. Components use these variables, never raw hex. */
+:root {
+  --lf-blue-600: #0050ff;
+  --lf-sky-400: #00b4ff;
+  --lf-navy-900: #071a3d;
+  --lf-navy-800: #0d2247;
+  --lf-navy-700: #163463;
+  --lf-surface: #f4f7fc;
+  --lf-border: #dce4f2;
+  --lf-muted: #5b6b86;
+  --lf-success: #16a34a;
+  --lf-warning: #f59e0b;
+  --lf-danger: #e5484d;
+
+  --background: #ffffff;
+  --foreground: var(--lf-navy-900);
+  --panel: var(--lf-surface);
+  --panel-border: var(--lf-border);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: var(--lf-navy-900);
+    --foreground: #ffffff;
+    --panel: var(--lf-navy-800);
+    --panel-border: var(--lf-navy-700);
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-panel: var(--panel);
+  --color-panel-border: var(--panel-border);
+  --color-primary: var(--lf-blue-600);
+  --color-accent: var(--lf-sky-400);
+  --color-muted: var(--lf-muted);
+  --color-success: var(--lf-success);
+  --color-warning: var(--lf-warning);
+  --color-danger: var(--lf-danger);
+  --font-sans: var(--font-inter), "Segoe UI", system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+
+:focus-visible {
+  outline: 2px solid var(--lf-sky-400);
+  outline-offset: 2px;
+}
