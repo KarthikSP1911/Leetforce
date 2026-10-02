@@ -156,7 +156,7 @@ func TestProblemTestFilesAreNotGitIgnored(t *testing.T) {
 		t.Fatalf("no problem test files found under %s (err %v)", root, err)
 	}
 	for _, f := range files {
-		cmd := exec.Command("git", "check-ignore", "-q", f) //nolint:gosec // fixed command, paths from our own glob
+		cmd := exec.CommandContext(t.Context(), "git", "check-ignore", "-q", f) //nolint:gosec // fixed command, paths from our own glob
 		err := cmd.Run()
 		var exit *exec.ExitError
 		switch {
