@@ -20,7 +20,18 @@ test:
 test-sandbox:
 	sudo -n env "PATH=$$PATH" go test -count=1 -v ./judge/...
 
-# Sandbox containment suite. Needs Linux, cgroup v2, nsjail and passwordless sudo
-# (see ADR 0003). Runs as root because nsjail and cgroup writes need it.
+# Sandbox containment suite: hostile programs (fork, memory and output bombs,
+# network and file-system escapes) that must all be contained. Needs Linux,
+# cgroup v2, nsjail, systemd and passwordless sudo (see ADR 0003). It builds the
+# test binary as the normal user, then runs it as root (nsjail and cgroup writes
+# need it) inside a systemd scope that caps the whole suite's memory and tasks,
+# so a containment failure cannot take down the dev host. Also runs the
+# ordinary sandbox tests. Single test: make test-adversarial RUN=TestAdversarialForkBomb
+ADV_BIN := bin/sandbox-adversarial.test
+RUN ?= .
+
 test-adversarial:
-	sudo -n env "PATH=$$PATH" go test -tags adversarial -count=1 -v ./judge/...
+	@mkdir -p bin
+	go test -tags adversarial -c -o $(ADV_BIN) ./judge/sandbox
+	sudo -n systemd-run --scope --quiet -p MemoryMax=600M -p MemorySwapMax=0 -p TasksMax=1500 \
+		./$(ADV_BIN) -test.v -test.count=1 -test.run '$(RUN)'
