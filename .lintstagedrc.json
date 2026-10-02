@@ -1,0 +1,7 @@
+{
+  "web/**/*.{ts,tsx,js,jsx,mjs}": [
+    "npm --prefix web run --silent fix:format --",
+    "npm --prefix web run --silent fix:lint --"
+  ],
+  "web/**/*.{json,css,md}": "npm --prefix web run --silent fix:format --"
+}

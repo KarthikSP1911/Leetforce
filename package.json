@@ -1,0 +1,14 @@
+{
+  "name": "leetforce",
+  "private": true,
+  "description": "Repo-level tooling (commit linting, git hooks). App code lives in web/, api/, judge/, runner/.",
+  "scripts": {
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^21.2.3",
+    "@commitlint/config-conventional": "^21.2.3",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.0"
+  }
+}

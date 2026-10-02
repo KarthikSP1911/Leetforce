@@ -1,0 +1,101 @@
+@import "tailwindcss";
+
+/* LeetForce brand tokens. Components use these variables, never raw hex. */
+:root {
+  --lf-blue-600: #0050ff;
+  --lf-sky-400: #00b4ff;
+  --lf-navy-900: #071a3d;
+  --lf-navy-800: #0d2247;
+  --lf-navy-700: #163463;
+  --lf-surface: #f4f7fc;
+  --lf-border: #dce4f2;
+  --lf-muted: #5b6b86;
+  --lf-success: #16a34a;
+  --lf-warning: #f59e0b;
+  --lf-danger: #e5484d;
+  --lf-white: #ffffff;
+
+  /* Neutral black/grey ramp for dark mode surfaces. */
+  --lf-ink-950: #0f0f0f;
+  --lf-ink-900: #1a1a1a;
+  --lf-ink-800: #262626;
+  --lf-ink-700: #3a3a3a;
+
+  /* Semantic roles (light). */
+  --background: var(--lf-surface);
+  --foreground: var(--lf-navy-900);
+  --panel: var(--lf-white);
+  --panel-border: var(--lf-border);
+  --hover: var(--lf-surface);
+  --muted: var(--lf-muted);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --background: var(--lf-ink-950);
+    --foreground: var(--lf-white);
+    --panel: var(--lf-ink-900);
+    --panel-border: var(--lf-ink-700);
+    --hover: var(--lf-ink-800);
+    --muted: var(--lf-border);
+  }
+}
+
+:root[data-theme="dark"] {
+  --background: var(--lf-ink-950);
+  --foreground: var(--lf-white);
+  --panel: var(--lf-ink-900);
+  --panel-border: var(--lf-ink-700);
+  --hover: var(--lf-ink-800);
+  --muted: var(--lf-border);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-panel: var(--panel);
+  --color-panel-border: var(--panel-border);
+  --color-hover: var(--hover);
+  --color-primary: var(--lf-blue-600);
+  --color-accent: var(--lf-sky-400);
+  --color-navy: var(--lf-navy-900);
+  --color-muted: var(--muted);
+  --color-success: var(--lf-success);
+  --color-warning: var(--lf-warning);
+  --color-danger: var(--lf-danger);
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+  --font-mono: Menlo, Monaco, Consolas, "Courier New", monospace;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 14px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--lf-sky-400);
+  outline-offset: 2px;
+}
+
+/* The logo mark's centre bar is black on light themes and cream on dark. */
+.logo-on-dark {
+  display: none;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .logo-on-dark {
+    display: block;
+  }
+  :root:not([data-theme="light"]) .logo-on-light {
+    display: none;
+  }
+}
+:root[data-theme="dark"] .logo-on-dark {
+  display: block;
+}
+:root[data-theme="dark"] .logo-on-light {
+  display: none;
+}

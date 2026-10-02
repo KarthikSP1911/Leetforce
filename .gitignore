@@ -1,0 +1,43 @@
+whatidid.md
+
+# Dependencies and build output
+node_modules/
+.next/
+out/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Environment and secrets (commit .env.example only)
+.env
+.env.*
+!.env.example
+*.pem
+
+# Go
+*.exe
+*.test
+*.out
+go.work.sum
+bin/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+
+# OS and editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Logs
+*.log
+npm-debug.log*
