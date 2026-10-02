@@ -86,7 +86,7 @@ Decision questions:
 _To be filled in after the review._
 
 ## Open decisions
-- Go module layout (needed before Phase 1).
+- ~~Go module layout~~: decided, one module per component with `go.work` ([ADR 0002](../adr/0002-go-module-layout.md)).
 - Source of `docs/PLAN.md` (needed before Phase 1).
 - Merge commit message format.
 
