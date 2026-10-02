@@ -35,7 +35,7 @@ Extra evidence: weakening network isolation on a copy of `args.go` (adding `--di
 | `feat/1-cgroup-limits` | per-run cgroup v2 lifecycle, memory/pids/CPU limits, whole-cgroup kill | 2 (see Known issues: one commit also carries the code) |
 | `feat/1-result-channel` | dedicated result fd (fd 4), forged-result tests | 3 |
 | `test/1-adversarial` | adversarial suite, `make test-adversarial` in a memory-capped scope | 3 |
-| `docs/1-adrs-report` | ADR 0004, report, summary, review record | see Stats |
+| `docs/1-adrs-report` | ADR 0004, log rename, report, summary (review Q&A is recorded afterwards on the phase branch) | 4 |
 
 Six commits were made directly on `phase/1-sandbox-core` (progress, logging rule, host log, missing log entries, the unit 3 incident note, host state log).
 
@@ -141,8 +141,9 @@ Generated with `git diff --name-status phase-1-start..HEAD` and `--numstat` at t
 - The dev instance is billable while running (README cost table); stop it when idle.
 
 ## Stats
-Measured with the git commands from CLAUDE.md section 7.1 at the tip of `docs/1-adrs-report`, before the review Q&A commit and the merge to `main` (those add a few commits and change only files already listed).
-- Range: `phase-1-start..HEAD`
-- Commits: see the final numbers in the summary's Handoff section (the count includes the report commits themselves)
-- Files: 25 added, 4 modified, 0 deleted (generated list above is authoritative)
-- Lines: see `git diff --shortstat phase-1-start..HEAD`
+Measured with the git commands from CLAUDE.md section 7.1 at commit `8d6cf8d` (the phase summary), the last commit before this one. Later commits (this stats commit, the review Q&A record) add a few commits and change only files already listed.
+- Range: `phase-1-start..8d6cf8d`
+- Commits: 25 (excluding merges), plus 6 merge commits (one per unit branch)
+- Files: 24 added, 4 modified, 0 deleted, 0 renamed (28 files; git shows the moved working log as a new file)
+- Lines: +2,581 / -10 (`git diff --shortstat`)
+- Of the added code, `judge/sandbox` holds 1,906 lines in 13 files (1,177 of them tests).
