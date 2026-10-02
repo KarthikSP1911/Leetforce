@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Phase 5 end-to-end test: live status, object storage, redaction, reaper.
 #
-# 1. Submit a correct solution while no runner is up; follow
+# 1. Submit a correct (slowish) solution while no runner is up; follow
 #    GET /submissions/:id/events with curl; start a runner that has NO problems
 #    directory (it can only read tests from the S3 bucket). The stream must show
 #    status queued, status judging, verdict AC (5/5), in that order.
@@ -147,7 +147,12 @@ echo "    leak detector self-test ok ($(wc -l <"$WORK/banned.txt") strings watch
 
 echo "1/3 live status: submit with no runner, follow the SSE stream, then start a runner"
 start_api
-ID="$(submit_file python problems/sample-sum/solutions/python/ac.py)"
+# A correct solution that sleeps 0.6 s per test (limit 1 s, and sleeping uses no
+# CPU), so "judging" lasts a few seconds. The stream reports state, not history,
+# so a judgement faster than one poll (500 ms) can legitimately go straight from
+# queued to the verdict; this keeps the test deterministic.
+{ echo "import time"; echo "time.sleep(0.6)"; cat problems/sample-sum/solutions/python/ac.py; } >"$WORK/slow-ac.py"
+ID="$(submit_file python "$WORK/slow-ac.py")"
 echo "    submission $ID"
 curl -sN --max-time 120 "$BASE/submissions/$ID/events" >"$WORK/sse-ac.txt" &
 SSE_PID=$!
