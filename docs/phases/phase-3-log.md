@@ -80,6 +80,8 @@
 2. Claude (repo): recorded this in `phase-3-summary.md` ("Review Q&A", "Open decisions", "Handoff") and set `PROGRESS.md` to done with resume point "start Phase 4". Then `git merge --no-ff` of `phase/3-queue-runner` into `main` with git's default message, tag `phase-3-done` (no milestone: M2 is Phase 5), push of `main`, the phase branch and the tags. The result is in the closing entry below.
 3. Not done: the EC2 instance `leetforce-dev` was not stopped (billable, owner's call); the Trivy install and first scan were not run (not requested); the Upstash token was not rotated (owner's action).
 
+**Closing entry (written after the merge).** `main` and `origin/main` both at `6a5f6e7` (the merge commit, git's default message). Tags on the remote: `phase-3-start` (`7579541`, the Phase 2 merge commit), `phase-3-done` (`6a5f6e7`). No milestone tag. The phase branch is kept. This entry could not be part of that merge, so it was added on the phase branch and merged into `main` with a second merge commit; `phase-3-done` stays on `6a5f6e7` (documentation-only difference). Verified with `git rev-parse` and `git ls-remote`.
+
 ## File and path index
 - `CLAUDE.md`: Trivy section, command list and status refreshed
 - `docs/phases/phase-3.md`, `phase-3-summary.md`: report and summary
