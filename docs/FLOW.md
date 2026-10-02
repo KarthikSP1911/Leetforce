@@ -216,20 +216,18 @@ Four additions to the Phase 4 flow, all on one machine (RustFS, Redis, the API a
 ```
 Database: migrations `00002_judging_status.sql` (status may be `judging`) and `00003_enqueued_at.sql` (the column and a partial index). Redaction for Submit: the POST response, `GET /submissions/:id` and every SSE event carry only state and the verdict view; the compiler output, stdout and stderr never leave the runner's result or the sandbox. Exit test: `make test-live-e2e` (`scripts/test-live-e2e.sh`): (1) queued, judging and AC 5/5 in order over a `curl -N` stream, with a runner that has no problems directory and no database URL; (2) hostile programs echo the hidden input and a marker to stdout, stderr and the compiler, and no response contains them, the source or the version (the detector has a self-test); (3) an orphaned row is re-queued after an API restart and judged. Not yet: Run (custom and sample input, Phase 8), authentication and per-user limits (Phase 9), per-role bucket credentials (Phase 12), retention of old bundles and the results stream (Phases 10 and 11).
 
-### Phase 6: Sandbox hardening (DRAFT, not yet as built)
+### Phase 6: Sandbox hardening (as built)
 
-> Draft. Written before the code is final; every step below must be checked against the code and the phase log, and this marker removed, before the phase is closed.
-
-The flow does not change. Only stages 6 and 7 (the box) get stronger. Decision record: [ADR 0013](adr/0013-sandbox-nsjail-vs-gvisor.md) (draft, pending measurements).
+The flow does not change. Only stages 6 and 7 (the box) get stronger, and the runner stops being root. Decision records: [ADR 0013](adr/0013-sandbox-nsjail-vs-gvisor.md) (nsjail default, gVisor opt-in; proposed, owner to confirm) and [ADR 0014](adr/0014-runner-privilege-model.md) (unprivileged runner).
 ```
- runner -> judge engine -> sandbox backend -> measured facts          (judge/sandbox)
- 1. backend choice     TODO: nsjail, gVisor, or both; how it is selected (config/env), file path
- 2. seccomp filter     TODO: the tuned policy file and what it removes or allows
- 3. runner privileges  TODO: what the runner needs to start the box and how that was reduced (ADR 0008 follow-up)
- 4. adversarial suite  TODO: new cases and which backend(s) they run on; `make test-adversarial`
- 5. benchmarks         TODO: command, and where the numbers are recorded
+ runner (user lfrunner, no capabilities) -> judge engine -> sandbox backend -> measured facts
+ 1. backend choice     LEETFORCE_SANDBOX=nsjail (default) | gvisor, or Spec.Backend: judge/sandbox/backend.go, gvisor.go
+ 2. seccomp filter     judge/sandbox/seccomp.go: seccompPolicy() denylist; clone with CLONE_NEW* denied, clone3 -> ENOSYS, sockets limited to unix/inet/inet6
+ 3. runner privileges  scripts/runner/leetforce-runner.service (+ AppArmor profile usr.local.bin.nsjail, install-runner.sh); cgroups via systemd delegation, judge/sandbox/delegate.go; LEETFORCE_CGROUP_ROOT
+ 4. adversarial suite  judge/sandbox/adversarial_more_test.go, adversarial_syscalls_test.go (~90 refused calls); make test-adversarial
+ 5. benchmarks         make bench-sandbox (judge/cmd/sandbox-bench); numbers in ADR 0013 and docs/phases/phase-6-log.md
 ```
-Exit test: TODO (command and result). Not yet: TODO.
+Exit test: `make test-adversarial` passes on the merged tree (nsjail); `make test-sandbox` passes; `make bench-sandbox` prints the nsjail vs gVisor table. Not yet: the adversarial suite against the unprivileged runner, and per-backend expectations for the 3 adversarial tests that fail under gVisor.
 
 ## 4. Keeping this file true
 At the end of each phase: tick the phase in section 2, add its "as built" flow to section 3 (the detailed step list with file paths), and correct the "planned" rows if the plan changed.

@@ -108,3 +108,28 @@ Median / p95, 15 micro reps, 3 compile reps, 2 vCPU, runsc release-20260928.0.
 | Java compile+5 tests | 9.9 / 10.0 s | 4.3 / 4.3 s | 0.4x |
 
 Java is faster under gVisor: javac burned 9.6 s CPU under nsjail versus 3 s under gVisor (probe, same limits); JVM startup alone is faster under nsjail (68 ms vs 325 ms). Cause not found; suspect `--disable_proc` or memory-cgroup pressure in nsjail. Unverified.
+
+## Lead: merge, verification, scans (Claude, main session)
+
+Owner instructions this session: make it faster, skip unnecessary tests, scan once at the end, use subagents (first at most 2, then 3 more; five ran). Decisions 1 to 3 of the session plan were not answered and stayed on the defaults (decide gVisor by numbers with the owner, try the unprivileged runner, install gVisor from the official apt repository). Per-commit Trivy and per-unit full suites were skipped on the owner's request, which overrides CLAUDE.md for this phase.
+
+1. Created `phase/6-sandbox-hardening` and tag `phase-6-start` on `main` (c6ea98e). Five agents ran in parallel clones on the dev host: A (`~/lf-a`), B (`~/lf-b`), C (`~/lf-c`), D (`~/lf-d`), E (a worktree). The host cannot push (HTTPS remote, no credentials), so branches moved as git bundles through the Windows repo.
+2. Merged in a temporary worktree, because Agent B had left uncommitted edits in the main Windows tree: `feat/6-seccomp-tuning` (includes `test/6-adversarial-expand`), `feat/6-runner-privilege`, `feat/6-gvisor-backend`, `test/6-sandbox-benchmark`, `docs/6-scaffold`, `docs/6-scan-baseline`, each with `--no-ff`. The only conflicts were `docs/phases/phase-6-log.md` (add/add, both agent sections kept). The first merge commit failed the husky commit-msg hook because the worktree had no `node_modules`; fixed with a directory junction to the main checkout's `node_modules` (hook not bypassed). Then fast-forwarded the phase branch and removed the worktree.
+3. `make lint` on the merged tree: 5 findings in new code (2 gosec, 3 noctx). Fixed on `fix/6-lint` (nolint with reasons for the two cgroup paths we derive ourselves; `exec.CommandContext` in the benchmark tool) and merged. Rerun: `0 issues.`
+4. Final verification on the dev host (`~/Leetforce`, checkout of the merged phase branch, nothing else running):
+   - `make test-adversarial` before the lint fix: exit 0, no failing test.
+   - `make lint` after the fix: `0 issues.`
+   - `make test-sandbox`: exit 0 (all packages ok).
+   - `make bench-sandbox BENCH_ARGS="-reps 7 -skip-langs"`: clean run, load 1.4 at start, ratios below. Cold start 116 ms vs 672 ms (5.8x); hello world 15/21 ms vs 100/114 ms (6.5x); CPU-bound 799/813 vs 916/918 ms (1.1x); syscall-heavy 121/135 vs 2197/2271 ms (18.1x); touch 64 MiB 54/55 vs 158/173 ms (2.9x); peak memory hello 0.5 vs 18.0 MiB. Compile rows were not rerun (Agent B's noisy numbers kept and labelled).
+   - The adversarial suite was not rerun after the lint fix (comment and `exec` context changes only, nothing in the sandbox run path).
+5. Stopped a stale watcher process left by Agent B on the host (`until ! pgrep -f bin/sandbox-bench ...`).
+6. Trivy 0.75.0 on the committed tree (`git archive HEAD` to `/tmp/scan` on the host): `trivy fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --exit-code 1 .` found 0 vulnerabilities in the 5 `go.mod` files and `web/package-lock.json`, 0 secrets, 0 misconfigurations (exit 0). `trivy image redis:7-alpine`: 4 HIGH rows, CVE-2026-75804 and CVE-2026-84782 in libcrypto3 and libssl3 (fixed in 3.3.7-r2), same as the baseline report. Accepted: the image is used only for local development (production Redis is Upstash); to be fixed by pinning a rebuilt tag. No `.trivyignore` entry added.
+7. Docs: filled ADR 0013 (status PROPOSED), filled the Phase 6 summary and the FLOW.md "as built" section, wrote the phase report, set `PROGRESS.md` to in review.
+
+### Host state left behind (no secrets or IPs)
+- gVisor: `/usr/share/keyrings/gvisor-archive-keyring.gpg`, `/etc/apt/sources.list.d/gvisor.list`, package `runsc` release-20260928.0.
+- Runner: user `lfrunner`, `/opt/leetforce/bin/runner`, `/etc/leetforce/`, `/etc/apparmor.d/usr.local.bin.nsjail` (loaded), `/etc/systemd/system/leetforce-runner.service` (stopped, not enabled).
+- Clones `~/lf-a`, `~/lf-b`, `~/lf-c`, `~/lf-d`; cgroup roots `/sys/fs/cgroup/leetforce` and `/sys/fs/cgroup/leetforce-b`; scratch files in `/tmp` (`p6-*.txt`, `lfb-*`, `scan`).
+
+### Path index (lead)
+`docs/adr/0013-sandbox-nsjail-vs-gvisor.md`, `docs/phases/phase-6-summary.md`, `docs/phases/phase-6.md`, `docs/FLOW.md`, `docs/PROGRESS.md`.
