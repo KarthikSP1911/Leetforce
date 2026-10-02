@@ -20,7 +20,7 @@ const (
 	// killDelay is how long after SIGTERM before nsjail is force-killed.
 	killDelay = 2 * time.Second
 	// maxLogBytes caps how much of nsjail's log is kept.
-	maxLogBytes = 256 << 10
+	maxLogBytes  = 256 << 10
 	logDrainWait = 2 * time.Second
 )
 
