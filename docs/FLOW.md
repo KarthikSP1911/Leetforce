@@ -98,7 +98,7 @@ Trust rule in this flow: steps 7 and 8 come from nsjail's own log and the kernel
 
 How the attack tests exercise it (`adversarial_test.go`, run by `make test-adversarial`): each test builds a hostile program, runs steps 1 to 10, and then checks that the attack was stopped, `Run` returned promptly, and no process or cgroup folder is left. The design reasoning is in [ADR 0004](adr/0004-sandbox-design.md); the full explanation is in [phase-1-summary.md](phases/phase-1-summary.md).
 
-### Phase 2: Judge engine (in progress: all four languages work; the CLI and the final verdict matrix are still to come)
+### Phase 2: Judge engine (as built; in review)
 What `engine.Judge(ctx, problem, language, source, opts)` does today (`judge/engine/engine.go`):
 ```
  sudo bin/judge run [-all] [-detail] problems/<slug> <file>   judge/cmd/judge/main.go: picks the language from the
