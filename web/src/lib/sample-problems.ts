@@ -1,6 +1,6 @@
 import type { ProblemRow } from "@/components/problems/ProblemTable";
 
-// Placeholder rows until the problems API exists (Phase 9+). Original titles only.
+// Placeholder rows until the problems API exists (Phase 4). Original titles only.
 export const sampleProblems: ProblemRow[] = [
   {
     slug: "pair-sum",

@@ -34,13 +34,15 @@ Add real targets here as they are created, including how to run a single test.
 - A phase is done only when its exit criteria are demonstrably met, `docs/phases/phase-<N>.md` (report) and `phase-<N>-summary.md` (plain-language teaching doc) are written, and the in-chat review Q&A with the user has happened. Do not merge to `main` before the user answers or says to skip. Do not start the next phase in the same session.
 - Write at least one ADR per phase in `docs/adr/NNNN-short-title.md`. When a decision has real trade-offs (e.g. nsjail vs gVisor, ARM vs x86), stop and ask.
 - Generate the report's file list from `git diff --name-status phase-<N>-start..HEAD`, never from memory.
-- If a phase will not fit, stop at a clean boundary, set `PROGRESS.md` to `in progress` with a resume point, and commit as `docs(phase-<N>): record session progress`.
+- If a phase will not fit, stop at a clean boundary, set `PROGRESS.md` to `in progress` with a resume point, and commit as `docs(docs): record phase <N> session progress` with a `Refs: phase-<N>` footer.
 
 ## Git workflow
 
+- Commit scopes are modules, so phase documents use `docs(docs)` and the phase goes in the `Refs: phase-<N>` footer. Merges use git's default `Merge ...` message (industry standard; commitlint skips it). Do not use a custom `merge:` type.
+
 - Branches: `main` ← `phase/<N>-<slug>` ← `feat|fix|test/<N>-<slug>`. Tag `phase-<N>-start` at phase start and `phase-<N>-done` at merge (plus `M<k>` for milestones).
 - Never commit directly to `main` (the initial README commit was the one bootstrap exception). Never force-push `main` or `phase/*`.
-- Merge units into the phase branch with `--no-ff` and message `merge: <description> (phase <N>)`; delete the unit branch. Keep phase branches after merging to `main`.
+- Merge units into the phase branch with `--no-ff` and git's default message (`Merge branch 'feat/<N>-<slug>' into phase/<N>-<slug>`), which commitlint ignores by design; delete the unit branch. Keep phase branches after merging to `main`.
 - Conventional Commits with scope (`sandbox`, `judge`, `runner`, `api`, `web`, `brand`, `db`, `queue`, `infra`, `packer`, `ansible`, `k8s`, `ci`, `obs`, `contest`, `leaderboard`, `docs`) and a `Refs: phase-<N>` footer. Commit at every meaningful step (~30–150 lines) that builds and passes tests.
 - Before committing: `make fmt lint`, tests for the touched area, review `git diff --staged` for secrets/binaries, and stage specific paths.
 - Push branches and tags after each merge only if a remote is configured (it is: `origin` → `KarthikSP1911/Leetforce`).
