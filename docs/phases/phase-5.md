@@ -137,7 +137,7 @@ Generated with `git diff --name-status phase-5-start..<last commit>`; the three 
 - **Untracked**: `web/AGENTS.md` and `web/CLAUDE.md` stay untracked (carried over).
 
 ## Stats
-Counted for `phase-5-start..<sha of the commit that added the summary>`; the later review-Q&A and merge commits only touch documents already listed.
-- Commits: STATS_COMMITS (excluding merges)
-- Files: STATS_FILES
-- Lines: STATS_LINES
+Counted for `phase-5-start..d9549a1` (the commit that added the summary); the later review-Q&A and merge commits only touch documents already listed.
+- Commits: 29 (excluding merges)
+- Files: 26 added, 25 modified, 0 deleted (51 files; every one is listed above)
+- Lines: +3322 / -74
