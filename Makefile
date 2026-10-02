@@ -2,7 +2,7 @@
 # Go components are separate modules joined by go.work (ADR 0002); add each new
 # module (runner, api) to GO_MODULES when it is created.
 
-GO_MODULES := judge queue runner api
+GO_MODULES := judge queue runner api storage
 
 .PHONY: test-api-e2e build-api migrate-up migrate-down migrate-status dev down fmt lint test build-judge build-runner test-crash test-matrix test-sandbox test-adversarial
 
