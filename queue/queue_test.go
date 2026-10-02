@@ -30,6 +30,13 @@ func newTestQueue(t *testing.T, cfg Config) *Queue {
 		_ = rdb.Close()
 		t.Skipf("redis not reachable: %v", err)
 	}
+	// Timing tests set a small MinIdle; scale it to the measured round trip so a
+	// slow remote Redis (Upstash) does not make a live job look idle.
+	if cfg.MinIdle > 0 {
+		start := time.Now()
+		_ = rdb.Ping(ctx).Err()
+		cfg.MinIdle = max(cfg.MinIdle, 10*time.Since(start))
+	}
 	cfg.Prefix = fmt.Sprintf("lftest-%s-%d", t.Name(), time.Now().UnixNano())
 	q := New(rdb, cfg)
 	if err := q.Setup(ctx); err != nil {
@@ -107,7 +114,7 @@ func TestAbandonedJobIsReclaimedByAnotherConsumer(t *testing.T) {
 	if d, _ := q.Receive(ctx, "r2", 20*time.Millisecond); d != nil {
 		t.Fatalf("job reclaimed before MinIdle: %+v", d)
 	}
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(q.cfg.MinIdle + 50*time.Millisecond)
 	d, err := q.Receive(ctx, "r2", time.Second)
 	if err != nil || d == nil {
 		t.Fatalf("reclaim: %v %v", d, err)
@@ -135,7 +142,7 @@ func TestTouchKeepsJobFromBeingReclaimed(t *testing.T) {
 		t.Fatalf("receive: %v %v", d, err)
 	}
 	for i := 0; i < 5; i++ {
-		time.Sleep(100 * time.Millisecond) // 500 ms total, over MinIdle
+		time.Sleep(q.cfg.MinIdle / 3) // five sleeps add up to well over MinIdle
 		if err := q.Touch(ctx, "r1", d.ID); err != nil {
 			t.Fatalf("touch %d: %v", i, err)
 		}
@@ -163,7 +170,7 @@ func TestPoisonJobIsDeadLettered(t *testing.T) {
 		if err != nil || d == nil || d.Deliveries != int64(i) {
 			t.Fatalf("delivery %d: %+v %v", i, d, err)
 		}
-		time.Sleep(80 * time.Millisecond)
+		time.Sleep(q.cfg.MinIdle + 30*time.Millisecond)
 	}
 	d, err := q.Receive(ctx, "r3", 50*time.Millisecond)
 	if err != nil || d != nil {
