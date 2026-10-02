@@ -21,8 +21,10 @@ type Deps struct {
 	// Ready lists the dependencies /readyz checks, by name (database, redis).
 	Ready map[string]Pinger
 
-	Problems ProblemStore
-	Samples  SampleSource
+	Problems    ProblemStore
+	Samples     SampleSource
+	Submissions SubmissionStore
+	Queue       Enqueuer
 }
 
 // New returns the router. /healthz says the process is up and does no I/O;
@@ -53,6 +55,8 @@ func New(d Deps) *gin.Engine {
 
 	r.GET("/problems", d.listProblems)
 	r.GET("/problems/:slug", d.getProblem)
+	r.POST("/submissions", d.createSubmission)
+	r.GET("/submissions/:id", d.getSubmission)
 	return r
 }
 

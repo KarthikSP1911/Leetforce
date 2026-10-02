@@ -83,7 +83,7 @@ func run() error {
 
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           server.New(server.Deps{Logger: log, Ready: map[string]server.Pinger{"database": db, "redis": q}, Problems: db, Samples: cat}),
+		Handler:           server.New(server.Deps{Logger: log, Ready: map[string]server.Pinger{"database": db, "redis": q}, Problems: db, Samples: cat, Submissions: db, Queue: q}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	errc := make(chan error, 1)
