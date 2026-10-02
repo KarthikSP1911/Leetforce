@@ -2,7 +2,7 @@
 
 **Current phase:** 4 - API and database
 **Status:** in progress
-**Resume point:** unit 6, `test/4-idempotency` (unit 5 merged)
+**Resume point:** unit 7, `docs/4-adr-report` (unit 6 merged)
 **Open decisions:** Phase 2 A (problem format), B (compile errors on Submit; Phase 4 needs it) and C (Go/Java compile speed) and the Phase 3 review decisions (Upstash token rotation and a separate test database, job-folder cleanup) were not answered because the reviews were skipped; defaults stay. Carried over: runner privilege model (Phase 6); dead-lettered jobs need an `IE` verdict from the API (Phase 4); `web/AGENTS.md` and `web/CLAUDE.md` stay untracked
 
 | Phase | Name | Status | Sessions | Summary |
