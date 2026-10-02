@@ -34,11 +34,13 @@ trap cleanup EXIT
 
 make build-runner >/dev/null
 
-# start_runner <id> <log>: runs bin/runner as root; the shell is replaced by the
+# start_runner <id> <log>: runs bin/runner as root (sudo drops the environment, so the
+# LEETFORCE_* settings are passed with --preserve-env); the shell is replaced by the
 # runner (exec) so the recorded PID is the runner's own PID.
 start_runner() {
   local id="$1" log="$2" pidfile="$WORK/$1.pid"
-  sudo -n bash -c 'echo $$ > "$1"; exec env LEETFORCE_RUNNER_ID="$2" bin/runner' _ "$pidfile" "$id" >"$log" 2>&1 &
+  sudo -n --preserve-env=LEETFORCE_REDIS_URL,LEETFORCE_QUEUE_PREFIX,LEETFORCE_JOB_MIN_IDLE,LEETFORCE_PROBLEMS_DIR \
+    bash -c 'echo $$ > "$1"; exec env LEETFORCE_RUNNER_ID="$2" bin/runner' _ "$pidfile" "$id" >"$log" 2>&1 &
   for _ in $(seq 50); do [ -s "$pidfile" ] && break; sleep 0.1; done
   [ -s "$pidfile" ] || fail "runner $id did not start"
   PIDS+=("$(cat "$pidfile")")
