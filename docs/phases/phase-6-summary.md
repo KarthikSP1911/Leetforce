@@ -82,17 +82,31 @@ scripts/test-runner-unprivileged.sh        # the runner as lfrunner judges all f
 - Revisit if a kernel escape through an allowed call is published, the host gets KVM (faster gVisor platform), or less trusted users arrive.
 
 ## Review questions
-See the chat review for this phase; the questions are copied here when asked.
+Recap (Phase 5, question 3): a runner crashes right after writing the `judging` note, or the note is lost. What does the user see, and why is that acceptable? What stops a late `judging` note from overwriting a stored verdict?
+
+Understanding:
+1. Why did the new tests find holes the old suite missed? What did `clone` with `CLONE_NEWUSER` allow that a blocked `unshare` was meant to prevent?
+2. Why is the seccomp policy a denylist and not an allowlist, and what does that cost?
+3. Why is gVisor safer against kernel bugs, and why is it about 18x slower on syscall-heavy programs?
+4. What changes if a runner that is root is compromised, compared with the unprivileged `lfrunner`? What can still go wrong when the runner and the program share one user id?
+5. Why did one wrong syscall name (`umount2` instead of `umount`) break every sandbox run, and why does every policy change need the full suite?
+
+Decisions:
+- A. Confirm ADR 0013 (nsjail default, gVisor opt-in), or make gVisor the default.
+- B. Accept the shared user id between runner and program, or require a separate uid.
+- C. Keep the Phase 5 decisions A, B and C on Claude's defaults.
 
 ## Review Q&A
-Not yet answered.
+**Understanding questions and the recap question: not answered; the review was skipped at the owner's request** (2026-10-02: the owner replied "skip"). They can serve as the recap question at the start of the next session.
+
+**Decisions A, B and C: not answered.** Claude's recommendations stand as the defaults and stay open to change: A, ADR 0013 stays PROPOSED with nsjail as the default and gVisor opt-in; B, the shared user id is accepted as recorded in ADR 0014; C, the Phase 5 decisions stay on defaults.
 
 ## Open decisions
 - **Phase 6 decision:** confirm [ADR 0013](../adr/0013-sandbox-nsjail-vs-gvisor.md) (nsjail default, gVisor opt-in) and the shared user id in [ADR 0014](../adr/0014-runner-privilege-model.md).
 - Carried over: Phase 5 decisions A, B, C on defaults; Phase 4 and 5 understanding questions unanswered; Neon plan and Upstash usage unchecked; Phase 2 decisions A and C on defaults; `web/AGENTS.md` and `web/CLAUDE.md` untracked.
 
 ## Handoff
-- **State:** branch `phase/6-sandbox-hardening` (not yet merged to `main`, no `phase-6-done` tag until the review). The dev host has gVisor (`runsc`) installed, the `lfrunner` user, `/opt/leetforce`, `/etc/leetforce`, a loaded AppArmor profile for nsjail and a stopped, disabled `leetforce-runner` service; clones `~/lf-a`, `~/lf-b`, `~/lf-c`, `~/lf-d` and scratch files in `/tmp` remain. The instance is still running (billable).
+- **State:** `phase/6-sandbox-hardening` is merged into `main` and tagged `phase-6-done` (`phase-6-start` marks the start); the branch is kept and pushed to `origin`. The dev host has gVisor (`runsc`) installed, the `lfrunner` user, `/opt/leetforce`, `/etc/leetforce`, a loaded AppArmor profile for nsjail and a stopped, disabled `leetforce-runner` service; clones `~/lf-a`, `~/lf-b`, `~/lf-c`, `~/lf-d` and scratch files in `/tmp` remain. The instance is still running (billable).
 - **Next phase:** 7 - Web: problems and workspace. Goal: the LeetCode-style problem list and split-pane workspace on real data. Think about the problem format (Phase 2 decision A).
 - **Next session prompt:**
   ```
