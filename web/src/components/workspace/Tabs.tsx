@@ -51,7 +51,7 @@ export function Tabs({ tabs, label }: { tabs: TabDef[]; label: string }) {
               onClick={() => setActive(t.id)}
               className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
                 selected
-                  ? "border-primary text-primary"
+                  ? "border-link text-link"
                   : "text-muted hover:text-foreground border-transparent"
               }`}
             >

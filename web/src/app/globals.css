@@ -28,6 +28,7 @@
   --panel-border: var(--lf-border);
   --hover: var(--lf-surface);
   --muted: var(--lf-muted);
+  --link: var(--lf-blue-600);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -38,6 +39,7 @@
     --panel-border: var(--lf-ink-700);
     --hover: var(--lf-ink-800);
     --muted: var(--lf-border);
+    --link: var(--lf-sky-400);
   }
 }
 
@@ -48,6 +50,7 @@
   --panel-border: var(--lf-ink-700);
   --hover: var(--lf-ink-800);
   --muted: var(--lf-border);
+  --link: var(--lf-sky-400);
 }
 
 @theme inline {
@@ -57,6 +60,7 @@
   --color-panel-border: var(--panel-border);
   --color-hover: var(--hover);
   --color-primary: var(--lf-blue-600);
+  --color-link: var(--link);
   --color-accent: var(--lf-sky-400);
   --color-navy: var(--lf-navy-900);
   --color-muted: var(--muted);

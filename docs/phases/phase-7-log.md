@@ -34,3 +34,11 @@ Running log (CLAUDE.md "Documenting every step"). Entries: who, command, result,
 - Ran `go -C api run ./cmd/api` with `.env` loaded, `LEETFORCE_S3_ENDPOINT` blanked and `LEETFORCE_PROBLEMS_DIR` set to the repo's `problems/`. Startup upserted the 5 problems into the real Neon DB. `/readyz` ok, `/problems` returned total 5.
 - Ran `npm run dev` in `web/`: `/problems`, filters, `/problems/fizz-count` returned 200, an unknown slug 404, the `/api` proxy worked. Both processes stopped afterwards.
 - Chrome extension was not connected, so no screenshots, no visual check of light/dark, no keyboard test yet.
+
+### Unit 5: browser accessibility check (Claude, Chrome extension connected on the second attempt)
+- Claude ran API (`go -C api run ./cmd/api`, env as in "Local run") and `npm run dev` in `web/`; both stopped afterwards. Window was 1249x559, system theme dark; theme switched via `data-theme` in the page.
+- Verified in the browser: `/problems` and `/problems/fizz-count` render real data in dark and light; global `:focus-visible` is a 2px sky outline (seen on the "Contest" nav link); tab order is nav, theme toggle, Sign in, tabs, separator, language select, editor, separator, console tabs; the vertical separator responds to arrow keys (aria-valuenow 50 to 60 after 5 presses); real click then Tab in Monaco indents (normal Monaco trap; escape via Ctrl+M, not surfaced in the UI); Run and Submit disabled (Phase 8).
+- Finding fixed (`fix/7-dark-link-contrast`, efa77fe): active tab was `--lf-blue-600` on the dark panel at 2.98:1. Added a `--link` role (blue-600 light, sky-400 dark), `text-link` and `border-link` on the active tab and `hover:text-link` on links. Re-measured: 7.44:1 dark, 5.85:1 light.
+- Mistake: my Python edit script rewrote four files with CRLF, so prettier flagged them; fixed with `sed` and `prettier --write`.
+- NOT verified: narrow-width layout (the resize tool did not change the viewport; code hides Tags and Acceptance below `sm`); keyboard use of the filter form and Pagination links in the browser; Monaco's own contrast.
+- Open for the owner: light-mode "Easy" (`--lf-success` #16A34A on white-ish) measures 3.30:1, below AA 4.5:1 for 14px text. The token is fixed by CLAUDE.md, so Claude did not change it; options are a darker light-mode text variant or accepting it.
