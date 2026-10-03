@@ -82,6 +82,9 @@ func (d Deps) createRun(c *gin.Context) {
 		return
 	}
 
+	if d.problemHidden(c, req.Problem) {
+		return
+	}
 	ctx := c.Request.Context()
 	version, err := d.Versions.TestSetVersion(ctx, req.Problem)
 	if errors.Is(err, store.ErrNotFound) {

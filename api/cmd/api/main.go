@@ -35,6 +35,7 @@ import (
 	"time"
 
 	"leetforce/api/internal/catalog"
+	"leetforce/api/internal/contest"
 	"leetforce/api/internal/ingest"
 	"leetforce/api/internal/metrics"
 	"leetforce/api/internal/reaper"
@@ -164,7 +165,7 @@ func run() error {
 		}
 	}
 	handler := server.New(server.Deps{Logger: log, Ready: ready, Problems: db, Samples: cat, Content: cat, Submissions: db,
-		Queue: q, Versions: db, Runs: q, Accounts: db, Limiter: q, Limits: limits, TrustedProxies: proxies})
+		Queue: q, Versions: db, Runs: q, Accounts: db, Limiter: q, Limits: limits, Contests: contest.NewPG(db.Pool()), TrustedProxies: proxies})
 	go sweepSessions(ctx, db, log)
 
 	queueEvery, err := envDuration("LEETFORCE_METRICS_QUEUE_EVERY")
