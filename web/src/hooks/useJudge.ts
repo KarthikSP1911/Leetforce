@@ -17,16 +17,16 @@ function message(e: unknown): string {
 
 /**
  * Drives Run and Submit for one problem. At most one is active at a time: a new
- * one stops watching the old one. `onJudged` fires when a submission gets its
- * verdict, so the Submissions tab can refresh.
+ * one stops watching the old one. `onSubmission` fires when a submission is
+ * created and again when it gets its verdict, so the Submissions tab can refresh.
  */
-export function useJudge(problem: string, onJudged?: () => void) {
+export function useJudge(problem: string, onSubmission?: () => void) {
   const [result, setResult] = useState<ConsoleResult>({ kind: "idle" });
   const [busy, setBusy] = useState(false);
   const stop = useRef<(() => void) | undefined>(undefined);
-  const judged = useRef(onJudged);
+  const changed = useRef(onSubmission);
   useEffect(() => {
-    judged.current = onJudged;
+    changed.current = onSubmission;
   });
   useEffect(() => () => stop.current?.(), []);
 
@@ -74,12 +74,13 @@ export function useJudge(problem: string, onJudged?: () => void) {
       begin("submit");
       try {
         const { id } = await createSubmission({ problem, language, source });
+        changed.current?.();
         stop.current = watchSubmission(id, {
           onUpdate: (s) => {
             if (s.status === "judged" && s.verdict) {
               setBusy(false);
               setResult({ kind: "submit", verdict: s.verdict });
-              judged.current?.();
+              changed.current?.();
             } else {
               setResult({
                 kind: "pending",
