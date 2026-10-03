@@ -34,6 +34,7 @@ import (
 	"leetforce/api/internal/catalog"
 	"leetforce/api/internal/ingest"
 	"leetforce/api/internal/reaper"
+	"leetforce/api/internal/rejudge"
 	"leetforce/api/internal/server"
 	"leetforce/api/internal/store"
 	"leetforce/queue"
@@ -77,11 +78,9 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	for _, p := range cat.Problems() {
-		sp := store.Problem{Slug: p.Spec.Slug, Title: p.Spec.Title, Difficulty: p.Spec.Difficulty, Tags: p.Spec.Tags}
-		if err := db.UpsertProblem(ctx, sp, p.TestSetVer); err != nil {
-			return err
-		}
+	changes, err := rejudge.Sync(ctx, db, cat.Problems())
+	if err != nil {
+		return err
 	}
 	log.Info("problems synced", "count", len(cat.Problems()))
 
@@ -123,6 +122,11 @@ func run() error {
 		return err
 	}
 	ready["redis"] = q
+	// A problem whose tests changed: move its submissions to the new version
+	// and queue them again (bundles are already published above).
+	if err := rejudge.New(db, q, log, 0).RunChanged(ctx, changes); err != nil {
+		log.Error("rejudge after problem sync; the reaper retries unqueued rows", "err", err)
+	}
 
 	host, _ := os.Hostname()
 	ing := ingest.New(q, db, log, ingest.Config{Consumer: fmt.Sprintf("api-%s-%d", host, os.Getpid())})
