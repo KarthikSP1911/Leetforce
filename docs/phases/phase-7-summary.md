@@ -80,7 +80,9 @@ Open http://localhost:3000/problems. Expect 5 problems, filters, and Acceptance 
 Asked in chat at the end of the phase (see below). Answers are recorded after the review.
 
 ## Review Q&A
-Pending.
+The owner skipped the review ("skip"): the five understanding questions were asked in chat and left unanswered, and decisions A, B and C were not answered.
+- Understanding questions asked: (1) why statements and starters live in files, and the cost; (2) what happens to existing submissions when a statement typo is fixed; (3) why acceptance shows a dash with no submissions; (4) what a GET-form filter and a server component gain over browser fetching; (5) what the workspace does if the Monaco CDN is unreachable.
+- Decisions stay on Claude's defaults: A keep the `--lf-success` token (light-mode Easy 3.30:1); B keep Monaco on the CDN; C the dev host stays up until the owner stops it.
 
 ## Open decisions
 - Light-mode difficulty text contrast (3.30:1): keep the token, or add a darker light-mode text shade (Phase 8 or earlier).
