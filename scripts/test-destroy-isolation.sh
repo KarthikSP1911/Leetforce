@@ -22,10 +22,10 @@ check "infra/aws declares no neon provider" bash -c "! $TF -chdir=$ROOT/infra/aw
 check "infra/aws has no neon_ resource" bash -c "! grep -rq 'neon_' $ROOT/infra/aws --include=*.tf"
 check "infra/aws code never references neon (comments aside)" bash -c "! cat $ROOT/infra/aws/*.tf | grep -v '^ *#' | grep -qi neon"
 check "infra/neon declares no aws provider" bash -c "! $TF -chdir=$ROOT/infra/neon providers | grep -qi hashicorp/aws"
-state_path() { grep -A2 'backend "local"' "$1/versions.tf" | sed -n 's/.*path *= *"\(.*\)".*/\1/p'; }
-check "each stack has its own local state in its own directory" bash -c "
-  [ -n \"$(state_path "$ROOT/infra/aws")\" ] && [ -n \"$(state_path "$ROOT/infra/neon")\" ] &&
-  [ \"$ROOT/infra/aws/$(state_path "$ROOT/infra/aws")\" != \"$ROOT/infra/neon/$(state_path "$ROOT/infra/neon")\" ]"
+state_key() { grep -A4 'backend "s3"' "$1/versions.tf" | sed -n 's/.*key *= *"\([^"]*\)".*/\1/p'; }
+aws_key="$(state_key "$ROOT/infra/aws")"
+neon_key="$(state_key "$ROOT/infra/neon")"
+check "each stack has its own state key in the S3 bucket" bash -c "[ -n '$aws_key' ] && [ -n '$neon_key' ] && [ '$aws_key' != '$neon_key' ]"
 check "neon project has prevent_destroy" grep -q 'prevent_destroy = true' "$ROOT/infra/neon/main.tf"
 check "arena.sh only runs terraform in infra/aws" bash -c "
   grep -q 'STACK=\"\$ROOT/infra/aws\"' $ROOT/scripts/arena.sh && ! grep -q 'infra/neon' <(grep -v '^#' $ROOT/scripts/arena.sh | grep -v echo)"
