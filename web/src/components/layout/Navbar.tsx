@@ -1,5 +1,8 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { ThemeToggle } from "./ThemeToggle";
 import { UserMenu } from "./UserMenu";
 
@@ -9,10 +12,19 @@ const links = [
   { href: "/leaderboard", label: "Leaderboard" },
 ];
 
+// The problem workspace uses the full window width; every other page sits in
+// a centred column, and the navbar follows the same column so edges line up.
+const workspacePath = /^\/problems\/[^/]+\/?$/;
+
 export function Navbar() {
+  const wide = workspacePath.test(usePathname());
   return (
     <header className="bg-panel border-panel-border sticky top-0 z-10 border-b">
-      <nav className="flex h-14 items-center gap-6 px-4">
+      <nav
+        className={`mx-auto flex h-14 items-center gap-6 px-4 ${
+          wide ? "" : "max-w-6xl"
+        }`}
+      >
         <Link href="/" className="flex items-center gap-2">
           <Image
             src="/brand/logo-mark.svg"
