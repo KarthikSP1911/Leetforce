@@ -1,0 +1,9 @@
+# Copy to hosts.ini (git-ignored). Addresses come from `terraform output` in infra/aws.
+[control]
+# leetforce-control ansible_host=<control_public_ip>
+
+[runners]
+# leetforce-runner-1 ansible_host=<runner_public_ip>
+
+[all:vars]
+ansible_user=ubuntu

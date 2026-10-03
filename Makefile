@@ -4,7 +4,11 @@
 
 GO_MODULES := judge queue runner api storage
 
-.PHONY: test-destroy-isolation tf-validate test-alerts test-obs-e2e dev-obs down-obs validate-problems test-rejudge-e2e test-auth-e2e test-live-e2e test-api-e2e build-api migrate-up migrate-down migrate-status dev down fmt lint test build-judge build-runner test-crash test-matrix test-sandbox test-adversarial bench-sandbox
+.PHONY: lint-ansible test-destroy-isolation tf-validate test-alerts test-obs-e2e dev-obs down-obs validate-problems test-rejudge-e2e test-auth-e2e test-live-e2e test-api-e2e build-api migrate-up migrate-down migrate-status dev down fmt lint test build-judge build-runner test-crash test-matrix test-sandbox test-adversarial bench-sandbox
+
+# Phase 12: syntax-check and lint the Ansible playbook in a throwaway container (needs Docker).
+lint-ansible:
+	docker run --rm -v "$(CURDIR)/ansible:/a" -w /a python:3.12-slim sh -c 'pip install -q ansible ansible-lint && ansible-galaxy collection install -r requirements.yml >/dev/null && ansible-lint site.yml'
 
 # Phase 12 exit check: destroying infra/aws cannot reach infra/neon (static, offline).
 test-destroy-isolation:

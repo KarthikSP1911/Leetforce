@@ -32,6 +32,9 @@ bin/
 !*.tfvars.example
 crash.log
 
+# Ansible: real inventory holds host addresses
+ansible/inventory/hosts.ini
+
 # OS and editors
 .DS_Store
 Thumbs.db

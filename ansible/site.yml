@@ -1,0 +1,15 @@
+# Provision and harden a LeetForce host (Ubuntu 24.04 x86_64).
+#   - Packer runs this on the builder instance (ansible-local), so the AMI ships hardened.
+#   - On a live host: ansible-playbook -i inventory/hosts.ini site.yml
+# Roles: hardening (every host), runner_host (hosts in the "runners" group or the Packer build).
+- name: Harden every LeetForce host
+  hosts: all
+  become: true
+  roles:
+    - hardening
+
+- name: Prepare runner hosts
+  hosts: runners
+  become: true
+  roles:
+    - runner_host
