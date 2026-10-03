@@ -5,9 +5,12 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
+
+	"leetforce/api/internal/metrics"
 )
 
 // Pinger is a dependency that can report whether it is reachable.
@@ -92,7 +95,15 @@ func requestLog(log *slog.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
 		c.Next()
-		log.Info("request", "method", c.Request.Method, "path", c.FullPath(),
-			"status", c.Writer.Status(), "ms", time.Since(start).Milliseconds())
+		elapsed := time.Since(start)
+		// The route template, never the raw path, keeps the label set bounded.
+		route := c.FullPath()
+		if route == "" {
+			route = "unmatched"
+		}
+		metrics.HTTPRequests.WithLabelValues(c.Request.Method, route, strconv.Itoa(c.Writer.Status())).Inc()
+		metrics.HTTPSeconds.WithLabelValues(c.Request.Method, route).Observe(elapsed.Seconds())
+		log.Info("request", "method", c.Request.Method, "path", route,
+			"status", c.Writer.Status(), "ms", elapsed.Milliseconds())
 	}
 }

@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"time"
 
+	"leetforce/api/internal/metrics"
 	"leetforce/api/internal/store"
 	"leetforce/queue"
 )
@@ -83,6 +84,7 @@ func (r *Reaper) Sweep(ctx context.Context) int {
 		r.log.Error("reaper sweep", "requeued", n, "err", err)
 	}
 	if n > 0 {
+		metrics.ReaperRequeued.Add(float64(n))
 		r.log.Warn("re-queued submissions that were stored but never queued", "count", n)
 	}
 	return n

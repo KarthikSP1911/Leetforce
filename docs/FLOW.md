@@ -39,7 +39,7 @@ Rules that shape the flow (from CLAUDE.md): runners never connect to the databas
 | 8 | Web: run, submit, results `[x]` | Stages 1 and 10 in the UI: Run and Submit, console, result panel, SSE client | `browser submit -> ... -> verdict shown in the page` |
 | 9 | Auth and limits (M3) `[x]` | Sign-up/login, sessions, rate limits per user and per IP, solved status in front of stage 1 | `browser (signed in) -> API (session, limits in Redis) -> ... -> verdict`; usable product on one machine |
 | 10 | Problem pipeline `[x]` | Authoring side: import, validation, reference-solution check, rejudge by test-set version | `fixed test set -> API start detects the new version -> queue -> runner -> new verdict replaces the old one` |
-| 11 | Observability | Watching every stage: metrics, dashboards, logs, alerts | dashboards show a live submission |
+| 11 | Observability `[x]` | Watching every stage: metrics, dashboards, logs, alerts | dashboards show a live submission |
 | 12 | Infrastructure as code | Terraform, Packer, Ansible for the places the stages run (nothing applied without confirmation) | the system can be described and rebuilt as code |
 | 13 | Cloud deployment (M4) | The same flow running in the cloud (k3s), runner scaling, secrets via SSM, CI deploy | the flow survives losing a runner |
 | 14 | Contests | Contest model, timed windows, contest-only problems, scoring in stages 2 and 9 | a mock contest runs end to end |
@@ -333,6 +333,32 @@ Decision record: [ADR 0018](adr/0018-problem-pipeline.md). Log: [phase-10-log.md
  6. browser     the Submissions tab shows the row as queued while the rejudge runs, then the new verdict
 ```
 Exit check: `make test-rejudge-e2e` on the dev host (a changed test file turned AC into WA at the new version, once; a repeat changed nothing), `make validate-problems` (5 of 5 valid), `make test` and the other gates. Not yet: a rejudge of a large backlog in the background (it runs before the API listens), pruning old bundles.
+
+### Phase 11: Observability (as built)
+
+Decision record: [ADR 0019](adr/0019-observability.md). Log: [phase-11-log.md](phases/phase-11-log.md).
+```
+ Metrics (pull)
+ 1. API         every request is counted by route template (api/internal/server/server.go); submissions, runs, verdicts stored, ingest
+                outcomes, 429s by scope, SSE streams, rejudges and reaper re-queues are counted where they happen (api/internal/metrics)
+ 2. queue       a sampler (metrics.SampleQueue, every LEETFORCE_METRICS_QUEUE_EVERY, default 60s) calls queue.Stats (queue/stats.go):
+                waiting = XLEN - pending, pending, oldest unfinished job age (Redis TIME), dead letters -> leetforce_queue_* gauges
+ 3. runner      jobs by kind and verdict, judge time by language, in flight, reclaimed, lost, host failures, last queue poll
+                (runner/internal/agent, runner/internal/metrics)
+ 4. listeners   API 127.0.0.1:9102 and runner 127.0.0.1:9101 (LEETFORCE_METRICS_ADDR), separate from the public API port
+ 5. tunnel      scripts/obs-tunnel.sh forwards both ports to the PC; Prometheus (observability/prometheus) scrapes every 15s
+
+ Logs
+ 6. files       the demo script writes API and runner JSON logs to ~/obs on the host; scripts/obs-logs.sh copies them to observability/logs
+ 7. Alloy       tails them, labels service and level, pushes to Loki (observability/alloy/config.alloy)
+
+ Seeing and alerting
+ 8. Grafana     provisioned datasources and the "LeetForce Submission flow" dashboard (observability/grafana): queue, flow, verdicts,
+                judge time, runners, API, firing alerts, warnings and errors from Loki
+ 9. alerts      observability/prometheus/alerts.yml: RunnerDown, RunnerSilent, RunnerHostFailures, QueueBacklog, QueueStuck, DeadLetters,
+                QueueSampleFailing, APIDown, API5xxRate, InternalErrorVerdicts; no notifier; make test-alerts runs promtool tests
+```
+Exit check: `make test-obs-e2e` on the dev host, `make test-alerts` and the dashboard filling during `scripts/obs-demo.sh`.
 
 ## 4. Keeping this file true
 At the end of each phase: tick the phase in section 2, add its "as built" flow to section 3 (the detailed step list with file paths), and correct the "planned" rows if the plan changed.

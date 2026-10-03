@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"leetforce/api/internal/metrics"
 	"leetforce/api/internal/store"
 	"leetforce/queue"
 )
@@ -141,13 +142,18 @@ func (g *Ingester) HandleResult(ctx context.Context, d *queue.ResultDelivery) {
 	})
 	switch {
 	case err != nil && store.IsPermanent(err):
+		metrics.VerdictWrites.WithLabelValues("error").Inc()
 		g.log.Error("dropping result the database rejects", "entry", d.ID, "submission", r.SubmissionID, "err", err)
 	case err != nil:
+		metrics.VerdictWrites.WithLabelValues("error").Inc()
 		g.log.Error("store verdict, will retry", "entry", d.ID, "submission", r.SubmissionID, "err", err)
 		return
 	case recorded:
+		metrics.VerdictWrites.WithLabelValues("stored").Inc()
+		metrics.Verdicts.WithLabelValues(metrics.VerdictLabel(r.Verdict)).Inc()
 		g.log.Info("verdict stored", "submission", r.SubmissionID, "verdict", r.Verdict, "runner", r.RunnerID)
 	default:
+		metrics.VerdictWrites.WithLabelValues("ignored").Inc()
 		g.log.Info("verdict already stored or submission unknown, ignored", "submission", r.SubmissionID)
 	}
 	g.ack(ctx, "result", d.ID, g.src.AckResult)
@@ -174,6 +180,9 @@ func (g *Ingester) HandleDead(ctx context.Context, d *queue.DeadDelivery) {
 		g.log.Error("store IE verdict, will retry", "entry", d.ID, "submission", d.Job.SubmissionID, "err", err)
 		return
 	default:
+		if recorded {
+			metrics.Verdicts.WithLabelValues("IE").Inc()
+		}
 		g.log.Warn("job dead-lettered", "submission", d.Job.SubmissionID, "reason", d.Reason, "deliveries", d.Deliveries, "ie_stored", recorded)
 	}
 	g.ack(ctx, "dead letter", d.ID, g.src.AckDead)
