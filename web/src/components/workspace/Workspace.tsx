@@ -61,7 +61,7 @@ function Description({ problem }: { problem: ProblemDetail }) {
           </pre>
           <p className="text-muted mt-2 text-xs">Output</p>
           <pre className="bg-hover border-panel-border mt-1 overflow-x-auto rounded-lg border p-3 font-mono text-xs">
-            {s.output}
+            {s.expected}
           </pre>
         </section>
       ))}
