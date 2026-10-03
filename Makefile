@@ -27,9 +27,9 @@ lint-ansible:
 test-destroy-isolation:
 	scripts/test-destroy-isolation.sh
 
-# terraform fmt/validate for both stacks (no credentials, creates nothing).
+# terraform fmt/validate for all three stacks (no credentials, creates nothing).
 tf-validate:
-	for d in infra/neon infra/aws; do terraform -chdir=$$d fmt -check && terraform -chdir=$$d init -backend=false -input=false >/dev/null && terraform -chdir=$$d validate || exit 1; done
+	for d in infra/neon infra/aws infra/bootstrap; do terraform -chdir=$$d fmt -check && terraform -chdir=$$d init -backend=false -input=false >/dev/null && terraform -chdir=$$d validate || exit 1; done
 
 # Phase 11 exit test: leetforce_ metrics follow a live submission flow, and a
 # lost runner shows as waiting, ageing jobs (dev host; real DB, throwaway Redis prefix).
@@ -49,7 +49,7 @@ dev-obs:
 down-obs:
 	docker compose -f observability/docker-compose.yml down
 
-# Local Redis and S3 (RustFS) (needs Docker and LEETFORCE_S3_SECRET_KEY in .env).
+# Local Redis (S3 is real AWS S3 since Phase 13; RustFS is commented out in docker-compose.yml).
 dev:
 	docker compose --env-file .env up -d
 
@@ -128,7 +128,7 @@ test-api-e2e:
 	scripts/test-api-e2e.sh
 
 # Phase 5 exit test: queued, judging, verdict over SSE with tests read from the
-# S3 bucket (RustFS from make dev); nothing hidden in any response; the reaper
+# S3 bucket (real S3 since Phase 13); nothing hidden in any response; the reaper
 # re-queues an orphaned submission. Needs psql, DATABASE_URL, LEETFORCE_REDIS_URL
 # and LEETFORCE_S3_* in .env; deletes the rows it creates. About two minutes.
 test-live-e2e:
