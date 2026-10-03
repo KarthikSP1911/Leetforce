@@ -87,7 +87,7 @@ func TestLeaderboardConcurrentIngest(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i, p := range problems {
-		if _, err := s.pool.Exec(ctx, `INSERT INTO contest_problems (contest_id, problem_slug, position) VALUES ($1, $2, $3)`, contestID, p.slug, i); err != nil {
+		if _, err := s.pool.Exec(ctx, `INSERT INTO contest_problems (contest_id, problem_slug, label, position) VALUES ($1, $2, $3, $4)`, contestID, p.slug, string(rune('A'+i)), i); err != nil {
 			t.Fatal(err)
 		}
 	}

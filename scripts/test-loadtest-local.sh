@@ -18,7 +18,10 @@ ITER="${LOAD_ITER:-2}"
 
 export LEETFORCE_QUEUE_PREFIX="lfload-$$-$(date +%s)"
 export LEETFORCE_PROBLEMS_DIR="$PWD/problems"
-export LEETFORCE_API_ADDR="127.0.0.1:${E2E_PORT:-18085}"
+# A free port, so a stale stack on a fixed port can never answer for this run.
+PORT="${E2E_PORT:-$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')}"
+export LEETFORCE_API_ADDR="127.0.0.1:$PORT"
+export LEETFORCE_METRICS_ADDR=off
 export LEETFORCE_API="http://$LEETFORCE_API_ADDR"
 export LEETFORCE_LIMIT_AUTH_IP=1000 LEETFORCE_LIMIT_SUBMIT_USER=1000 LEETFORCE_LIMIT_SUBMIT_IP=10000 \
   LEETFORCE_LIMIT_RUN_USER=1000 LEETFORCE_LIMIT_RUN_IP=10000 LEETFORCE_LIMIT_LOGIN_ACCOUNT=1000
@@ -50,6 +53,7 @@ bin/api >"$WORK/api.log" 2>&1 &
 API_PID=$!
 for _ in $(seq 120); do curl -fsS "$LEETFORCE_API/readyz" >/dev/null 2>&1 && break; sleep 0.5; done
 curl -fsS "$LEETFORCE_API/readyz" >/dev/null 2>&1 || fail "the API did not become ready"
+kill -0 "$API_PID" 2>/dev/null || fail "the API we started exited (is the port in use?), so the answers came from another process"
 
 sudo -n --preserve-env=LEETFORCE_REDIS_URL,LEETFORCE_QUEUE_PREFIX,LEETFORCE_PROBLEMS_DIR \
   bash -c 'echo $$ > "$1"; exec bin/runner' _ "$WORK/runner.pid" >"$WORK/runner.log" 2>&1 &
