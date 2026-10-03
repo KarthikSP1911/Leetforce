@@ -29,11 +29,12 @@ type Deps struct {
 	Content     ContentSource // statement and starters; may be nil
 	Submissions SubmissionStore
 	Queue       Enqueuer
-	Versions    VersionSource // current test-set version, for Run jobs
-	Runs        RunStore      // state of Run jobs (Redis, never Postgres)
-	Accounts    AccountStore  // users and sessions
-	Limiter     Limiter       // rate-limit counters; nil turns limits off
-	Limits      Limits        // zero fields take defaults
+	Versions    VersionSource  // current test-set version, for Run jobs
+	Runs        RunStore       // state of Run jobs (Redis, never Postgres)
+	Accounts    AccountStore   // users and sessions
+	Limiter     Limiter        // rate-limit counters; nil turns limits off
+	Limits      Limits         // zero fields take defaults
+	Contests    ContestService // contests and contest-only problems; nil turns them off
 
 	// TrustedProxies are the addresses whose X-Forwarded-For header is believed
 	// when finding the client IP (for example the Next.js proxy). Empty means
@@ -79,6 +80,8 @@ func New(d Deps) *gin.Engine {
 	r.POST("/auth/login", d.login)
 	r.POST("/auth/logout", d.logout)
 	r.GET("/me", d.me)
+
+	d.contestRoutes(r)
 
 	r.GET("/problems", d.listProblems)
 	r.GET("/problems/:slug", d.getProblem)
