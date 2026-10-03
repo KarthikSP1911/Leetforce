@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working in this
 
 ## Current state
 
-Phases 0 (web shell), 1 (sandbox core), 2 (judge engine), 3 (queue and runner) and 4 (API and database) are done; Phase 4 (API and database) is done, see `docs/PROGRESS.md`. Parts below describe the planned system and may not exist yet. `docs/PLAN.md` (the 0–16 phase plan) and `docs/PROGRESS.md` (phase tracker and resume point) are the sources of truth. Do not invent build or test commands that no Makefile defines.
+Phases 0 to 10 are done (the latest are 9 auth and limits and 10 problem pipeline); see `docs/PROGRESS.md`. Parts below describe the planned system and may not exist yet. `docs/PLAN.md` (the 0–16 phase plan) and `docs/PROGRESS.md` (phase tracker and resume point) are the sources of truth. Do not invent build or test commands that no Makefile defines.
 
 ## Project
 
@@ -36,6 +36,10 @@ make build-api           # build bin/api (Gin API; needs DATABASE_URL and LEETFO
 make migrate-up          # apply goose migrations in api/migrations to Neon (also migrate-down, migrate-status; URL from .env)
 make test-api-e2e        # Phase 4 exit test: API, Redis, runner, ingest, Postgres; a duplicate verdict changes nothing (writes 2 rows to the real DB)
 make test-live-e2e       # Phase 5 exit test: queued, judging, verdict over SSE with tests from the S3 bucket; no hidden data in any response; the reaper re-queues an orphan (needs psql and LEETFORCE_S3_*; deletes the rows it creates)
+make test-auth-e2e       # Phase 9 exit test: sign-up/login, 401 without a session, per-user and per-IP limits (429), solved status, Run/Submit as a signed-in user (needs psql; deletes its test account)
+make validate-problems   # Phase 10: judge validate for every problem, structure plus reference solutions in the sandbox (sudo -n); DIR=problems/<slug> for one
+make test-rejudge-e2e    # Phase 10 exit test: a fixed test set re-queues a judged submission and the new verdict replaces the old one once (needs psql, LEETFORCE_* in .env)
+go run ./api/cmd/rejudge [-dry-run] <slug>   # from api/: sync one problem from LEETFORCE_PROBLEMS_DIR and rejudge its stale submissions
 scripts/scan-staged.sh [full]   # Trivy on the staged tree via the dev host: secrets (every commit) or vuln+secret+misconfig (before merges)
 make dev | make down     # local Redis and S3 (RustFS; MinIO no longer ships images, ADR 0011) via docker-compose.yml (needs Docker and LEETFORCE_S3_SECRET_KEY in .env)
 

@@ -38,7 +38,7 @@ Rules that shape the flow (from CLAUDE.md): runners never connect to the databas
 | 7 | Web: problems and workspace `[x]` | Browser side of stage 1 with real data: problem list, split-pane workspace, Monaco | `browser -> /api rewrite -> API -> catalog + Postgres -> real problems shown` |
 | 8 | Web: run, submit, results `[x]` | Stages 1 and 10 in the UI: Run and Submit, console, result panel, SSE client | `browser submit -> ... -> verdict shown in the page` |
 | 9 | Auth and limits (M3) `[x]` | Sign-up/login, sessions, rate limits per user and per IP, solved status in front of stage 1 | `browser (signed in) -> API (session, limits in Redis) -> ... -> verdict`; usable product on one machine |
-| 10 | Problem pipeline | Authoring side: import, validation, reference-solution check, rejudge by test-set version | `fixed test set -> queue -> rejudge` |
+| 10 | Problem pipeline `[x]` | Authoring side: import, validation, reference-solution check, rejudge by test-set version | `fixed test set -> API start detects the new version -> queue -> runner -> new verdict replaces the old one` |
 | 11 | Observability | Watching every stage: metrics, dashboards, logs, alerts | dashboards show a live submission |
 | 12 | Infrastructure as code | Terraform, Packer, Ansible for the places the stages run (nothing applied without confirmation) | the system can be described and rebuilt as code |
 | 13 | Cloud deployment (M4) | The same flow running in the cloud (k3s), runner scaling, secrets via SSM, CI deploy | the flow survives losing a runner |
@@ -304,6 +304,35 @@ Decision record: [ADR 0017](adr/0017-accounts-sessions-and-limits.md). Log: [pha
  2. GET /problems/:slug/submissions -> the signed-in user's newest 50 (ListUserSubmissions); anonymous -> empty list, no query
 ```
 Exit check: `make test-auth-e2e` on the dev host (all PASS), unit and Redis tests, web lint/typecheck/build. Not yet: the login and signup pages looked at in a browser.
+
+### Phase 10: Problem pipeline (as built)
+
+Decision record: [ADR 0018](adr/0018-problem-pipeline.md). Log: [phase-10-log.md](phases/phase-10-log.md).
+```
+ Validate a problem (author, before publishing)
+ 1. CLI         judge validate [-structure-only] [-strict] problems/<slug> (judge/cmd/judge/validate.go; make validate-problems)
+ 2. structure   validate.Structure (judge/validate/validate.go): slug = directory, title, difficulty, limits, NAME.in/NAME.out pairs,
+                sizes, samples, at least one hidden test, problem.Load; missing statement or starters are warnings
+ 3. reference   validate.Reference (judge/validate/reference.go): every solutions/<lang>/<verdict>.<ext> is judged by the engine in the
+                sandbox and must produce that verdict (ac passes every test); needs root + nsjail, otherwise exit 2
+
+ Fix a test set -> rejudge
+ 1. publish     the catalog derives a content hash as the test-set version (api/internal/catalog); at start the API publishes the new bundle
+                to the bucket under that version; old bundles stay
+ 2. detect      rejudge.Sync (api/internal/rejudge/rejudge.go) -> store.SyncProblem (api/internal/store/rejudge.go): reads the old version
+                under FOR UPDATE and upserts in one transaction; returns the problems whose version changed
+ 3. requeue     Rejudger.RunChanged -> store.BeginRejudge: per batch of 100, FOR UPDATE SKIP LOCKED over judged rows whose verdict is for an
+                older version (and queued/judging rows on an older version): set test_set_version = current, status = queued,
+                enqueued_at = NULL; then Enqueue(Job{TestSetVersion: new}) and MarkEnqueued; a failed enqueue leaves enqueued_at NULL and
+                the reaper retries it. On demand: bin/rejudge [-dry-run] <slug> (api/cmd/rejudge/main.go)
+ 4. runner      judges against the bundle for the job's version; the results marker is <prefix>:verdict:<id>:<version> (queue/queue.go
+                Publish/Published), so the rejudge is not mistaken for a duplicate
+ 5. store       store.RecordVerdict (api/internal/store/verdicts.go): replaces the stored verdict only if the incoming version equals the
+                submission's current version and differs from the stored one; an IE never replaces a real verdict; stale or duplicate
+                results change nothing
+ 6. browser     the Submissions tab shows the row as queued while the rejudge runs, then the new verdict
+```
+Exit check: `make test-rejudge-e2e` on the dev host (a changed test file turned AC into WA at the new version, once; a repeat changed nothing), `make validate-problems` (5 of 5 valid), `make test` and the other gates. Not yet: a rejudge of a large backlog in the background (it runs before the API listens), pruning old bundles.
 
 ## 4. Keeping this file true
 At the end of each phase: tick the phase in section 2, add its "as built" flow to section 3 (the detailed step list with file paths), and correct the "planned" rows if the plan changed.
