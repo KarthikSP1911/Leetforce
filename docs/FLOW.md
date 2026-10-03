@@ -41,7 +41,7 @@ Rules that shape the flow (from CLAUDE.md): runners never connect to the databas
 | 10 | Problem pipeline `[x]` | Authoring side: import, validation, reference-solution check, rejudge by test-set version | `fixed test set -> API start detects the new version -> queue -> runner -> new verdict replaces the old one` |
 | 11 | Observability `[x]` | Watching every stage: metrics, dashboards, logs, alerts | dashboards show a live submission |
 | 12 | Infrastructure as code `[x]` (code only; plan and AMI build pending) | Terraform, Packer, Ansible for the places the stages run (nothing applied without confirmation) | the system can be described and rebuilt as code |
-| 13 | Cloud deployment (M4) | The same flow running in the cloud (k3s), runner scaling, secrets via SSM, CI deploy | the flow survives losing a runner |
+| 13 | Cloud deployment (M4) (in progress: code merged, not applied; AMI not built) | The same flow running in the cloud (k3s for the API, runners as ASG hosts), secrets via SSM, CI deploy | the flow survives losing a runner |
 | 14 | Contests | Contest model, timed windows, contest-only problems, scoring in stages 2 and 9 | a mock contest runs end to end |
 | 15 | Leaderboard | Rankings fed by verdicts, caching, penalty rules | rankings correct under concurrent submissions |
 | 16 | Launch readiness (M5) | Load test, security review, backup and restore drill | findings resolved or accepted in writing |
@@ -376,6 +376,25 @@ Decision record: [ADR 0020](adr/0020-infrastructure-as-code.md). Log: [phase-12-
                   infra/aws takes it through runner_ami_id
 ```
 Exit checks: `make test-destroy-isolation` (offline), `make tf-validate`, `make packer-validate`, `make lint-ansible`; `terraform plan` and `make build-ami` need credentials and the owner's confirmation.
+
+### Phase 13: Cloud deployment (in progress; code merged, only the S3 bucket exists)
+
+Decision records: [ADR 0021](adr/0021-single-s3-bucket.md), [ADR 0022](adr/0022-k3s-control-and-standalone-runners.md). Log: [phase-13-log.md](phases/phase-13-log.md). The flow itself is unchanged; this is where its stages will run.
+```
+ Where each stage runs in the cloud
+ 1. S3            infra/bootstrap: one bucket, problems/ (test bundles) and tfstate/ (Terraform state); storage.Open uses the host IAM
+                  role when no keys are set. Created and verified. infra/aws and infra/neon keep their state in it (infra/backend.hcl).
+ 2. Secrets       scripts/k3s/push-ssm.sh (dry run unless --apply) -> SSM /leetforce/api/*, /leetforce/runner/*, /leetforce/deploy/*
+                  scripts/k3s/sync-secrets.sh on the control host -> k3s Secrets api-env, ghcr-pull
+ 3. Control host  infra/aws control instance + ansible k3s_server (pinned k3s, AWS CLI) -> k3s with Traefik on port 80
+                  k8s/base (Kustomize): namespace, ConfigMap, API Deployment, Service, Ingress; image api/Dockerfile (private GHCR)
+ 4. Runners       infra/aws/runner-asg.tf: launch template + Auto Scaling group from the AMI (desired = runner_count); first boot reads
+                  /leetforce/runner/* from SSM into /etc/leetforce/runner.env and starts leetforce-runner
+ 5. CI deploy     .github/workflows/deploy.yml: build, Trivy, push to GHCR, then SSM Run Command -> scripts/k3s/deploy.sh <sha>
+                  (OIDC role in infra/aws/ci.tf, trusted for environment production only)
+ 6. Exit test     make test-runner-loss (scripts/test-runner-loss.sh): terminate one runner mid-job; every submission still gets one verdict
+```
+Done: bucket applied; manifests validated (kubeconform, Trivy config, a throwaway kind cluster); `infra/aws` plan 34 to add. Not done: AMI (three failed builds), `apply` of `infra/aws`, SSM push, image push, the loss test, the `infra/neon` plan.
 
 ## 4. Keeping this file true
 At the end of each phase: tick the phase in section 2, add its "as built" flow to section 3 (the detailed step list with file paths), and correct the "planned" rows if the plan changed.
