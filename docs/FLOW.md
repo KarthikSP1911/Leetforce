@@ -1,6 +1,6 @@
 # LeetForce flow, phase by phase
 
-This file shows how a submission flows through the system and which phase builds each part. It is updated at the end of every phase. Phases 0 to 7 are **as built** (section 3). Phases 8 to 16 are **planned**, taken from [PLAN.md](PLAN.md); the plan is firm only a phase or two ahead, the rest are outlines that get refined at the start of their session.
+This file shows how a submission flows through the system and which phase builds each part. It is updated at the end of every phase. Phases 0 to 8 are **as built** (section 3). Phases 9 to 16 are **planned**, taken from [PLAN.md](PLAN.md); the plan is firm only a phase or two ahead, the rest are outlines that get refined at the start of their session.
 
 ## 1. The end-to-end flow (the finished system)
 ```
@@ -36,7 +36,7 @@ Rules that shape the flow (from CLAUDE.md): runners never connect to the databas
 | 5 | Live status and storage (M2) `[x]` | Stage 10 and test data: SSE status stream, S3-compatible bucket for tests (RustFS locally, ADR 0011), the Judging state, hidden-test redaction checked end to end, a reaper for rows never queued | `curl submit -> API -> queue -> runner (tests from the bucket) -> sandbox -> verdict -> SSE`, end to end on one machine |
 | 6 | Sandbox hardening `[x]` | Inside stage 6: gVisor vs nsjail decision, seccomp tuning, bigger adversarial suite | same flow, stronger box |
 | 7 | Web: problems and workspace `[x]` | Browser side of stage 1 with real data: problem list, split-pane workspace, Monaco | `browser -> /api rewrite -> API -> catalog + Postgres -> real problems shown` |
-| 8 | Web: run, submit, results | Stages 1 and 10 in the UI: Run and Submit, console, result panel, SSE client | `browser submit -> ... -> verdict shown in the page` |
+| 8 | Web: run, submit, results `[x]` | Stages 1 and 10 in the UI: Run and Submit, console, result panel, SSE client | `browser submit -> ... -> verdict shown in the page` |
 | 9 | Auth and limits (M3) | Sign-up/login, sessions, rate limits per user and per IP, solved status in front of stage 1 | usable product on one machine |
 | 10 | Problem pipeline | Authoring side: import, validation, reference-solution check, rejudge by test-set version | `fixed test set -> queue -> rejudge` |
 | 11 | Observability | Watching every stage: metrics, dashboards, logs, alerts | dashboards show a live submission |
@@ -242,6 +242,44 @@ The submission flow does not change. The browser can now read real problems; Run
  6. theme            --link role in web/src/app/globals.css (blue in light, sky in dark)
 ```
 Exit check: browsed the list and a problem in dark and light mode in Chrome against the real API and Neon; focus ring, tab order, separator arrow keys and tab roles were checked; 16 reference solutions (4 new problems x 4 languages) judge AC in the sandbox. Not yet: Run and Submit (Phase 8), the narrow-screen layout verified in a browser, auth and solved status (Phase 9).
+
+### Phase 8: Web: run, submit, results (as built)
+
+Run is new; Submit keeps its Phase 5 path and gains a UI. Decision record: [ADR 0016](adr/0016-run-and-submit-paths.md). Unit 1 (the run endpoint) is committed on `feat/8-api-run-endpoint` and not yet merged or verified on the dev host; the end-to-end browser check is pending (see [phase-8-log.md](phases/phase-8-log.md)).
+```
+ Run on samples (Run button or Ctrl+Enter, Testcase tab on "Samples")
+ 1. client      web/src/hooks/useJudge.ts -> createRun (web/src/lib/api/client.ts): POST /api/runs {problem, language, source}
+ 2. API         createRun (api/internal/server/runs.go): validate, current test-set version, SetRun(queued) in Redis key <prefix>:run:<id>,
+                Enqueue Job{Kind: run, SubmissionID: "run-<uuid>"} on the same jobs stream; 202 {"id", "status": "queued"}
+ 3. runner      Process -> processRun (runner/internal/agent/run.go): SetRun(judging), heartbeat as for Submit, load the bundle,
+                keep only Sample tests, engine.Judge(..., Options{ContinueOnFail, Detail}) (judge/engine/engine.go)
+ 4. result      SetRun(done, RunResult{verdict, runtime, memory, cases[]}); failing samples carry input/expected/actual/stderr;
+                never the results stream, never Postgres; the key expires after 10 min (queue/run.go)
+ 5. browser     watchRun (web/src/lib/api/watch.ts) polls GET /api/runs/:id every 500 ms until done; ResultPanel.tsx shows the verdict
+                (largest text), runtime, memory and the failing-sample details
+
+ Run on custom input (Testcase tab on "Custom input")
+ 1. client      POST /api/runs with "input" set (up to 8 KiB)
+ 2. API         same as above; the job has Custom=true and Input
+ 3. runner      run -> engine.RunCustom: compile, run once on the input under the language limits
+ 4. result      verdict is a judge verdict or OK (ran cleanly, nothing to compare); stdout and stderr returned; compiler output only for CE
+ 5. dead letter if runners give up, ingest.HandleDead -> handleDeadRun stores an IE result in the run key (api/internal/ingest/ingest.go)
+
+ Submit with SSE and the polling fallback (Submit button or Ctrl+Shift+Enter)
+ 1. client      createSubmission: POST /api/submissions with header X-LeetForce-Client (id from localStorage "lf-client")
+ 2. API         Phase 4-5 path unchanged: insert row (client_id tagged after the insert), enqueue, 202 {"id", "status": "queued"}
+ 3. runner      Phase 3-5 path unchanged: judge against ALL tests, Detail off, Publish to the results stream
+ 4. browser     watchSubmission (watch.ts): EventSource on /api/submissions/:id/events -> status and verdict events;
+                on stream error, timeout or no EventSource, polls GET /api/submissions/:id every second
+ 5. display     ResultPanel.tsx shows verdict, runtime, memory and passed/total; never input, expected output or stderr
+
+ Submissions tab
+ 1. API         GET /problems/:slug/submissions (listSubmissions in api/internal/server/submissions.go): newest 50 rows for the
+                X-LeetForce-Client id, verdict view only; missing or malformed id -> empty list, no query (migration 00004_submission_client.sql)
+ 2. browser     SubmissionsTab.tsx refreshes when useJudge reports a created or judged submission and re-reads every 2 s while
+                a row is queued or judging; Workspace.tsx hosts the tab and the console
+```
+Not yet: unit 1 merged and verified on the dev host, migration 00004 applied to Neon, a real-browser end-to-end check in both themes, authentication and rate limits (Phase 9; the client id is not a credential).
 
 ## 4. Keeping this file true
 At the end of each phase: tick the phase in section 2, add its "as built" flow to section 3 (the detailed step list with file paths), and correct the "planned" rows if the plan changed.

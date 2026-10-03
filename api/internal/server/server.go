@@ -26,6 +26,8 @@ type Deps struct {
 	Content     ContentSource // statement and starters; may be nil
 	Submissions SubmissionStore
 	Queue       Enqueuer
+	Versions    VersionSource // current test-set version, for Run jobs
+	Runs        RunStore      // state of Run jobs (Redis, never Postgres)
 
 	// Events tunes the SSE status stream; the zero value takes the defaults.
 	Events EventConfig
@@ -62,9 +64,12 @@ func New(d Deps) *gin.Engine {
 
 	r.GET("/problems", d.listProblems)
 	r.GET("/problems/:slug", d.getProblem)
+	r.GET("/problems/:slug/submissions", d.listSubmissions)
 	r.POST("/submissions", d.createSubmission)
 	r.GET("/submissions/:id", d.getSubmission)
 	r.GET("/submissions/:id/events", d.streamEvents)
+	r.POST("/runs", d.createRun)
+	r.GET("/runs/:id", d.getRun)
 	return r
 }
 

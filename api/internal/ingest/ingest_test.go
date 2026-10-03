@@ -118,6 +118,45 @@ func TestHandleResultMapsFields(t *testing.T) {
 	}
 }
 
+type fakeRuns struct {
+	set map[string]queue.RunState
+	err error
+}
+
+func (f *fakeRuns) SetRun(_ context.Context, id string, st queue.RunState) error {
+	if f.err != nil {
+		return f.err
+	}
+	if f.set == nil {
+		f.set = map[string]queue.RunState{}
+	}
+	f.set[id] = st
+	return nil
+}
+
+func TestHandleDeadRun(t *testing.T) {
+	job := &queue.Job{SubmissionID: "run-1", Kind: queue.KindRun}
+	t.Run("a dead run ends with IE and never touches the database", func(t *testing.T) {
+		src, rec, runs := &fakeSrc{}, &fakeRec{result: true}, &fakeRuns{}
+		g := newIngester(src, rec)
+		g.SetRuns(runs)
+		g.HandleDead(context.Background(), &queue.DeadDelivery{ID: "3-0", Job: job, Reason: "max deliveries exceeded"})
+		st := runs.set["run-1"]
+		if len(rec.recorded) != 0 || len(src.acked) != 1 || st.Status != queue.RunDone || st.Result == nil || st.Result.Verdict != "IE" {
+			t.Fatalf("recorded = %+v, acked = %v, run = %+v", rec.recorded, src.acked, st)
+		}
+	})
+	t.Run("a failed run write leaves it pending", func(t *testing.T) {
+		src, rec := &fakeSrc{}, &fakeRec{}
+		g := newIngester(src, rec)
+		g.SetRuns(&fakeRuns{err: errors.New("timeout")})
+		g.HandleDead(context.Background(), &queue.DeadDelivery{ID: "3-0", Job: job})
+		if len(src.acked) != 0 {
+			t.Fatalf("acked = %v, want none", src.acked)
+		}
+	})
+}
+
 func TestHandleDead(t *testing.T) {
 	t.Run("a dead-lettered job becomes an IE verdict", func(t *testing.T) {
 		src, rec := &fakeSrc{}, &fakeRec{result: true}

@@ -27,6 +27,12 @@ type Recorder interface {
 	RecordVerdict(ctx context.Context, v store.VerdictRecord) (bool, error)
 }
 
+// RunSetter records the state of a Run job. Run jobs are not submissions, so a
+// dead-lettered one ends the run with an IE result instead of a stored verdict.
+type RunSetter interface {
+	SetRun(ctx context.Context, id string, st queue.RunState) error
+}
+
 // Config tunes the loop. Zero values take the defaults noted per field.
 type Config struct {
 	Consumer  string        // consumer name in the API group (required)
@@ -40,11 +46,16 @@ const DeadLetterRunnerID = "dead-letter"
 
 // Ingester runs the loop.
 type Ingester struct {
-	src Source
-	rec Recorder
-	log *slog.Logger
-	cfg Config
+	src  Source
+	rec  Recorder
+	log  *slog.Logger
+	cfg  Config
+	runs RunSetter // optional
 }
+
+// SetRuns makes the Ingester end dead-lettered Run jobs with an IE result.
+// Without it they are only acknowledged and logged.
+func (g *Ingester) SetRuns(r RunSetter) { g.runs = r }
 
 // New builds an Ingester.
 func New(src Source, rec Recorder, log *slog.Logger, cfg Config) *Ingester {
@@ -149,6 +160,10 @@ func (g *Ingester) HandleDead(ctx context.Context, d *queue.DeadDelivery) {
 		g.ack(ctx, "dead letter", d.ID, g.src.AckDead)
 		return
 	}
+	if d.Job.Kind == queue.KindRun {
+		g.handleDeadRun(ctx, d)
+		return
+	}
 	recorded, err := g.rec.RecordVerdict(ctx, store.VerdictRecord{
 		SubmissionID: d.Job.SubmissionID, Verdict: "IE", RunnerID: DeadLetterRunnerID,
 	})
@@ -161,6 +176,20 @@ func (g *Ingester) HandleDead(ctx context.Context, d *queue.DeadDelivery) {
 	default:
 		g.log.Warn("job dead-lettered", "submission", d.Job.SubmissionID, "reason", d.Reason, "deliveries", d.Deliveries, "ie_stored", recorded)
 	}
+	g.ack(ctx, "dead letter", d.ID, g.src.AckDead)
+}
+
+// handleDeadRun ends a Run job the runners gave up on so the browser stops
+// waiting. It never touches the database.
+func (g *Ingester) handleDeadRun(ctx context.Context, d *queue.DeadDelivery) {
+	if g.runs != nil {
+		st := queue.RunState{Status: queue.RunDone, Result: &queue.RunResult{Verdict: "IE"}}
+		if err := g.runs.SetRun(ctx, d.Job.SubmissionID, st); err != nil {
+			g.log.Error("store IE for dead run, will retry", "entry", d.ID, "run", d.Job.SubmissionID, "err", err)
+			return
+		}
+	}
+	g.log.Warn("run dead-lettered", "run", d.Job.SubmissionID, "reason", d.Reason, "deliveries", d.Deliveries)
 	g.ack(ctx, "dead letter", d.ID, g.src.AckDead)
 }
 

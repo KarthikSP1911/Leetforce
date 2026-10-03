@@ -74,3 +74,25 @@ func TestProblemAcceptance(t *testing.T) {
 		t.Fatalf("acceptance = %v, want about 66.67", a)
 	}
 }
+
+// TestSetVersion returns the version a submission would be stamped with, and
+// ErrNotFound for an unknown problem; Run jobs use it to fetch the same bundle.
+func TestTestSetVersion(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	if _, err := s.TestSetVersion(ctx, "missing"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("unknown problem err = %v, want ErrNotFound", err)
+	}
+	if err := s.UpsertProblem(ctx, Problem{Slug: "sum", Title: "Sum", Difficulty: "easy"}, "v1"); err != nil {
+		t.Fatal(err)
+	}
+	if v, err := s.TestSetVersion(ctx, "sum"); err != nil || v != "v1" {
+		t.Fatalf("version = %q, %v, want v1", v, err)
+	}
+	if err := s.UpsertProblem(ctx, Problem{Slug: "sum", Title: "Sum", Difficulty: "easy"}, "v2"); err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := s.TestSetVersion(ctx, "sum"); v != "v2" {
+		t.Fatalf("version after a test fix = %q, want v2", v)
+	}
+}

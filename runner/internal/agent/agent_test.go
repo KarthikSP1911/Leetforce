@@ -26,10 +26,22 @@ type fakeJudger struct {
 	delay time.Duration
 	rep   *engine.Report
 	err   error
+
+	custom      *engine.CustomReport // canned RunCustom result
+	gotTests    []problem.Test       // tests of the problem the last Judge call saw
+	gotOptions  engine.Options
+	customInput string
 }
 
-func (f *fakeJudger) Judge(ctx context.Context, _ *problem.Problem, _ string, _ []byte, _ engine.Options) (*engine.Report, error) {
+func (f *fakeJudger) RunCustom(ctx context.Context, _ *problem.Problem, _ string, _, input []byte) (*engine.CustomReport, error) {
 	f.calls.Add(1)
+	f.customInput = string(input)
+	return f.custom, f.err
+}
+
+func (f *fakeJudger) Judge(ctx context.Context, p *problem.Problem, _ string, _ []byte, opts engine.Options) (*engine.Report, error) {
+	f.calls.Add(1)
+	f.gotTests, f.gotOptions = p.Tests, opts
 	select {
 	case <-time.After(f.delay):
 	case <-ctx.Done():
