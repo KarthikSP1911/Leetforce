@@ -37,6 +37,7 @@ make migrate-up          # apply goose migrations in api/migrations to Neon (als
 make test-api-e2e        # Phase 4 exit test: API, Redis, runner, ingest, Postgres; a duplicate verdict changes nothing (writes 2 rows to the real DB)
 make test-live-e2e       # Phase 5 exit test: queued, judging, verdict over SSE with tests from the S3 bucket; no hidden data in any response; the reaper re-queues an orphan (needs psql and LEETFORCE_S3_*; deletes the rows it creates)
 make test-auth-e2e       # Phase 9 exit test: sign-up/login, 401 without a session, per-user and per-IP limits (429), solved status, Run/Submit as a signed-in user (needs psql; deletes its test account)
+make test-mock-contest   # Phase 14 exit test: a full mock contest through the API, runner and Postgres (needs migration 00006, psql; deletes its contest and users)
 make validate-problems   # Phase 10: judge validate for every problem, structure plus reference solutions in the sandbox (sudo -n); DIR=problems/<slug> for one
 make test-rejudge-e2e    # Phase 10 exit test: a fixed test set re-queues a judged submission and the new verdict replaces the old one once (needs psql, LEETFORCE_* in .env)
 go run ./api/cmd/rejudge [-dry-run] <slug>   # from api/: sync one problem from LEETFORCE_PROBLEMS_DIR and rejudge its stale submissions
