@@ -1,0 +1,66 @@
+# Runner host: language toolchains, nsjail (pinned), the runner user and directories.
+# The runner binary and unit are installed by scripts/runner/install-runner.sh
+# (Packer calls it after this playbook), so there is one install path.
+- name: Install toolchains and nsjail build dependencies
+  ansible.builtin.apt:
+    name:
+      - build-essential
+      - git
+      - python3
+      - g++
+      - golang-go
+      - openjdk-21-jdk-headless
+      - autoconf
+      - bison
+      - flex
+      - libtool
+      - pkg-config
+      - libprotobuf-dev
+      - libnl-route-3-dev
+      - protobuf-compiler
+      - apparmor
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Fetch nsjail at the pinned commit
+  ansible.builtin.git:
+    repo: https://github.com/google/nsjail
+    dest: /opt/nsjail-src
+    version: "{{ runner_host_nsjail_commit }}"
+
+- name: Build nsjail
+  ansible.builtin.command:
+    cmd: make -j{{ ansible_facts.processor_vcpus }}
+    chdir: /opt/nsjail-src
+    creates: /opt/nsjail-src/nsjail
+
+- name: Install nsjail
+  ansible.builtin.copy:
+    src: /opt/nsjail-src/nsjail
+    dest: /usr/local/bin/nsjail
+    remote_src: true
+    mode: "0755"
+    owner: root
+    group: root
+
+- name: Remove nsjail build dependencies that are not needed at run time
+  ansible.builtin.apt:
+    name: [autoconf, bison, flex, libtool, protobuf-compiler]
+    state: absent
+    autoremove: true
+
+- name: Unprivileged runner user
+  ansible.builtin.user:
+    name: lfrunner
+    system: true
+    create_home: false
+    shell: /usr/sbin/nologin
+
+- name: Runner configuration directory
+  ansible.builtin.file:
+    path: /etc/leetforce
+    state: directory
+    owner: root
+    group: lfrunner
+    mode: "0750"
