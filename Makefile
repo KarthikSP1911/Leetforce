@@ -4,7 +4,7 @@
 
 GO_MODULES := judge queue runner api storage
 
-.PHONY: build-runner-linux packer-validate build-ami lint-ansible test-destroy-isolation tf-validate test-alerts test-obs-e2e dev-obs down-obs validate-problems test-rejudge-e2e test-auth-e2e test-live-e2e test-api-e2e build-api migrate-up migrate-down migrate-status dev down fmt lint test build-judge build-runner test-crash test-matrix test-sandbox test-adversarial bench-sandbox
+.PHONY: test-runner-loss build-runner-linux packer-validate build-ami lint-ansible test-destroy-isolation tf-validate test-alerts test-obs-e2e dev-obs down-obs validate-problems test-rejudge-e2e test-auth-e2e test-live-e2e test-api-e2e build-api migrate-up migrate-down migrate-status dev down fmt lint test build-judge build-runner test-crash test-matrix test-sandbox test-adversarial bench-sandbox
 
 # Phase 12: cross-compile the runner for the AMI (static x86_64 Linux binary).
 build-runner-linux:
@@ -27,9 +27,9 @@ lint-ansible:
 test-destroy-isolation:
 	scripts/test-destroy-isolation.sh
 
-# terraform fmt/validate for both stacks (no credentials, creates nothing).
+# terraform fmt/validate for all three stacks (no credentials, creates nothing).
 tf-validate:
-	for d in infra/neon infra/aws; do terraform -chdir=$$d fmt -check && terraform -chdir=$$d init -backend=false -input=false >/dev/null && terraform -chdir=$$d validate || exit 1; done
+	for d in infra/neon infra/aws infra/bootstrap; do terraform -chdir=$$d fmt -check && terraform -chdir=$$d init -backend=false -input=false >/dev/null && terraform -chdir=$$d validate || exit 1; done
 
 # Phase 11 exit test: leetforce_ metrics follow a live submission flow, and a
 # lost runner shows as waiting, ageing jobs (dev host; real DB, throwaway Redis prefix).
@@ -49,7 +49,7 @@ dev-obs:
 down-obs:
 	docker compose -f observability/docker-compose.yml down
 
-# Local Redis and S3 (RustFS) (needs Docker and LEETFORCE_S3_SECRET_KEY in .env).
+# Local Redis (S3 is real AWS S3 since Phase 13; RustFS is commented out in docker-compose.yml).
 dev:
 	docker compose --env-file .env up -d
 
@@ -128,7 +128,7 @@ test-api-e2e:
 	scripts/test-api-e2e.sh
 
 # Phase 5 exit test: queued, judging, verdict over SSE with tests read from the
-# S3 bucket (RustFS from make dev); nothing hidden in any response; the reaper
+# S3 bucket (real S3 since Phase 13); nothing hidden in any response; the reaper
 # re-queues an orphaned submission. Needs psql, DATABASE_URL, LEETFORCE_REDIS_URL
 # and LEETFORCE_S3_* in .env; deletes the rows it creates. About two minutes.
 test-live-e2e:
@@ -136,6 +136,13 @@ test-live-e2e:
 
 test-auth-e2e:
 	scripts/test-auth-e2e.sh
+
+# Phase 13 exit test: against the deployed cloud stack, terminate one runner EC2 instance
+# while submissions are in flight; every submission must still get exactly one correct
+# verdict. Needs LEETFORCE_API_URL, AWS_PROFILE and LEETFORCE_CONFIRM_TERMINATE=yes
+# (destroys a billable host); see the header of scripts/test-runner-loss.sh.
+test-runner-loss:
+	scripts/test-runner-loss.sh
 
 # Phase 10 exit test: fix a test set, restart the API, the old submission is
 # rejudged against the new version and its verdict replaced once. Needs psql,

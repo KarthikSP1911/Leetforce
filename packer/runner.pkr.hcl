@@ -89,6 +89,10 @@ build {
     inline = [
       "cloud-init status --wait",
       "sudo apt-get update -qq",
+      # The base image is weeks old: apply pending security fixes (the Trivy gate failed on openssl)
+      # and refresh its preinstalled snaps (snapd, core22, amazon-ssm-agent) to the latest revisions.
+      "sudo DEBIAN_FRONTEND=noninteractive apt-get upgrade -y -qq",
+      "sudo snap refresh",
       "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ansible",
     ]
   }

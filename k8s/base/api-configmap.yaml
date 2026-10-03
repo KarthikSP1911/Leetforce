@@ -1,0 +1,18 @@
+# Non-secret API settings. Secrets (DATABASE_URL, LEETFORCE_REDIS_URL, the bucket name) come
+# from the api-env Secret, which scripts/k3s/sync-secrets.sh builds from SSM (never from git).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-config
+  namespace: leetforce
+data:
+  LEETFORCE_API_ADDR: ":8080"
+  LEETFORCE_PROBLEMS_DIR: /app/problems
+  LEETFORCE_QUEUE_PREFIX: leetforce
+  # Real S3 in ap-south-1 with the host's IAM role: no access keys (ADR 0021).
+  LEETFORCE_S3_ENDPOINT: s3.ap-south-1.amazonaws.com
+  LEETFORCE_S3_USE_TLS: "true"
+  # /metrics on the pod address so Prometheus can scrape it; the Service does not expose it.
+  LEETFORCE_METRICS_ADDR: 0.0.0.0:9102
+  # Believe X-Forwarded-For only from inside the cluster (Traefik), for per-IP rate limits.
+  LEETFORCE_TRUSTED_PROXIES: 10.42.0.0/16

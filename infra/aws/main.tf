@@ -71,6 +71,26 @@ resource "aws_vpc_security_group_ingress_rule" "control_from_runners" {
   to_port                      = 6443
 }
 
+# The API is served by k3s Traefik on port 80. Owner for testing; runners report results here
+# over the private network (a source-group rule, so nothing else can reach it).
+resource "aws_vpc_security_group_ingress_rule" "control_http_owner" {
+  security_group_id = aws_security_group.control.id
+  description       = "API ingress from owner"
+  cidr_ipv4         = var.owner_cidr
+  ip_protocol       = "tcp"
+  from_port         = 80
+  to_port           = 80
+}
+
+resource "aws_vpc_security_group_ingress_rule" "control_http_runners" {
+  security_group_id            = aws_security_group.control.id
+  description                  = "API ingress from runner hosts"
+  referenced_security_group_id = aws_security_group.runner.id
+  ip_protocol                  = "tcp"
+  from_port                    = 80
+  to_port                      = 80
+}
+
 resource "aws_vpc_security_group_ingress_rule" "runner_ssh" {
   security_group_id = aws_security_group.runner.id
   description       = "SSH from owner"
@@ -144,6 +164,41 @@ data "aws_iam_policy_document" "control_ssm" {
   }
 }
 
+# The single bucket from infra/bootstrap (ADR 0021). Runners may only read test bundles;
+# the control host (API) may also write them. Neither can see tfstate/.
+locals {
+  data_bucket_arn = "arn:aws:s3:::leetforce-${data.aws_caller_identity.current.account_id}-data"
+}
+
+data "aws_iam_policy_document" "runner_s3" {
+  statement {
+    actions   = ["s3:GetObject"]
+    resources = ["${local.data_bucket_arn}/problems/*"]
+  }
+  statement {
+    actions   = ["s3:ListBucket"]
+    resources = [local.data_bucket_arn]
+    condition {
+      test     = "StringLike"
+      variable = "s3:prefix"
+      values   = ["problems/*"]
+    }
+  }
+}
+
+data "aws_iam_policy_document" "control_s3" {
+  statement {
+    actions   = ["s3:GetObject", "s3:PutObject"]
+    resources = ["${local.data_bucket_arn}/problems/*"]
+  }
+  # HeadBucket (the API's startup check) sends no prefix, so a prefix condition would deny it.
+  # Listing shows key names only; reading tfstate/ objects stays denied.
+  statement {
+    actions   = ["s3:ListBucket", "s3:GetBucketLocation"]
+    resources = [local.data_bucket_arn]
+  }
+}
+
 resource "aws_iam_role" "runner" {
   name_prefix        = "leetforce-runner-"
   assume_role_policy = data.aws_iam_policy_document.ec2_assume.json
@@ -153,6 +208,12 @@ resource "aws_iam_role_policy" "runner_ssm" {
   name   = "read-runner-parameters"
   role   = aws_iam_role.runner.id
   policy = data.aws_iam_policy_document.runner_ssm.json
+}
+
+resource "aws_iam_role_policy" "runner_s3" {
+  name   = "read-problem-bundles"
+  role   = aws_iam_role.runner.id
+  policy = data.aws_iam_policy_document.runner_s3.json
 }
 
 resource "aws_iam_instance_profile" "runner" {
@@ -169,6 +230,12 @@ resource "aws_iam_role_policy" "control_ssm" {
   name   = "read-leetforce-parameters"
   role   = aws_iam_role.control.id
   policy = data.aws_iam_policy_document.control_ssm.json
+}
+
+resource "aws_iam_role_policy" "control_s3" {
+  name   = "readwrite-problem-bundles"
+  role   = aws_iam_role.control.id
+  policy = data.aws_iam_policy_document.control_s3.json
 }
 
 resource "aws_iam_instance_profile" "control" {
@@ -190,7 +257,7 @@ resource "aws_instance" "control" {
   metadata_options {
     http_endpoint               = "enabled"
     http_tokens                 = "required" # IMDSv2 only
-    http_put_response_hop_limit = 1
+    http_put_response_hop_limit = 2          # pods (the API) reach the instance role: one extra network hop. Runner hosts stay at 1.
   }
 
   root_block_device {
@@ -209,31 +276,4 @@ resource "aws_instance" "control" {
   }
 }
 
-resource "aws_instance" "runner" {
-  count = var.runner_count
-
-  ami                         = local.runner_ami_id
-  instance_type               = var.runner_instance_type
-  subnet_id                   = local.subnet_id
-  vpc_security_group_ids      = [aws_security_group.runner.id]
-  key_name                    = var.key_name
-  iam_instance_profile        = aws_iam_instance_profile.runner.name
-  associate_public_ip_address = true
-
-  metadata_options {
-    http_endpoint               = "enabled"
-    http_tokens                 = "required"
-    http_put_response_hop_limit = 1 # blocks sandboxed code reaching IMDS through a container hop
-  }
-
-  root_block_device {
-    volume_type = "gp3"
-    volume_size = var.root_volume_gib
-    encrypted   = true
-  }
-
-  tags = {
-    Name = "leetforce-runner-${count.index + 1}"
-    Role = "runner"
-  }
-}
+# Runner instances are an Auto Scaling group: see runner-asg.tf.

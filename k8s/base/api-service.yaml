@@ -1,0 +1,16 @@
+# ClusterIP only: the API is reached through the Ingress. Port 9102 (/metrics) is
+# deliberately left out so it is not reachable through the Service.
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  namespace: leetforce
+  labels:
+    app.kubernetes.io/name: api
+spec:
+  selector:
+    app.kubernetes.io/name: api
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
