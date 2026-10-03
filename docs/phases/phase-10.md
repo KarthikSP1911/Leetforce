@@ -68,7 +68,7 @@ Problems can now be validated and fixed safely. `judge validate` checks a proble
 |---|---|---|
 | (none) | | |
 
-The Phase 10 additions to `docs/FLOW.md`, `docs/PROGRESS.md`, `CLAUDE.md` and `docs/phases/phase-10.md`/`phase-10-summary.md` are committed after this list was generated; run the commands in "Stats" for the final numbers.
+The list was generated before the closing documents (this report, `phase-10-summary.md`, the Phase 10 parts of `docs/FLOW.md`, `docs/PROGRESS.md`, `CLAUDE.md`, `.env.example`) were committed; they are in the final range.
 
 ## Key code changes
 1. **Rejudge in one statement per batch.** `BeginRejudge` locks stale rows with `FOR UPDATE SKIP LOCKED`, moves them to the problem's current version, status `queued`, `enqueued_at` NULL, and returns id, language and source. Two API instances cannot take the same row.
@@ -92,10 +92,10 @@ The Phase 10 additions to `docs/FLOW.md`, `docs/PROGRESS.md`, `CLAUDE.md` and `d
 - The new pages from Phase 9 are still not looked at in a browser.
 
 ## Stats
-Final numbers are written in the commit that follows this one; reproduce with:
+Reproduce with:
 ```bash
 git diff --name-status phase-10-start..phase-10-done
 git diff --stat phase-10-start..phase-10-done
 git log --oneline --no-merges phase-10-start..phase-10-done
 ```
-At the time of writing (before the closing documents): 30 files changed, 2338 insertions, 41 deletions; 13 commits excluding merges; 2 merge commits.
+Before this correction commit: 34 files changed, 2605 insertions, 43 deletions; 14 commits excluding merges; 2 merge commits. The range includes the Phase 9 documents and four Phase 9 fixes (see "File-by-file changes").
