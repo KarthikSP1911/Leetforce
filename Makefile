@@ -4,7 +4,7 @@
 
 GO_MODULES := judge queue runner api storage
 
-.PHONY: test-runner-loss build-runner-linux packer-validate build-ami lint-ansible test-destroy-isolation tf-validate test-alerts test-obs-e2e dev-obs down-obs validate-problems test-rejudge-e2e test-auth-e2e test-live-e2e test-api-e2e build-api migrate-up migrate-down migrate-status dev down fmt lint test build-judge build-runner test-crash test-matrix test-sandbox test-adversarial bench-sandbox
+.PHONY: test-leaderboard-concurrent test-runner-loss build-runner-linux packer-validate build-ami lint-ansible test-destroy-isolation tf-validate test-alerts test-obs-e2e dev-obs down-obs validate-problems test-rejudge-e2e test-auth-e2e test-live-e2e test-api-e2e build-api migrate-up migrate-down migrate-status dev down fmt lint test build-judge build-runner test-crash test-matrix test-sandbox test-adversarial bench-sandbox
 
 # Phase 12: cross-compile the runner for the AMI (static x86_64 Linux binary).
 build-runner-linux:
@@ -136,6 +136,10 @@ test-live-e2e:
 
 test-auth-e2e:
 	scripts/test-auth-e2e.sh
+
+# Phase 15 exit test: rankings correct under concurrent verdict ingests (race detector; needs DATABASE_URL and the Phase 14 migrations).
+test-leaderboard-concurrent:
+	scripts/test-leaderboard-concurrent.sh
 
 # Phase 13 exit test: against the deployed cloud stack, terminate one runner EC2 instance
 # while submissions are in flight; every submission must still get exactly one correct
