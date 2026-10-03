@@ -9,6 +9,10 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/prometheus/client_golang/prometheus/testutil"
+
+	"leetforce/api/internal/metrics"
 )
 
 type fakePinger struct{ err error }
@@ -38,5 +42,22 @@ func TestHealthAndReady(t *testing.T) {
 				t.Fatalf("503 body must report the failing dependency without the error text: %s", w.Body)
 			}
 		})
+	}
+}
+
+func TestRequestsAreCountedByRouteTemplate(t *testing.T) {
+	r := New(Deps{Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	count := func(route, status string) float64 {
+		return testutil.ToFloat64(metrics.HTTPRequests.WithLabelValues("GET", route, status))
+	}
+	okBefore, missBefore := count("/healthz", "200"), count("unmatched", "404")
+	for _, path := range []string{"/healthz", "/no/such/path/123"} {
+		r.ServeHTTP(httptest.NewRecorder(), httptest.NewRequestWithContext(context.Background(), http.MethodGet, path, nil))
+	}
+	if got := count("/healthz", "200") - okBefore; got != 1 {
+		t.Errorf("healthz counter moved by %v, want 1", got)
+	}
+	if got := count("unmatched", "404") - missBefore; got != 1 {
+		t.Errorf("unknown path must count under the unmatched route, moved by %v", got)
 	}
 }

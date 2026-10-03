@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"leetforce/api/internal/metrics"
 	"leetforce/api/internal/store"
 )
 
@@ -87,11 +88,16 @@ func (d Deps) streamEvents(c *gin.Context) {
 		return
 	}
 	if !d.slots.acquire() {
+		metrics.StreamsRefused.Inc()
 		c.Header("Retry-After", "5")
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "too many open streams, try again"})
 		return
 	}
-	defer d.slots.release()
+	metrics.StreamsOpen.Inc()
+	defer func() {
+		metrics.StreamsOpen.Dec()
+		d.slots.release()
+	}()
 
 	flusher, ok := c.Writer.(http.Flusher)
 	if !ok {

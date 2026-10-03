@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"leetforce/api/internal/metrics"
 	"leetforce/api/internal/store"
 	"leetforce/judge/problem"
 	"leetforce/queue"
@@ -104,6 +105,7 @@ func (r *Rejudger) enqueue(ctx context.Context, s store.Rejudgeable) error {
 		// (the runner skips a job whose verdict exists, the write is idempotent).
 		return fmt.Errorf("mark rejudge %s enqueued: %w", s.ID, err)
 	}
+	metrics.RejudgeSubmissions.Inc()
 	return nil
 }
 

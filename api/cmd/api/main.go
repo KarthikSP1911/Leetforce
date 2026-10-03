@@ -15,6 +15,9 @@
 //	                        local Next.js proxy)
 //	LEETFORCE_LIMIT_SUBMIT_USER, _SUBMIT_IP, _RUN_USER, _RUN_IP  per-minute limits (defaults 10, 30, 20, 60;
 //	                        a negative value turns that limit off)
+//	LEETFORCE_METRICS_ADDR  Prometheus /metrics listen address (default "127.0.0.1:9102"; "off" disables it)
+//	LEETFORCE_METRICS_QUEUE_EVERY  how often queue depth is sampled from Redis (default 60s; each sample is
+//	                        5 Redis commands, so mind the hosted plan's monthly budget)
 //	LEETFORCE_LIMIT_AUTH_IP, _LOGIN_ACCOUNT  per-10-minute sign-up/login limits (defaults 20, 10)
 package main
 
@@ -33,6 +36,7 @@ import (
 
 	"leetforce/api/internal/catalog"
 	"leetforce/api/internal/ingest"
+	"leetforce/api/internal/metrics"
 	"leetforce/api/internal/reaper"
 	"leetforce/api/internal/rejudge"
 	"leetforce/api/internal/server"
@@ -163,6 +167,16 @@ func run() error {
 		Queue: q, Versions: db, Runs: q, Accounts: db, Limiter: q, Limits: limits, TrustedProxies: proxies})
 	go sweepSessions(ctx, db, log)
 
+	queueEvery, err := envDuration("LEETFORCE_METRICS_QUEUE_EVERY")
+	if err != nil {
+		return err
+	}
+	if queueEvery == 0 {
+		queueEvery = time.Minute
+	}
+	go metrics.SampleQueue(ctx, q, queueEvery, log)
+	metricsSrv := startMetrics(log)
+
 	srv := &http.Server{
 		Addr:              addr,
 		Handler:           handler,
@@ -181,6 +195,9 @@ func run() error {
 	defer cancel()
 	if err := srv.Shutdown(shutdown); err != nil {
 		return fmt.Errorf("shutdown: %w", err)
+	}
+	if metricsSrv != nil {
+		_ = metricsSrv.Shutdown(shutdown)
 	}
 	stop()
 	<-ingestDone
@@ -245,4 +262,26 @@ func sweepSessions(ctx context.Context, db *store.Store, log *slog.Logger) {
 			}
 		}
 	}
+}
+
+// startMetrics serves /metrics on its own listener, bound to localhost by
+// default, so the public API port never exposes it.
+func startMetrics(log *slog.Logger) *http.Server {
+	addr := os.Getenv("LEETFORCE_METRICS_ADDR")
+	if addr == "" {
+		addr = "127.0.0.1:9102"
+	}
+	if addr == "off" {
+		return nil
+	}
+	mux := http.NewServeMux()
+	mux.Handle("/metrics", metrics.Handler())
+	srv := &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Error("metrics listener", "addr", addr, "err", err)
+		}
+	}()
+	log.Info("metrics listening", "addr", addr)
+	return srv
 }
