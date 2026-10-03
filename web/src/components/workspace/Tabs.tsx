@@ -9,8 +9,25 @@ export interface TabDef {
 }
 
 // Accessible tab list: roving tabindex, arrow keys move between tabs.
-export function Tabs({ tabs, label }: { tabs: TabDef[]; label: string }) {
-  const [active, setActive] = useState(tabs[0].id);
+// Uncontrolled by default; pass active and onChange to drive it from outside
+// (the console switches to Result when a run starts).
+export function Tabs({
+  tabs,
+  label,
+  active: controlled,
+  onChange,
+}: {
+  tabs: TabDef[];
+  label: string;
+  active?: string;
+  onChange?: (id: string) => void;
+}) {
+  const [inner, setInner] = useState(tabs[0].id);
+  const active = controlled ?? inner;
+  const setActive = (id: string) => {
+    setInner(id);
+    onChange?.(id);
+  };
   const base = useId();
   const refs = useRef<Record<string, HTMLButtonElement | null>>({});
 

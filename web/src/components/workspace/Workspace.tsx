@@ -3,7 +3,10 @@
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import type { Difficulty, Language, ProblemDetail } from "@/types/problem";
+import { useJudge } from "@/hooks/useJudge";
 import { CodeEditor } from "./CodeEditor";
+import { ResultPanel, type ConsoleResult } from "./ResultPanel";
+import { SubmissionsTab } from "./SubmissionsTab";
 import { SplitPane } from "./SplitPane";
 import { Tabs } from "./Tabs";
 
@@ -69,51 +72,107 @@ function Description({ problem }: { problem: ProblemDetail }) {
   );
 }
 
-function Console({ problem }: { problem: ProblemDetail }) {
+type InputMode = "samples" | "custom";
+
+function Console({
+  problem,
+  tab,
+  onTab,
+  mode,
+  onMode,
+  custom,
+  onCustom,
+  result,
+}: {
+  problem: ProblemDetail;
+  tab: string;
+  onTab: (id: string) => void;
+  mode: InputMode;
+  onMode: (m: InputMode) => void;
+  custom: string;
+  onCustom: (v: string) => void;
+  result: ConsoleResult;
+}) {
   const [sample, setSample] = useState(0);
   const s = problem.samples[sample];
+  const pill = (active: boolean) =>
+    `rounded-lg px-3 py-1 text-xs font-medium ${
+      active ? "bg-hover text-foreground" : "text-muted hover:bg-hover"
+    }`;
   return (
     <Tabs
       label="Console"
+      active={tab}
+      onChange={onTab}
       tabs={[
         {
           id: "testcase",
           label: "Testcase",
           content: (
             <div className="p-3">
-              {problem.samples.length > 1 && (
-                <div className="mb-2 flex gap-2">
-                  {problem.samples.map((_, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      aria-pressed={i === sample}
-                      onClick={() => setSample(i)}
-                      className={`rounded-lg px-3 py-1 text-xs font-medium ${
-                        i === sample
-                          ? "bg-hover text-foreground"
-                          : "text-muted hover:bg-hover"
-                      }`}
-                    >
-                      Case {i + 1}
-                    </button>
-                  ))}
-                </div>
+              <div className="mb-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  aria-pressed={mode === "samples"}
+                  onClick={() => onMode("samples")}
+                  className={pill(mode === "samples")}
+                >
+                  Samples
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={mode === "custom"}
+                  onClick={() => onMode("custom")}
+                  className={pill(mode === "custom")}
+                >
+                  Custom input
+                </button>
+              </div>
+              {mode === "custom" ? (
+                <label className="block">
+                  <span className="text-muted text-xs">
+                    Run uses this as standard input
+                  </span>
+                  <textarea
+                    value={custom}
+                    onChange={(e) => onCustom(e.target.value)}
+                    spellCheck={false}
+                    rows={5}
+                    className="bg-hover border-panel-border mt-1 block w-full rounded-lg border p-3 font-mono text-xs"
+                  />
+                </label>
+              ) : (
+                <>
+                  {problem.samples.length > 1 && (
+                    <div className="mb-2 flex gap-2">
+                      {problem.samples.map((_, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          aria-pressed={i === sample}
+                          onClick={() => setSample(i)}
+                          className={pill(i === sample)}
+                        >
+                          Case {i + 1}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <pre className="bg-hover border-panel-border overflow-auto rounded-lg border p-3 font-mono text-xs">
+                    {s ? s.input : "No sample input."}
+                  </pre>
+                  <p className="text-muted mt-2 text-xs">
+                    Run checks every sample test.
+                  </p>
+                </>
               )}
-              <pre className="bg-hover border-panel-border overflow-auto rounded-lg border p-3 font-mono text-xs">
-                {s ? s.input : "No sample input."}
-              </pre>
             </div>
           ),
         },
         {
           id: "result",
           label: "Result",
-          content: (
-            <p className="text-muted p-3 text-sm">
-              Run or submit your code to see the result here.
-            </p>
-          ),
+          content: <ResultPanel result={result} />,
         },
       ]}
     />
@@ -127,6 +186,27 @@ export function Workspace({ problem }: { problem: ProblemDetail }) {
   const [code, setCode] = useState<Partial<Record<Language, string>>>(
     problem.starters,
   );
+  const [consoleTab, setConsoleTab] = useState("testcase");
+  const [mode, setMode] = useState<InputMode>(
+    problem.samples.length > 0 ? "samples" : "custom",
+  );
+  const [custom, setCustom] = useState("");
+  const [listVersion, setListVersion] = useState(0);
+  const { result, busy, run, submit } = useJudge(problem.slug, () =>
+    setListVersion((v) => v + 1),
+  );
+
+  const source = code[language] ?? "";
+  const doRun = () => {
+    if (busy) return;
+    setConsoleTab("result");
+    void run(language, source, mode === "custom" ? custom : undefined);
+  };
+  const doSubmit = () => {
+    if (busy) return;
+    setConsoleTab("result");
+    void submit(language, source);
+  };
 
   const editor = (
     <div className="bg-panel flex h-full min-h-0 flex-col">
@@ -148,16 +228,18 @@ export function Workspace({ problem }: { problem: ProblemDetail }) {
         <div className="flex gap-2">
           <button
             type="button"
-            disabled
-            title="Running code is coming soon"
+            onClick={doRun}
+            disabled={busy || source.trim() === ""}
+            title="Run (Ctrl+Enter)"
             className="bg-panel border-panel-border h-8 rounded-lg border px-4 text-sm font-semibold disabled:opacity-50"
           >
             Run
           </button>
           <button
             type="button"
-            disabled
-            title="Submitting code is coming soon"
+            onClick={doSubmit}
+            disabled={busy || source.trim() === ""}
+            title="Submit (Ctrl+Shift+Enter)"
             className="bg-primary h-8 rounded-lg px-4 text-sm font-semibold text-white disabled:opacity-50"
           >
             Submit
@@ -167,8 +249,10 @@ export function Workspace({ problem }: { problem: ProblemDetail }) {
       <div className="min-h-0 flex-1">
         <CodeEditor
           language={language}
-          value={code[language] ?? ""}
+          value={source}
           onChange={(v) => setCode((c) => ({ ...c, [language]: v }))}
+          onRun={doRun}
+          onSubmit={doSubmit}
         />
       </div>
     </div>
@@ -193,9 +277,10 @@ export function Workspace({ problem }: { problem: ProblemDetail }) {
                   id: "submissions",
                   label: "Submissions",
                   content: (
-                    <p className="text-muted p-4 text-sm">
-                      Your submissions will appear here.
-                    </p>
+                    <SubmissionsTab
+                      slug={problem.slug}
+                      refreshKey={listVersion}
+                    />
                   ),
                 },
               ]}
@@ -216,7 +301,16 @@ export function Workspace({ problem }: { problem: ProblemDetail }) {
             }
             second={
               <div className="bg-panel border-panel-border h-full rounded-lg border">
-                <Console problem={problem} />
+                <Console
+                  problem={problem}
+                  tab={consoleTab}
+                  onTab={setConsoleTab}
+                  mode={mode}
+                  onMode={setMode}
+                  custom={custom}
+                  onCustom={setCustom}
+                  result={result}
+                />
               </div>
             }
           />
