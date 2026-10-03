@@ -29,7 +29,7 @@ const (
 	MinTests        = 3        // tests in total, samples included
 	MinHidden       = 1        // tests that are not samples
 	MaxTests        = 200      // more would make one submission judge for minutes
-	MaxTestBytes    = 1 << 20  // one .in or .out file
+	MaxTestBytes    = 4 << 20  // one .in or .out file
 	MaxTotalBytes   = 32 << 20 // all tests; the packed bundle must stay under problem.MaxBundleBytes
 	MaxStatement    = 64 << 10
 	MaxStarterBytes = 16 << 10
