@@ -4,7 +4,20 @@
 
 GO_MODULES := judge queue runner api storage
 
-.PHONY: validate-problems test-rejudge-e2e test-auth-e2e test-live-e2e test-api-e2e build-api migrate-up migrate-down migrate-status dev down fmt lint test build-judge build-runner test-crash test-matrix test-sandbox test-adversarial bench-sandbox
+.PHONY: test-obs-e2e dev-obs down-obs validate-problems test-rejudge-e2e test-auth-e2e test-live-e2e test-api-e2e build-api migrate-up migrate-down migrate-status dev down fmt lint test build-judge build-runner test-crash test-matrix test-sandbox test-adversarial bench-sandbox
+
+# Phase 11 exit test: leetforce_ metrics follow a live submission flow, and a
+# lost runner shows as waiting, ageing jobs (dev host; real DB, throwaway Redis prefix).
+test-obs-e2e:
+	scripts/test-obs-e2e.sh
+
+# Observability stack (Prometheus, Grafana, Loki, Alloy) on the machine that
+# runs Docker, reading the dev host's /metrics through scripts/obs-tunnel.sh.
+dev-obs:
+	docker compose -f observability/docker-compose.yml up -d
+
+down-obs:
+	docker compose -f observability/docker-compose.yml down
 
 # Local Redis and S3 (RustFS) (needs Docker and LEETFORCE_S3_SECRET_KEY in .env).
 dev:
