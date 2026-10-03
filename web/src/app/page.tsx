@@ -1,5 +1,245 @@
-import { redirect } from "next/navigation";
+import Link from "next/link";
+import type { ReactNode } from "react";
+
+export const metadata = {
+  title: "LeetForce | Practice code, get a verdict in seconds",
+};
+
+const primaryBtn =
+  "bg-primary inline-flex h-11 items-center justify-center rounded-lg px-6 text-sm font-semibold text-white transition-opacity hover:opacity-90";
+const secondaryBtn =
+  "bg-panel border-panel-border hover:bg-hover inline-flex h-11 items-center justify-center rounded-lg border px-6 text-sm font-semibold transition-colors";
+
+function Icon({ children }: { children: ReactNode }) {
+  return (
+    <span className="bg-hover border-panel-border text-link flex h-10 w-10 items-center justify-center rounded-lg border">
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        {children}
+      </svg>
+    </span>
+  );
+}
+
+const features: { title: string; text: string; icon: ReactNode }[] = [
+  {
+    title: "Isolated sandbox",
+    text: "Every submission runs in its own sandbox with CPU, memory and process limits. Runaway code is killed, never trusted.",
+    icon: <path d="M12 3 4 6v6c0 5 3.4 8 8 9 4.6-1 8-4 8-9V6l-8-3Z" />,
+  },
+  {
+    title: "Live verdicts",
+    text: "Watch a submission move from queued to judging to a final verdict without refreshing the page.",
+    icon: <path d="M3 12h4l3-8 4 16 3-8h4" />,
+  },
+  {
+    title: "Python, C++, Java and Go",
+    text: "Write in the language you like. Each one has its own compiler setup and starter code.",
+    icon: (
+      <>
+        <path d="m8 7-5 5 5 5" />
+        <path d="m16 7 5 5-5 5" />
+        <path d="m14 4-4 16" />
+      </>
+    ),
+  },
+  {
+    title: "Hidden tests stay hidden",
+    text: "Run shows you sample results. Submit reports only the verdict, runtime and memory, never the secret test data.",
+    icon: (
+      <>
+        <rect x="5" y="11" width="14" height="9" rx="2" />
+        <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+      </>
+    ),
+  },
+  {
+    title: "Timed contests",
+    text: "Register, race the clock and get ranked ICPC style: most problems solved, then the lowest penalty.",
+    icon: (
+      <>
+        <circle cx="12" cy="13" r="8" />
+        <path d="M12 9v4l2 2M9 2h6" />
+      </>
+    ),
+  },
+  {
+    title: "Global leaderboard",
+    text: "Rankings update as verdicts arrive, so you can see where you stand against everyone else.",
+    icon: <path d="M6 20V10M12 20V4M18 20v-7" />,
+  },
+];
+
+const steps = [
+  { title: "Write", text: "Pick a problem and code in the browser editor." },
+  {
+    title: "Submit",
+    text: "Your code is queued and sent to a judging runner.",
+  },
+  {
+    title: "Judge",
+    text: "It compiles and runs against every test in a sandbox.",
+  },
+  {
+    title: "Verdict",
+    text: "You get Accepted or the reason it failed, with time and memory.",
+  },
+];
+
+function VerdictPreview() {
+  return (
+    <div
+      className="bg-panel border-panel-border w-full max-w-md overflow-hidden rounded-lg border"
+      aria-hidden="true"
+    >
+      <div className="border-panel-border flex h-10 items-center justify-between border-b px-4 text-xs">
+        <span className="text-muted">Python</span>
+        <span className="text-muted">Example</span>
+      </div>
+      <pre className="px-4 py-4 font-mono text-[13px] leading-6">
+        <span className="text-muted">1</span>
+        {"  "}n = int(input())
+        {"\n"}
+        <span className="text-muted">2</span>
+        {"  "}nums = list(map(int, input().split()))
+        {"\n"}
+        <span className="text-muted">3</span>
+        {"  "}print(sum(nums))
+      </pre>
+      <div className="border-panel-border border-t px-4 py-4">
+        <p className="text-success text-2xl font-bold">Accepted</p>
+        <p className="text-muted mt-1 font-mono text-xs">
+          Runtime and memory are shown here
+        </p>
+      </div>
+    </div>
+  );
+}
 
 export default function Home() {
-  redirect("/problems");
+  return (
+    <main className="flex-1">
+      <section className="border-panel-border border-b">
+        <div className="mx-auto grid w-full max-w-6xl items-center gap-12 px-4 py-16 lg:grid-cols-2 lg:py-24">
+          <div>
+            <p className="text-link mb-4 text-sm font-semibold tracking-wide uppercase">
+              Online judge
+            </p>
+            <h1 className="text-4xl leading-tight font-bold tracking-tight sm:text-5xl">
+              Write code.
+              <br />
+              Get a verdict in seconds.
+            </h1>
+            <p className="text-muted mt-5 max-w-xl text-base leading-7">
+              LeetForce runs your solutions in isolated sandboxes and tells you
+              exactly how they did: Accepted, Wrong Answer, Time Limit and more,
+              with runtime and memory.
+            </p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link href="/problems" className={primaryBtn}>
+                Start solving
+              </Link>
+              <Link href="/contest" className={secondaryBtn}>
+                View contests
+              </Link>
+            </div>
+            <ul className="text-muted mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+              <li>Python</li>
+              <li>C++</li>
+              <li>Java</li>
+              <li>Go</li>
+            </ul>
+          </div>
+          <div className="flex lg:justify-end">
+            <VerdictPreview />
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto w-full max-w-6xl px-4 py-16">
+        <h2 className="text-2xl font-bold">Built for fair, fast judging</h2>
+        <p className="text-muted mt-2 max-w-2xl text-sm leading-6">
+          Everything you need to practice and compete, with safety and speed
+          built in.
+        </p>
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {features.map((f) => (
+            <div
+              key={f.title}
+              className="bg-panel border-panel-border rounded-lg border p-5"
+            >
+              <Icon>{f.icon}</Icon>
+              <h3 className="mt-4 text-base font-semibold">{f.title}</h3>
+              <p className="text-muted mt-2 text-sm leading-6">{f.text}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="border-panel-border border-y">
+        <div className="mx-auto w-full max-w-6xl px-4 py-16">
+          <h2 className="text-2xl font-bold">How it works</h2>
+          <ol className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {steps.map((s, i) => (
+              <li
+                key={s.title}
+                className="bg-panel border-panel-border rounded-lg border p-5"
+              >
+                <span className="text-link font-mono text-sm font-semibold">
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <h3 className="mt-2 text-base font-semibold">{s.title}</h3>
+                <p className="text-muted mt-2 text-sm leading-6">{s.text}</p>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      <section className="mx-auto w-full max-w-6xl px-4 py-16">
+        <div className="bg-panel border-panel-border flex flex-col items-start justify-between gap-6 rounded-lg border p-8 sm:flex-row sm:items-center">
+          <div>
+            <h2 className="text-xl font-bold">Ready to start?</h2>
+            <p className="text-muted mt-1 text-sm">
+              Create a free account to save your submissions and join contests.
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <Link href="/signup" className={primaryBtn}>
+              Create account
+            </Link>
+            <Link href="/login" className={secondaryBtn}>
+              Sign in
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      <footer className="border-panel-border text-muted border-t">
+        <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-6 text-sm">
+          <span>LeetForce</span>
+          <nav aria-label="Footer" className="flex gap-4">
+            <Link href="/problems" className="hover:text-foreground">
+              Problems
+            </Link>
+            <Link href="/contest" className="hover:text-foreground">
+              Contest
+            </Link>
+            <Link href="/leaderboard" className="hover:text-foreground">
+              Leaderboard
+            </Link>
+          </nav>
+        </div>
+      </footer>
+    </main>
+  );
 }

@@ -78,7 +78,7 @@ export function SplitPane({
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onKeyDown={onKeyDown}
-        className={`bg-panel-border hover:bg-primary shrink-0 touch-none ${
+        className={`hover:bg-primary focus-visible:bg-primary shrink-0 touch-none bg-transparent transition-colors ${
           horizontal
             ? "mx-0.5 w-1 cursor-col-resize"
             : "my-0.5 h-1 cursor-row-resize"

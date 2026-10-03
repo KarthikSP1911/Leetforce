@@ -1,5 +1,6 @@
 "use client";
 
+import { Select } from "@/components/ui/Select";
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import type { Difficulty, Language, ProblemDetail } from "@/types/problem";
@@ -218,21 +219,18 @@ export function Workspace({
 
   const editor = (
     <div className="bg-panel flex h-full min-h-0 flex-col">
-      <div className="border-panel-border flex shrink-0 items-center justify-between gap-2 border-b px-3 py-2">
-        <label className="flex items-center gap-2 text-sm">
+      <div className="border-panel-border flex h-11 shrink-0 items-center justify-between gap-2 border-b px-3">
+        <div className="flex items-center gap-2 text-sm">
           <span className="text-muted">Language</span>
-          <select
+          <Select
+            label="Language"
+            compact
             value={language}
-            onChange={(e) => setLanguage(e.target.value as Language)}
-            className="bg-panel border-panel-border h-8 rounded-lg border px-2 text-sm"
-          >
-            {options.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.label}
-              </option>
-            ))}
-          </select>
-        </label>
+            onChange={(v) => setLanguage(v as Language)}
+            className="w-36"
+            options={options.map((l) => ({ value: l.id, label: l.label }))}
+          />
+        </div>
         <div className="flex gap-2">
           <button
             type="button"
@@ -267,7 +265,7 @@ export function Workspace({
   );
 
   return (
-    <div className="h-[calc(100vh-3.5rem)] p-2">
+    <div className="h-[calc(100dvh-3.6rem)] overflow-hidden px-4 pt-2 pb-4">
       <SplitPane
         direction="horizontal"
         label="Resize description and editor panels"

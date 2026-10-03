@@ -46,9 +46,15 @@ export function UserMenu() {
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className="text-foreground hover:bg-hover rounded-md px-3 py-1.5 text-sm font-semibold transition-colors"
+        className="text-foreground hover:bg-hover flex items-center gap-2 rounded-md py-1 pr-3 pl-1.5 text-sm font-semibold transition-colors"
       >
-        {user.username}
+        <span
+          aria-hidden="true"
+          className="bg-primary flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold text-white uppercase"
+        >
+          {user.username.charAt(0)}
+        </span>
+        <span className="hidden sm:inline">{user.username}</span>
       </button>
       {open && (
         <div

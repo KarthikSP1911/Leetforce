@@ -25,7 +25,7 @@ export function ProblemTable({
       <table className="w-full text-left text-sm">
         <thead className="border-panel-border text-muted border-b text-xs tracking-wide uppercase">
           <tr>
-            <th className="w-12 px-4 py-3 font-medium">Status</th>
+            <th className="w-16 px-4 py-3 font-medium">#</th>
             <th className="px-4 py-3 font-medium">Title</th>
             <th className="hidden px-4 py-3 font-medium sm:table-cell">Tags</th>
             <th className="w-28 px-4 py-3 font-medium">Acceptance</th>
@@ -45,18 +45,12 @@ export function ProblemTable({
               key={p.slug}
               className="border-panel-border hover:bg-hover border-b transition-colors last:border-b-0"
             >
-              {p.solved ? (
-                <td className="text-success px-4 py-3" aria-label="Solved">
-                  {"✓"}
-                </td>
-              ) : (
-                <td className="text-muted px-4 py-3" aria-label="Not attempted">
-                  {"–"}
-                </td>
-              )}
+              <td className="text-muted px-4 py-3 font-mono">
+                {offset + i + 1}
+              </td>
               <td className="px-4 py-3 font-medium">
                 <Link href={`/problems/${p.slug}`} className="hover:text-link">
-                  {offset + i + 1}. {p.title}
+                  {p.title}
                 </Link>
               </td>
               <td className="text-muted hidden px-4 py-3 sm:table-cell">

@@ -64,6 +64,14 @@ export function CodeEditor({
       theme={dark ? "vs-dark" : "light"}
       onChange={(v) => onChange(v ?? "")}
       onMount={(editor, monaco) => {
+        // Monaco cannot read CSS variables, so hand it the resolved code font.
+        const mono = getComputedStyle(document.documentElement)
+          .getPropertyValue("--font-mono")
+          .trim();
+        if (mono) {
+          editor.updateOptions({ fontFamily: mono });
+          monaco.editor.remeasureFonts();
+        }
         // Monaco swallows these keys (Ctrl+Enter inserts a line), so they are
         // registered on the editor rather than on the page.
         editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () =>
