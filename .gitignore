@@ -54,5 +54,8 @@ observability/logs/*
 # Packer build output
 packer/packer-manifest.json
 
+# Phase 16: database dumps and bucket copies written by scripts/backup-*.sh
+backups/
+
 # Bucket name for the S3 backend (ADR 0021)
 infra/backend.hcl
