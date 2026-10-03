@@ -95,14 +95,14 @@ Decisions for you:
 ## Review Q&A
 Partly answered by the owner (in chat, 2026-10-03):
 - Decision A (notifier): the owner answered "dashboard is enough for now". No Alertmanager or webhook is added; alerts show on the Prometheus Alerts page and the dashboard. Revisit when the system runs in the cloud (Phase 13).
-- Understanding questions 1-5 and decision B (queue sample interval): not yet answered. Decision B stays on the default (60 s) until the owner says otherwise.
+- Understanding questions 1-5 and decision B (queue sample interval): the owner replied "go" (skip the review). Nothing was answered on the owner's behalf; decision B stays on the default (60 s).
 
 ## Open decisions
 - B above (queue sample interval; default 60 s). A is settled: no notifier for now.
 - Carried over: earlier review answers in `docs/PROGRESS.md`; `web/AGENTS.md` and `web/CLAUDE.md` stay untracked.
 
 ## Handoff
-- **State:** branch `phase/11-observability`, tag `phase-11-start`; not merged to `main` until the review. The dev host's demo has ended; on your PC the tunnel, log copier and the four containers may still be running (stop with `make down-obs` and Ctrl+C).
+- **State:** branch `phase/11-observability`, tags `phase-11-start` and `phase-11-done`, merged into `main`. The dev host's demo has ended; on your PC the tunnel, log copier and the four containers may still be running (stop with `make down-obs` and Ctrl+C).
 - **Next phase:** 12 - Infrastructure as code: Terraform (`infra/neon`, `infra/aws`), Packer runner AMI, Ansible hardening, README cost table. Nothing is applied without your confirmation.
 - **Next session prompt:**
   ```

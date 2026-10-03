@@ -30,7 +30,7 @@ The API and the runner now expose `leetforce_` Prometheus metrics on localhost-o
 | `fix/11-grafana-port` | Grafana on 3001 | 1 |
 
 ## File-by-file changes
-Generated from `git diff --name-status phase-11-start..HEAD` before the docs commit (41 files: 22 added, 19 modified; the docs added after this list are in the final commit).
+Generated from `git diff --name-status phase-11-start..HEAD` after the last commit (47 files: 26 added, 21 modified).
 
 ### Added
 | File | Purpose |
@@ -48,7 +48,9 @@ Generated from `git diff --name-status phase-11-start..HEAD` before the docs com
 | `observability/grafana/dashboards/submission-flow.json` | 25-panel dashboard (queue, flow, verdicts, judge time, runners, API, alerts, logs) |
 | `observability/logs/.gitkeep` | keeps the log copy directory in git (contents ignored) |
 | `scripts/obs-load.py`, `scripts/test-obs-e2e.sh` | load driver and the exit test |
-| `scripts/obs-demo.sh`, `scripts/obs-tunnel.sh`, `scripts/obs-logs.sh` | live demo on the host, SSH tunnel, log copy |
+| `scripts/obs-demo.sh`, `scripts/obs-tunnel.sh`, `scripts/obs-logs.sh` | live demo on the host, SSH tunnel (localhost-bound), log copy |
+| `docs/adr/0019-observability.md` | decision record |
+| `docs/phases/phase-11-log.md`, `phase-11.md`, `phase-11-summary.md` | running log with commands and why, this report, plain-language summary |
 
 ### Modified
 | File | What changed | Why |
@@ -63,6 +65,7 @@ Generated from `git diff --name-status phase-11-start..HEAD` before the docs com
 | `runner/cmd/runner/main.go`, `runner/internal/agent/agent.go`, `run.go` | listener and hooks | runner health and judge time |
 | `Makefile` | `test-obs-e2e`, `test-alerts`, `dev-obs`, `down-obs` | commands for the phase |
 | `.gitignore`, `.env.example` | ignore copied logs; `LEETFORCE_GRAFANA_PASSWORD` name | no secrets, no log files in git |
+| `docs/FLOW.md`, `docs/PROGRESS.md` | Phase 11 flow as built; tracker row and status | docs rule |
 
 ### Deleted / Renamed
 None.
@@ -89,10 +92,11 @@ None.
 - Ansible provisioning of the metrics ports and log directory is Phase 12; running the stack in the cloud is Phase 13.
 - No notifier (email, Slack): add one in Alertmanager if wanted.
 - `make test-adversarial` not run: no sandbox code changed.
-- Trivy full scan before the merge to `main`: see the final section of the log.
+- Trivy full scan before the merge to `main`: clean (see the log).
+- The review was skipped by the owner ("go"): understanding questions unanswered; decision A answered (no notifier); decision B stays at 60 s.
 - The Phase 9 and 10 pages and the Phase 11 dashboard are not yet seen by the owner in a browser.
 
 ## Stats
-- Commits: 8 (excluding merges), plus the docs commits
-- Files: 22 added, 19 modified, 0 deleted (before docs)
-- Lines: +2492 / -9 (before docs)
+- Commits: 11 (excluding merges; the 8 listed under branches plus two docs commits and the tunnel fix made directly on the phase branch, and this final record)
+- Files: 26 added, 21 modified, 0 deleted
+- Lines: about +2854 / -14 (before this final record)
