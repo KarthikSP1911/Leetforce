@@ -91,6 +91,13 @@ test-api-e2e:
 test-live-e2e:
 	scripts/test-live-e2e.sh
 
+# Phase 10 exit test: fix a test set, restart the API, the old submission is
+# rejudged against the new version and its verdict replaced once. Needs psql,
+# DATABASE_URL and LEETFORCE_REDIS_URL in .env, sudo and nsjail; deletes the
+# rows it creates. About two minutes.
+test-rejudge-e2e:
+	scripts/phase10-e2e.sh
+
 # Builds bin/api (needs DATABASE_URL and LEETFORCE_REDIS_URL to run).
 build-api:
 	@mkdir -p bin
