@@ -38,6 +38,9 @@ cleanup() {
   [ -n "$API_PID" ] && kill -TERM "$API_PID" 2>/dev/null || true
   [ -n "$RUNNER_PID" ] && sudo -n kill -KILL "$RUNNER_PID" 2>/dev/null || true
   bin/lfq destroy >/dev/null 2>&1 || true
+  if [ -s "$JAR" ] && command -v psql >/dev/null 2>&1; then # remove the throwaway account and its rows
+    psql "$DATABASE_URL" -qAt -c "DELETE FROM submissions WHERE user_id IN (SELECT id FROM users WHERE username = '$E2E_USER'); DELETE FROM users WHERE username = '$E2E_USER'" >/dev/null 2>&1 || echo "warning: could not delete test account $E2E_USER" >&2
+  fi
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -57,13 +60,21 @@ for k in sys.argv[2].split("."):
     v = v.get(k) if isinstance(v, dict) else None
 print("" if v is None else v)' "$1" "$2"
 }
+JAR="$WORK/cookies"; E2E_USER="e2e$$"
+ensure_login() { # sign up a throwaway account once; the session cookie is kept in $JAR
+  [ -s "$JAR" ] && return 0
+  curl -fsS -c "$JAR" -X POST -H 'Content-Type: application/json' \
+    -d "{\"email\":\"$E2E_USER@example.com\",\"username\":\"$E2E_USER\",\"password\":\"e2e-password-1\"}" \
+    "$BASE/auth/signup" >/dev/null || fail "sign-up failed"
+}
 get_sub() { curl -fsS "$BASE/submissions/$1"; }
 submit() { # submit <language> <source-file>: prints the new submission id
   local body
+  ensure_login
   body="$(python3 -c '
 import json, sys
 print(json.dumps({"problem": "sample-sum", "language": sys.argv[1], "source": open(sys.argv[2]).read()}))' "$1" "$2")"
-  field "$(curl -fsS -X POST -H 'Content-Type: application/json' -d "$body" "$BASE/submissions")" id
+  field "$(curl -fsS -b "$JAR" -X POST -H 'Content-Type: application/json' -d "$body" "$BASE/submissions")" id
 }
 is_judged() { [ "$(field "$(get_sub "$1")" status)" = "judged" ]; }
 group_field() { redis-cli -u "$LEETFORCE_REDIS_URL" --raw XINFO GROUPS "$1" | awk -v k="$2" '$0==k{getline; print; exit}'; }

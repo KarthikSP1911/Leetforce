@@ -52,6 +52,9 @@ cleanup() {
     local list; list="$(printf "'%s'," "${IDS[@]}")"
     psql "$DATABASE_URL" -qAt -c "DELETE FROM submissions WHERE id IN (${list%,})" >/dev/null 2>&1 || echo "warning: could not delete test rows: ${IDS[*]}" >&2
   fi
+  if [ -s "$JAR" ]; then # the throwaway account, after its submissions
+    psql "$DATABASE_URL" -qAt -c "DELETE FROM submissions WHERE user_id IN (SELECT id FROM users WHERE username = '$E2E_USER'); DELETE FROM users WHERE username = '$E2E_USER'" >/dev/null 2>&1 || echo "warning: could not delete test account $E2E_USER" >&2
+  fi
   sudo -n rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -71,13 +74,21 @@ for k in sys.argv[2].split("."):
     v = v.get(k) if isinstance(v, dict) else None
 print("" if v is None else v)' "$1" "$2"
 }
+JAR="$WORK/cookies"; E2E_USER="e2e$$"
+ensure_login() { # sign up a throwaway account once; the session cookie is kept in $JAR
+  [ -s "$JAR" ] && return 0
+  curl -fsS -c "$JAR" -X POST -H 'Content-Type: application/json' \
+    -d "{\"email\":\"$E2E_USER@example.com\",\"username\":\"$E2E_USER\",\"password\":\"e2e-password-1\"}" \
+    "$BASE/auth/signup" >/dev/null || fail "sign-up failed"
+}
 get_sub() { curl -fsS "$BASE/submissions/$1"; }
 submit_file() { # submit_file <language> <source-file>: prints the new id; the response goes to the evidence file
   local body resp
+  ensure_login
   body="$(python3 -c '
 import json, sys
 print(json.dumps({"problem": "sample-sum", "language": sys.argv[1], "source": open(sys.argv[2]).read()}))' "$1" "$2")"
-  resp="$(curl -fsS -X POST -H 'Content-Type: application/json' -d "$body" "$BASE/submissions")"
+  resp="$(curl -fsS -b "$JAR" -X POST -H 'Content-Type: application/json' -d "$body" "$BASE/submissions")"
   echo "$resp" >>"$EVIDENCE"
   local id; id="$(field "$resp" id)"
   [ -n "$id" ] || fail "POST /submissions returned no id: $resp"
