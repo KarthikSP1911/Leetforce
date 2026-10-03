@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { HeroGrid, PipelineDiagram } from "@/components/home/HomeArt";
 
 export const metadata = {
   title: "LeetForce | Practice code, get a verdict in seconds",
@@ -128,8 +129,9 @@ function VerdictPreview() {
 export default function Home() {
   return (
     <main className="flex-1">
-      <section className="border-panel-border border-b">
-        <div className="mx-auto grid w-full max-w-6xl items-center gap-12 px-4 py-16 lg:grid-cols-2 lg:py-24">
+      <section className="border-panel-border relative overflow-hidden border-b">
+        <HeroGrid />
+        <div className="relative mx-auto grid w-full max-w-6xl items-center gap-12 px-4 py-16 lg:grid-cols-2 lg:py-24">
           <div>
             <p className="text-link mb-4 text-sm font-semibold tracking-wide uppercase">
               Online judge
@@ -166,22 +168,35 @@ export default function Home() {
       </section>
 
       <section className="mx-auto w-full max-w-6xl px-4 py-16">
-        <h2 className="text-2xl font-bold">Built for fair, fast judging</h2>
+        <h2 className="text-2xl font-bold">From submit to verdict</h2>
         <p className="text-muted mt-2 max-w-2xl text-sm leading-6">
-          Everything you need to practice and compete, with safety and speed
-          built in.
+          Your code never runs next to the website or the database. It travels
+          through a queue to a runner and executes only inside a sandbox.
         </p>
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {features.map((f) => (
-            <div
-              key={f.title}
-              className="bg-panel border-panel-border rounded-lg border p-5"
-            >
-              <Icon>{f.icon}</Icon>
-              <h3 className="mt-4 text-base font-semibold">{f.title}</h3>
-              <p className="text-muted mt-2 text-sm leading-6">{f.text}</p>
-            </div>
-          ))}
+        <div className="bg-panel border-panel-border mt-8 rounded-lg border p-6">
+          <PipelineDiagram />
+        </div>
+      </section>
+
+      <section className="border-panel-border border-t">
+        <div className="mx-auto w-full max-w-6xl px-4 py-16">
+          <h2 className="text-2xl font-bold">Built for fair, fast judging</h2>
+          <p className="text-muted mt-2 max-w-2xl text-sm leading-6">
+            Everything you need to practice and compete, with safety and speed
+            built in.
+          </p>
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {features.map((f) => (
+              <div
+                key={f.title}
+                className="bg-panel border-panel-border rounded-lg border p-5"
+              >
+                <Icon>{f.icon}</Icon>
+                <h3 className="mt-4 text-base font-semibold">{f.title}</h3>
+                <p className="text-muted mt-2 text-sm leading-6">{f.text}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
