@@ -93,10 +93,12 @@ Decisions for you:
 - B. The queue is sampled every 60 s to save Redis commands; do you prefer fresher gauges (10 s, about 1.3M commands a month) if your Upstash plan allows it?
 
 ## Review Q&A
-Pending: filled in after you answer in chat.
+Partly answered by the owner (in chat, 2026-10-03):
+- Decision A (notifier): the owner answered "dashboard is enough for now". No Alertmanager or webhook is added; alerts show on the Prometheus Alerts page and the dashboard. Revisit when the system runs in the cloud (Phase 13).
+- Understanding questions 1-5 and decision B (queue sample interval): not yet answered. Decision B stays on the default (60 s) until the owner says otherwise.
 
 ## Open decisions
-- A and B above.
+- B above (queue sample interval; default 60 s). A is settled: no notifier for now.
 - Carried over: earlier review answers in `docs/PROGRESS.md`; `web/AGENTS.md` and `web/CLAUDE.md` stay untracked.
 
 ## Handoff
