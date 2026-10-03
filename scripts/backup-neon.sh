@@ -37,6 +37,8 @@ if [ "$DRY" = 1 ]; then echo "dry-run: prerequisites ok, nothing written"; exit 
 
 mkdir -p "$OUT"; umask 077
 pg_dump --format=custom --no-owner --no-privileges --file="$DUMP" "$URL"
+# A containerised pg_dump ignores our umask, so force the mode: the dump holds emails, hashes and source.
+chmod 600 "$DUMP"
 # Row counts and goose version at dump time, for the restore drill to compare against.
 psql "$URL" -XAtq -v ON_ERROR_STOP=1 -c "select 'goose_max_version=' || coalesce(max(version_id),0) from goose_db_version where is_applied" > "$DUMP.counts"
 psql "$URL" -XAtq -v ON_ERROR_STOP=1 -c "select table_name from information_schema.tables where table_schema='public' and table_type='BASE TABLE' and table_name <> 'goose_db_version' order by 1" |
