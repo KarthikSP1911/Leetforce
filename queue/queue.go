@@ -116,7 +116,10 @@ func (q *Queue) Ping(ctx context.Context) error { return q.rdb.Ping(ctx).Err() }
 func (q *Queue) jobs() string    { return q.cfg.Prefix + ":jobs" }
 func (q *Queue) dead() string    { return q.cfg.Prefix + ":jobs:dead" }
 func (q *Queue) results() string { return q.cfg.Prefix + ":results" }
-func (q *Queue) marker(id string) string {
+func (q *Queue) marker(id, version string) string {
+	if version != "" {
+		id += ":" + version
+	}
 	return q.cfg.Prefix + ":verdict:" + id
 }
 
@@ -281,7 +284,10 @@ return 0
 `)
 
 // Publish reports a verdict. It returns true if this call recorded it and
-// false if a verdict for the submission already existed (idempotent).
+// false if a verdict for the same submission and test-set version already
+// existed (idempotent). The marker is scoped to the version so a rejudge of the
+// same submission against a fixed test set (a new version) is not mistaken for
+// a duplicate; a result without a version is scoped to the submission alone.
 func (q *Queue) Publish(ctx context.Context, r Result) (bool, error) {
 	if r.SubmissionID == "" || r.Verdict == "" {
 		return false, errors.New("publish: submission_id and verdict are required")
@@ -290,7 +296,7 @@ func (q *Queue) Publish(ctx context.Context, r Result) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("publish: %w", err)
 	}
-	n, err := publishScript.Run(ctx, q.rdb, []string{q.marker(r.SubmissionID), q.results()},
+	n, err := publishScript.Run(ctx, q.rdb, []string{q.marker(r.SubmissionID, r.TestSetVersion), q.results()},
 		int64(q.cfg.VerdictTTL.Seconds()), r.RunnerID, string(b)).Int()
 	if err != nil {
 		return false, fmt.Errorf("publish: %w", err)
@@ -298,11 +304,12 @@ func (q *Queue) Publish(ctx context.Context, r Result) (bool, error) {
 	return n == 1, nil
 }
 
-// Published reports whether a verdict for the submission was already recorded,
-// so a runner that gets a redelivered job can acknowledge it without judging
-// it again.
-func (q *Queue) Published(ctx context.Context, submissionID string) (bool, error) {
-	n, err := q.rdb.Exists(ctx, q.marker(submissionID)).Result()
+// Published reports whether a verdict for the submission at that test-set
+// version was already recorded, so a runner that gets a redelivered job can
+// acknowledge it without judging it again. Pass the job's TestSetVersion; a
+// job without one (made by tools) is scoped to the submission alone.
+func (q *Queue) Published(ctx context.Context, submissionID, testSetVersion string) (bool, error) {
+	n, err := q.rdb.Exists(ctx, q.marker(submissionID, testSetVersion)).Result()
 	if err != nil {
 		return false, fmt.Errorf("check verdict: %w", err)
 	}

@@ -37,7 +37,7 @@ type JobQueue interface {
 	Touch(ctx context.Context, consumer, id string) error
 	SetRun(ctx context.Context, id string, st queue.RunState) error
 	Publish(ctx context.Context, r queue.Result) (bool, error)
-	Published(ctx context.Context, submissionID string) (bool, error)
+	Published(ctx context.Context, submissionID, testSetVersion string) (bool, error)
 	PublishStatus(ctx context.Context, e queue.StatusEvent) error
 }
 
@@ -116,7 +116,7 @@ func (a *Agent) Process(ctx context.Context, d *queue.Delivery) {
 		return
 	}
 
-	if done, err := a.q.Published(ctx, d.Job.SubmissionID); err != nil {
+	if done, err := a.q.Published(ctx, d.Job.SubmissionID, d.Job.TestSetVersion); err != nil {
 		log.Error("check existing verdict failed; leaving job pending", "err", err)
 		return
 	} else if done {
@@ -241,5 +241,5 @@ func (a *Agent) judge(ctx context.Context, j queue.Job) (res queue.Result, perma
 // internalError builds the IE result. It carries no error text: the cause is in
 // the runner's log, not in what a user can read.
 func (a *Agent) internalError(j queue.Job, _ error) queue.Result {
-	return queue.Result{SubmissionID: j.SubmissionID, Verdict: VerdictInternalError, RunnerID: a.cfg.ID}
+	return queue.Result{SubmissionID: j.SubmissionID, Verdict: VerdictInternalError, TestSetVersion: j.TestSetVersion, RunnerID: a.cfg.ID}
 }
