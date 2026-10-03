@@ -71,6 +71,26 @@ resource "aws_vpc_security_group_ingress_rule" "control_from_runners" {
   to_port                      = 6443
 }
 
+# The API is served by k3s Traefik on port 80. Owner for testing; runners report results here
+# over the private network (a source-group rule, so nothing else can reach it).
+resource "aws_vpc_security_group_ingress_rule" "control_http_owner" {
+  security_group_id = aws_security_group.control.id
+  description       = "API ingress from owner"
+  cidr_ipv4         = var.owner_cidr
+  ip_protocol       = "tcp"
+  from_port         = 80
+  to_port           = 80
+}
+
+resource "aws_vpc_security_group_ingress_rule" "control_http_runners" {
+  security_group_id            = aws_security_group.control.id
+  description                  = "API ingress from runner hosts"
+  referenced_security_group_id = aws_security_group.runner.id
+  ip_protocol                  = "tcp"
+  from_port                    = 80
+  to_port                      = 80
+}
+
 resource "aws_vpc_security_group_ingress_rule" "runner_ssh" {
   security_group_id = aws_security_group.runner.id
   description       = "SSH from owner"
@@ -171,14 +191,11 @@ data "aws_iam_policy_document" "control_s3" {
     actions   = ["s3:GetObject", "s3:PutObject"]
     resources = ["${local.data_bucket_arn}/problems/*"]
   }
+  # HeadBucket (the API's startup check) sends no prefix, so a prefix condition would deny it.
+  # Listing shows key names only; reading tfstate/ objects stays denied.
   statement {
     actions   = ["s3:ListBucket", "s3:GetBucketLocation"]
     resources = [local.data_bucket_arn]
-    condition {
-      test     = "StringLike"
-      variable = "s3:prefix"
-      values   = ["problems/*"]
-    }
   }
 }
 
@@ -240,7 +257,7 @@ resource "aws_instance" "control" {
   metadata_options {
     http_endpoint               = "enabled"
     http_tokens                 = "required" # IMDSv2 only
-    http_put_response_hop_limit = 1
+    http_put_response_hop_limit = 2          # pods (the API) reach the instance role: one extra network hop. Runner hosts stay at 1.
   }
 
   root_block_device {
