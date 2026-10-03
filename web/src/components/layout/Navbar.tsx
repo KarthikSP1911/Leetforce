@@ -12,8 +12,8 @@ const links = [
 export function Navbar() {
   return (
     <header className="bg-panel border-panel-border sticky top-0 z-10 border-b">
-      <nav className="mx-auto flex h-14 max-w-6xl items-center gap-6 px-4">
-        <Link href="/problems" className="flex items-center gap-2">
+      <nav className="flex h-14 items-center gap-6 px-4">
+        <Link href="/" className="flex items-center gap-2">
           <Image
             src="/brand/logo-mark.svg"
             alt=""
@@ -30,7 +30,9 @@ export function Navbar() {
             className="logo-on-light"
             priority
           />
-          <span className="text-foreground text-base font-bold">LeetForce</span>
+          <span className="text-foreground text-lg leading-none font-bold tracking-wider uppercase">
+            LeetForce
+          </span>
         </Link>
         <ul className="flex items-center gap-1">
           {links.map((link) => (
