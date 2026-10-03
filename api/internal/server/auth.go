@@ -75,7 +75,8 @@ func secureRequest(c *gin.Context) bool {
 }
 
 func setSessionCookie(c *gin.Context, token string, maxAge int) {
-	http.SetCookie(c.Writer, &http.Cookie{
+	// Secure follows the request scheme: the local dev stack is plain HTTP.
+	http.SetCookie(c.Writer, &http.Cookie{ //nolint:gosec // see above
 		Name: sessionCookie, Value: token, Path: "/", MaxAge: maxAge,
 		HttpOnly: true, Secure: secureRequest(c), SameSite: http.SameSiteLaxMode,
 	})
