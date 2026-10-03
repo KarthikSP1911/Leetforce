@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -48,8 +47,15 @@ var (
 	})
 )
 
+// The collectors package would be the current home of these two, but it also
+// holds a database/sql stats collector, and a runner must not have database/sql
+// anywhere in its dependency graph (runner/nodb_test.go). The constructors in
+// the root package are marked obsolete yet behave the same.
 func init() {
-	Registry.MustRegister(collectors.NewGoCollector(), collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+	Registry.MustRegister(
+		prometheus.NewGoCollector(),                                       //nolint:staticcheck // see above
+		prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}), //nolint:staticcheck // see above
+	)
 }
 
 // VerdictLabel keeps the verdict label to the known set.
