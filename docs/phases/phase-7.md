@@ -111,6 +111,6 @@ None.
 - Phase 6 and earlier review answers are still outstanding (see PROGRESS.md).
 
 ## Stats
-- Commits: 14 (excluding merges) before the report and summary
-- Files: 138 added, 16 modified, 1 deleted (before the report and summary; the final count is checked below)
-- Lines: +3673 / -140 (before the report and summary)
+- Commits: 16 (excluding merges), measured with `git log --no-merges phase-7-start..HEAD` after the summary commit
+- Files: 140 added, 16 modified, 1 deleted (157), same measurement
+- Lines: +3885 / -140, same measurement; this stats edit and the Q&A record commit add a few more lines
