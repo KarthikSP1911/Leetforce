@@ -39,8 +39,12 @@ func TestConfigFromEnv(t *testing.T) {
 	t.Setenv("LEETFORCE_S3_ENDPOINT", "127.0.0.1:9000")
 	t.Setenv("LEETFORCE_S3_ACCESS_KEY", "")
 	t.Setenv("LEETFORCE_S3_SECRET_KEY", "")
+	if _, ok, err := ConfigFromEnv(); err != nil || !ok {
+		t.Fatalf("endpoint without keys must select the IAM role: ok=%v err=%v", ok, err)
+	}
+	t.Setenv("LEETFORCE_S3_ACCESS_KEY", "a")
 	if _, _, err := ConfigFromEnv(); err == nil {
-		t.Fatal("endpoint without credentials must be an error")
+		t.Fatal("only one key set must be an error")
 	}
 	t.Setenv("LEETFORCE_S3_ACCESS_KEY", "a")
 	t.Setenv("LEETFORCE_S3_SECRET_KEY", "b")

@@ -36,7 +36,7 @@ var (
 
 // Config locates the bucket.
 type Config struct {
-	Endpoint  string // host:port, no scheme
+	Endpoint  string // host[:port], no scheme (s3.<region>.amazonaws.com for AWS)
 	AccessKey string
 	SecretKey string
 	Bucket    string
@@ -45,8 +45,9 @@ type Config struct {
 
 // ConfigFromEnv reads LEETFORCE_S3_ENDPOINT, _ACCESS_KEY, _SECRET_KEY, _BUCKET
 // and _USE_TLS. ok is false when no endpoint is set, which means "no object
-// storage; read problems from disk". A set endpoint with missing credentials
-// is an error, not a silent fallback.
+// storage; read problems from disk". With an endpoint set, both keys empty
+// means "use the host's IAM role" (EC2 instance profile, no key on disk); only
+// one key set is an error, not a silent fallback.
 func ConfigFromEnv() (cfg Config, ok bool, err error) {
 	cfg = Config{
 		Endpoint:  os.Getenv("LEETFORCE_S3_ENDPOINT"),
@@ -61,8 +62,8 @@ func ConfigFromEnv() (cfg Config, ok bool, err error) {
 	if cfg.Bucket == "" {
 		cfg.Bucket = "leetforce-problems"
 	}
-	if cfg.AccessKey == "" || cfg.SecretKey == "" {
-		return Config{}, false, errors.New("LEETFORCE_S3_ENDPOINT is set but LEETFORCE_S3_ACCESS_KEY or LEETFORCE_S3_SECRET_KEY is missing")
+	if (cfg.AccessKey == "") != (cfg.SecretKey == "") {
+		return Config{}, false, errors.New("LEETFORCE_S3_ACCESS_KEY and LEETFORCE_S3_SECRET_KEY must be set together (or both empty to use the host IAM role)")
 	}
 	return cfg, true, nil
 }
@@ -75,8 +76,12 @@ type Store struct {
 
 // Open builds a client. It does not contact the server.
 func Open(cfg Config) (*Store, error) {
+	creds := credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, "")
+	if cfg.AccessKey == "" {
+		creds = credentials.NewIAM("")
+	}
 	c, err := minio.New(cfg.Endpoint, &minio.Options{
-		Creds:  credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""),
+		Creds:  creds,
 		Secure: cfg.UseTLS,
 	})
 	if err != nil {
