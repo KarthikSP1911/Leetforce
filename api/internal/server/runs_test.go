@@ -50,7 +50,7 @@ func runDeps(q *fakeQueue, runs *fakeRuns, v fakeVersions) Deps {
 
 func postRun(d Deps, body string) *httptest.ResponseRecorder {
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/runs", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/runs", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	New(d).ServeHTTP(w, req)
 	return w
@@ -111,7 +111,7 @@ func TestGetRun(t *testing.T) {
 	d := runDeps(&fakeQueue{}, runs, fakeVersions{})
 	for id, want := range map[string]int{"run-1": http.StatusOK, "run-2": http.StatusNotFound} {
 		w := httptest.NewRecorder()
-		New(d).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/runs/"+id, nil))
+		New(d).ServeHTTP(w, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/runs/"+id, nil))
 		if w.Code != want {
 			t.Fatalf("GET /runs/%s = %d, want %d", id, w.Code, want)
 		}
