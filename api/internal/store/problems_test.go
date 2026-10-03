@@ -42,3 +42,35 @@ func TestProblems(t *testing.T) {
 		t.Fatal("difficulty outside easy/medium/hard must be rejected by the schema")
 	}
 }
+
+func TestProblemAcceptance(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	if err := s.UpsertProblem(ctx, Problem{Slug: "acc", Title: "Acc", Difficulty: "easy"}, "v1"); err != nil {
+		t.Fatal(err)
+	}
+	p, err := s.GetProblem(ctx, "acc")
+	if err != nil || p.Acceptance != nil {
+		t.Fatalf("no submissions: acceptance = %v, err %v (want nil)", p.Acceptance, err)
+	}
+	ids := []string{
+		"22222222-2222-4222-8222-222222222221", "22222222-2222-4222-8222-222222222222",
+		"22222222-2222-4222-8222-222222222223", "22222222-2222-4222-8222-222222222224",
+	}
+	for i, verdict := range []string{"AC", "WA", "AC", "IE"} {
+		if _, err := s.InsertSubmission(ctx, ids[i], "acc", "python", "x"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.RecordVerdict(ctx, VerdictRecord{SubmissionID: ids[i], Verdict: verdict, TestSetVersion: "v1"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := s.ListProblems(ctx)
+	if err != nil || len(got) != 1 || got[0].Acceptance == nil {
+		t.Fatalf("ListProblems = %+v, %v", got, err)
+	}
+	// 2 AC of 3 counted verdicts (the IE is excluded).
+	if a := *got[0].Acceptance; a < 66.6 || a > 66.7 {
+		t.Fatalf("acceptance = %v, want about 66.67", a)
+	}
+}
