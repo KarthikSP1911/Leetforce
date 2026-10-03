@@ -9,7 +9,8 @@
 #   /leetforce/api/LEETFORCE_S3_BUCKET     terraform output in infra/bootstrap
 #   /leetforce/deploy/ghcr_user            $GHCR_USER   (optional)
 #   /leetforce/deploy/ghcr_token           $GHCR_TOKEN  (optional, read:packages only)
-# Runner settings live under /leetforce/runner/* (the runner host role can read only those).
+#   /leetforce/runner/LEETFORCE_REDIS_URL, LEETFORCE_S3_BUCKET (same values as the API), plus the fixed
+#   LEETFORCE_S3_ENDPOINT and LEETFORCE_S3_USE_TLS; the runner host role can read only /runner/*.
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 prefix="${LEETFORCE_SSM_PREFIX:-/leetforce}"
@@ -25,6 +26,10 @@ declare -A params
 params["$prefix/api/DATABASE_URL"]="$(env_get DATABASE_URL)"
 params["$prefix/api/LEETFORCE_REDIS_URL"]="$(env_get LEETFORCE_REDIS_URL)"
 params["$prefix/api/LEETFORCE_S3_BUCKET"]="$(terraform -chdir="$here/infra/bootstrap" output -raw bucket)"
+params["$prefix/runner/LEETFORCE_REDIS_URL"]="${params[$prefix/api/LEETFORCE_REDIS_URL]}"
+params["$prefix/runner/LEETFORCE_S3_BUCKET"]="${params[$prefix/api/LEETFORCE_S3_BUCKET]}"
+params["$prefix/runner/LEETFORCE_S3_ENDPOINT"]="s3.$region.amazonaws.com"
+params["$prefix/runner/LEETFORCE_S3_USE_TLS"]="true"
 [ -n "${GHCR_USER:-}" ] && params["$prefix/deploy/ghcr_user"]="$GHCR_USER"
 [ -n "${GHCR_TOKEN:-}" ] && params["$prefix/deploy/ghcr_token"]="$GHCR_TOKEN"
 
