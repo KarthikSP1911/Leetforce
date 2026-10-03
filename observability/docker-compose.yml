@@ -3,7 +3,7 @@
 # host. Prometheus reads the dev host's /metrics through the SSH tunnel from
 # scripts/obs-tunnel.sh; Alloy reads log files that scripts/obs-logs.sh tails
 # from the host into ./logs. Everything binds to localhost only.
-#   make dev-obs      Grafana http://127.0.0.1:3000   Prometheus http://127.0.0.1:9090
+#   make dev-obs      Grafana http://127.0.0.1:3001   Prometheus http://127.0.0.1:9090
 services:
   prometheus:
     image: prom/prometheus:v3.5.0
@@ -51,7 +51,7 @@ services:
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
     ports:
-      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:3001:3000"
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
