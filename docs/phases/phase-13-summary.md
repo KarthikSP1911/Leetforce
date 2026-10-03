@@ -37,7 +37,7 @@ browser -> API (k3s, built) -> Redis (Upstash) -> runner (ASG, built, not applie
 3. Why does the CI role trust only the `production` environment?
 
 ## Review Q&A
-Not yet answered.
+Skipped by the owner ("yes" to the merge decision). Understanding questions 1-3 unanswered. Decision: the owner accepted merging with the cloud exit criteria unproven; AMI attempt 4 and the AWS apply move to a later session. Milestone tag M4 not applied because the cloud run is not demonstrated.
 
 ## Open decisions
 - Apply to AWS (billable), AMI attempt 4, rotate the Neon password, Neon API key and project id.
