@@ -80,14 +80,14 @@ Branch `feat/16-load-test` (off `phase/16-launch-readiness`). Done by Claude, in
 - `docs/adr/0024-load-test-tool.md`.
 
 ### Routes used (verified in `api/internal/server/server.go`)
-`POST /auth/signup` (201), `GET /problems`, `POST /runs` (202) and `GET /runs/:id` (`status` becomes `done`), `POST /submissions` (202), `GET /submissions/:id/events` (SSE, `event: verdict` ends it). API listens on `:8080` by default (`LEETFORCE_API_ADDR`). Contest endpoint: no contest routes were committed on `phase/14-contests` when checked, so `POST /contests/<slug>/submissions` is an assumption; override with `-contest-path`. A 404 aborts with an error.
+`POST /auth/signup` (201), `GET /problems`, `POST /runs` (202) and `GET /runs/:id` (`status` becomes `done`), `POST /submissions` (202), `GET /submissions/:id/events` (SSE, `event: verdict` ends it). API listens on `:8080` by default (`LEETFORCE_API_ADDR`). Contest mode (corrected at integration, see the Integration section): register, list the contest problems, then `POST /submissions` with `contest_id`.
 
 ### How to run
 ```bash
 make loadtest ARGS="-users 20 -duration 2m -ramp 20s -json out.json"
 LEETFORCE_LOADTEST_BASE_URL=https://host make loadtest ARGS="-mode contest -contest <slug> -users 50 -iterations 3"
 ```
-Flags: `-users`, `-iterations`, `-duration`, `-ramp`, `-mode mixed|contest`, `-contest`, `-contest-path`, `-problem`, `-language`, `-source-file`, `-password`, `-verdict-timeout`, `-json`, `-base-url`.
+Flags: `-users`, `-iterations`, `-duration`, `-ramp`, `-mode mixed|contest`, `-contest`, `-problem`, `-language`, `-source-file`, `-password`, `-verdict-timeout`, `-json`, `-base-url`.
 Sign-up is rate limited per IP (20 per 10 min, ADR 0017): set `LEETFORCE_LIMIT_*` higher on the test deployment for more than 20 users per run from one IP.
 
 ### Cleanup of test users (do not run against the real DB without checking the count first)

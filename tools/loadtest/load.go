@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/cookiejar"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -24,7 +25,6 @@ type config struct {
 	Ramp           time.Duration
 	Mode           string
 	Contest        string
-	ContestPath    string
 	Problem        string
 	Language       string
 	Source         string
@@ -42,8 +42,8 @@ type config struct {
 
 const defaultSource = "print(0)\n"
 
-// errContestMissing aborts the whole run when the contest endpoint is absent.
-var errContestMissing = errors.New("contest submit endpoint answered 404 (contest API not deployed, wrong -contest slug or wrong -contest-path)")
+// errContestMissing aborts the whole run when the contest cannot be found.
+var errContestMissing = errors.New("contest endpoint answered 404 (contest API not deployed or wrong -contest slug)")
 
 func (c *config) normalize() error {
 	if c.Users < 1 {
@@ -51,9 +51,6 @@ func (c *config) normalize() error {
 	}
 	if c.Iterations == 0 && c.Duration == 0 {
 		c.Iterations = 1
-	}
-	if c.ContestPath == "" {
-		c.ContestPath = "/contests/%s/submissions"
 	}
 	switch c.Mode {
 	case "mixed":
@@ -140,6 +137,14 @@ func (v *vu) loop(ctx context.Context, deadline time.Time) {
 		return
 	}
 	slug := v.cfg.Problem
+	if v.cfg.Mode == "contest" {
+		if !v.register(ctx) {
+			return
+		}
+		if slug == "" {
+			slug = v.contestProblem(ctx)
+		}
+	}
 	for it := 0; ; it++ {
 		if ctx.Err() != nil {
 			return
@@ -150,7 +155,7 @@ func (v *vu) loop(ctx context.Context, deadline time.Time) {
 		if !deadline.IsZero() && time.Now().After(deadline) {
 			return
 		}
-		if v.cfg.Mode == "mixed" || slug == "" {
+		if v.cfg.Mode == "mixed" {
 			if s := v.problems(ctx); slug == "" {
 				slug = s
 			}
@@ -228,6 +233,44 @@ func (v *vu) signup(ctx context.Context, name string) bool {
 	return false
 }
 
+// register joins the contest; a 404 means the contest does not exist, which
+// aborts the whole run.
+func (v *vu) register(ctx context.Context) bool {
+	path := "/contests/" + url.PathEscape(v.cfg.Contest) + "/register"
+	for range 5 {
+		resp, _, ok := v.do(ctx, "register", http.MethodPost, path, struct{}{}, http.StatusOK)
+		if ok {
+			return true
+		}
+		if resp != nil && resp.StatusCode == http.StatusNotFound {
+			v.abort(errContestMissing)
+			return false
+		}
+		if ctx.Err() != nil {
+			return false
+		}
+	}
+	return false
+}
+
+// contestProblem returns the first problem of the contest.
+func (v *vu) contestProblem(ctx context.Context) string {
+	_, data, ok := v.do(ctx, "contest_problems", http.MethodGet, "/contests/"+url.PathEscape(v.cfg.Contest)+"/problems", nil, http.StatusOK)
+	if !ok {
+		return ""
+	}
+	var body struct {
+		Problems []struct {
+			Slug string `json:"slug"`
+		} `json:"problems"`
+	}
+	if json.Unmarshal(data, &body) != nil || len(body.Problems) == 0 {
+		v.m.record("contest_problems", 0, outcomeError)
+		return ""
+	}
+	return body.Problems[0].Slug
+}
+
 // problems lists problems and returns the first slug.
 func (v *vu) problems(ctx context.Context) string {
 	_, data, ok := v.do(ctx, "problems", http.MethodGet, "/problems", nil, http.StatusOK)
@@ -285,10 +328,10 @@ func (v *vu) run(ctx context.Context, slug string) {
 
 func (v *vu) submit(ctx context.Context, slug string) {
 	path := "/submissions"
-	if v.cfg.Mode == "contest" {
-		path = fmt.Sprintf(v.cfg.ContestPath, v.cfg.Contest)
-	}
 	body := map[string]any{"problem": slug, "language": v.cfg.Language, "source": v.cfg.Source}
+	if v.cfg.Mode == "contest" {
+		body["contest_id"] = v.cfg.Contest
+	}
 	t0 := time.Now()
 	resp, data, ok := v.do(ctx, "submit", http.MethodPost, path, body, http.StatusAccepted)
 	if resp != nil && resp.StatusCode == http.StatusNotFound && v.cfg.Mode == "contest" {

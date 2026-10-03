@@ -10,9 +10,9 @@ Phase 16 needs evidence that the platform holds under concurrent users: sign-up,
 ## Decision
 - `tools/loadtest/` is one Go program using only the standard library, in its own module `leetforce/tools/loadtest` (ADR 0002: one module per component, listed in `go.work` and `GO_MODULES`, so `make fmt lint test` cover it).
 - Each virtual user has its own cookie jar and signs up as `lfload_<runid>_<n>` (email `...@loadtest.invalid`) so accounts can be found and deleted by prefix. It loops: list problems, Run (poll `GET /runs/:id` until `done`), Submit, then read `GET /submissions/:id/events` until the `verdict` event.
-- Flags: `-users`, `-iterations`, `-duration`, `-ramp`, `-mode mixed|contest`, `-contest`, `-contest-path`, `-problem`, `-language`, `-source-file`, `-verdict-timeout`, `-json`. Base URL from `LEETFORCE_LOADTEST_BASE_URL` (default `http://localhost:8080`).
+- Flags: `-users`, `-iterations`, `-duration`, `-ramp`, `-mode mixed|contest`, `-contest`, `-problem`, `-language`, `-source-file`, `-verdict-timeout`, `-json`. Base URL from `LEETFORCE_LOADTEST_BASE_URL` (default `http://localhost:8080`).
 - 429 responses (and 503 from the SSE stream-slot cap) are counted per step as `rate_limited`, honour `Retry-After` (capped at 5 s), and are not errors.
-- Contest mode posts to `/contests/<slug>/submissions` (configurable path). A 404 aborts the run with a clear message, so the tool degrades cleanly when the contest API is absent. The path is an assumption: the Phase 14 routes were not yet committed when this was written, so check them and pass `-contest-path` if they differ.
+- Contest mode registers each user for the contest (`POST /contests/<slug>/register`), takes the first problem from `GET /contests/<slug>/problems` (or `-problem`) and submits with `POST /submissions` carrying `contest_id`, the same path the web client uses. A 404 on the contest aborts the run with a clear message. (The first version guessed `/contests/<slug>/submissions`; corrected at integration against the Phase 14 routes.)
 - `make loadtest ARGS="..."` runs it. Tests use an `httptest` fake server only.
 
 ## Alternatives

@@ -18,7 +18,7 @@ import (
 
 // fake mimics the API routes the tester uses.
 type fake struct {
-	contest      bool // serve /contests/c1/submissions
+	contest      bool // serve /contests/c1/register and /problems
 	limitSubmits int  // first N submits answer 429
 	submits      atomic.Int32
 	signups      sync.Map
@@ -62,7 +62,12 @@ func (f *fake) handler() http.Handler {
 	}
 	mux.HandleFunc("POST /submissions", submit)
 	if f.contest {
-		mux.HandleFunc("POST /contests/c1/submissions", submit)
+		mux.HandleFunc("POST /contests/c1/register", func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte(`{"registered":true}`))
+		})
+		mux.HandleFunc("GET /contests/c1/problems", func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte(`{"problems":[{"slug":"fizz-count"}]}`))
+		})
 	}
 	mux.HandleFunc("GET /submissions/{id}/events", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
@@ -105,6 +110,9 @@ func TestRun(t *testing.T) {
 			wantSubs: 1, wantLimit: 2, wantRunOK: 3, wantSubmit: 1},
 		{name: "contest mode", fake: &fake{contest: true},
 			cfg:      config{Users: 2, Iterations: 1, Mode: "contest", Contest: "c1", Problem: "fizz-count"},
+			wantSubs: 2, wantSubmit: 2},
+		{name: "contest mode picks the contest problem", fake: &fake{contest: true},
+			cfg:      config{Users: 1, Iterations: 2, Mode: "contest", Contest: "c1"},
 			wantSubs: 2, wantSubmit: 2},
 		{name: "contest endpoint missing", fake: &fake{},
 			cfg:     config{Users: 2, Iterations: 1, Mode: "contest", Contest: "c1", Problem: "fizz-count"},

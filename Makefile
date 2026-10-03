@@ -4,7 +4,7 @@
 
 GO_MODULES := judge queue runner api storage tools/loadtest
 
-.PHONY: loadtest test-leaderboard-concurrent test-runner-loss build-runner-linux packer-validate build-ami lint-ansible test-destroy-isolation tf-validate test-alerts test-obs-e2e dev-obs down-obs validate-problems test-rejudge-e2e test-mock-contest test-auth-e2e test-live-e2e test-api-e2e build-api migrate-up migrate-down migrate-status dev down fmt lint test build-judge build-runner test-crash test-matrix test-sandbox test-adversarial bench-sandbox
+.PHONY: loadtest test-loadtest-local test-leaderboard-concurrent test-runner-loss build-runner-linux packer-validate build-ami lint-ansible test-destroy-isolation tf-validate test-alerts test-obs-e2e dev-obs down-obs validate-problems test-rejudge-e2e test-mock-contest test-auth-e2e test-live-e2e test-api-e2e build-api migrate-up migrate-down migrate-status dev down fmt lint test build-judge build-runner test-crash test-matrix test-sandbox test-adversarial bench-sandbox
 
 # Phase 12: cross-compile the runner for the AMI (static x86_64 Linux binary).
 build-runner-linux:
@@ -187,5 +187,9 @@ bench-sandbox:
 # Phase 16: load test (ADR 0024). Drives a running API; ARGS are loadtest flags:
 #   make loadtest ARGS="-users 20 -duration 2m -ramp 20s -json out.json"
 #   LEETFORCE_LOADTEST_BASE_URL=https://host make loadtest ARGS="-mode contest -contest <slug>"
+# Phase 16 exit test: modest load (mixed and contest modes) against the local stack on the dev host.
+test-loadtest-local:
+	scripts/test-loadtest-local.sh
+
 loadtest:
 	cd tools/loadtest && go run . $(ARGS)
