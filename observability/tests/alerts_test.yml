@@ -1,0 +1,64 @@
+# promtool test rules observability/tests/alerts_test.yml  (make test-alerts)
+rule_files:
+  - ../prometheus/alerts.yml
+evaluation_interval: 15s
+tests:
+  - interval: 15s
+    input_series:
+      - series: 'up{job="runner", instance="a"}'
+        values: '1x8 0x20'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: RunnerDown
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: RunnerDown
+        exp_alerts:
+          - exp_labels: {severity: critical, job: runner, instance: a}
+            exp_annotations:
+              summary: "A runner metrics endpoint is not answering"
+              description: "No runner has answered a scrape for 1 minute. Queued submissions will wait."
+  - interval: 15s
+    input_series:
+      - series: 'leetforce_queue_oldest_job_age_seconds'
+        values: '5 5 5 200x30'
+      - series: 'leetforce_queue_waiting'
+        values: '3x40'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: QueueStuck
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: QueueStuck
+        exp_alerts:
+          - exp_labels: {severity: critical}
+            exp_annotations:
+              summary: "The oldest unfinished job is older than 2 minutes"
+              description: "Age 3m 20s. Users are waiting on a verdict; check runners."
+      - eval_time: 9m
+        alertname: QueueBacklog
+        exp_alerts: []
+  - interval: 15s
+    input_series:
+      - series: 'leetforce_queue_waiting'
+        values: '30x40'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: QueueBacklog
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations:
+              summary: "More than 20 jobs have been waiting for a runner for 5 minutes"
+              description: "Waiting jobs: 30. Add runners or check why they are slow."
+  - interval: 15s
+    input_series:
+      - series: 'leetforce_verdicts_total{verdict="IE"}'
+        values: '0 0 0 1 1 1 1 1'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: InternalErrorVerdicts
+        exp_alerts:
+          - exp_labels: {severity: warning, verdict: IE}
+            exp_annotations:
+              summary: "Submissions ended with IE (internal error), the platform's fault"
+              description: "IE verdicts in the last 15 minutes: 1."
