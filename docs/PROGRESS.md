@@ -2,7 +2,7 @@
 
 **Current phase:** 7 - Web: problems and workspace
 **Status:** in progress
-**Resume point:** unit 5, `test/7-web-a11y` (visual and keyboard check in both themes; then judge tests on the dev host, ADR, report, summary, FLOW.md). Units 1 to 4 merged into `phase/7-web-workspace`; log in phase-7-log.md
+**Resume point:** unit 6, `test/7-judge-new-problems` (judge the 16 reference solutions on the dev host, make fmt lint test, acceptance SQL, Trivy; then ADR, report, summary, FLOW.md, review). Unit 5 (browser a11y check) done, see phase-7-log.md; decision pending on light-mode Easy contrast (3.30:1)
 **Open decisions:** Phase 6 review skipped by the owner: understanding questions unanswered; decisions A (ADR 0013 stays PROPOSED: nsjail default, gVisor opt-in), B (shared runner and program uid, ADR 0014) and C (Phase 5 decisions) stay on Claude's defaults. Phase 6: confirm ADR 0013 (nsjail default, gVisor opt-in) and the shared uid in ADR 0014. Phase 5 review skipped by the owner: understanding questions unanswered; decisions A (RustFS instead of MinIO), B (runner no-database guard allows two interface-only `database/sql` packages) and C (Neon plan and Upstash usage, 15-minute reaper) stay on Claude's defaults. Carried over: Phase 4 understanding questions unanswered; Neon plan and limits unchecked; Phase 2 decisions A and C on defaults; runner privilege model (Phase 6); `web/AGENTS.md` and `web/CLAUDE.md` stay untracked
 
 | Phase | Name | Status | Sessions | Summary |
