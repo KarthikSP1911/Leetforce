@@ -1,0 +1,2 @@
+# Pinned so every control host runs the same k3s (latest stable when this was written).
+k3s_server_version: "v1.37.1+k3s1"

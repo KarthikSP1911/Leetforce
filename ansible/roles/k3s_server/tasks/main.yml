@@ -1,0 +1,32 @@
+# Control host: k3s (single server, with the bundled Traefik ingress) plus the AWS CLI that
+# scripts/k3s/sync-secrets.sh uses to read SSM. Runners are not k3s agents (ADR 0021 follow-up).
+# The k3s installer is downloaded to a file first (not piped into a shell); it verifies the
+# release checksum itself and is pinned to k3s_server_version.
+- name: Install the AWS CLI
+  community.general.snap:
+    name: aws-cli
+    classic: true
+
+- name: Download the k3s installer
+  ansible.builtin.get_url:
+    url: https://get.k3s.io
+    dest: /usr/local/sbin/k3s-install.sh
+    mode: "0700"
+
+- name: Install k3s at the pinned version
+  ansible.builtin.command:
+    cmd: /usr/local/sbin/k3s-install.sh
+  environment:
+    INSTALL_K3S_VERSION: "{{ k3s_server_version }}"
+    INSTALL_K3S_EXEC: server
+  args:
+    creates: /usr/local/bin/k3s
+
+- name: Wait for the node to be Ready
+  ansible.builtin.command:
+    cmd: /usr/local/bin/k3s kubectl wait --for=condition=Ready node --all --timeout=180s
+  changed_when: false
+  retries: 3
+  delay: 10
+  register: k3s_server_ready
+  until: k3s_server_ready.rc == 0
