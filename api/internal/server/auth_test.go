@@ -40,7 +40,7 @@ func newFakeAccounts() *fakeAccounts {
 
 // cookie is the session cookie of the pre-made user.
 func (f *fakeAccounts) cookie() *http.Cookie {
-	return &http.Cookie{Name: sessionCookie, Value: f.token}
+	return &http.Cookie{Name: sessionCookie, Value: f.token} //nolint:gosec // request cookie in a test
 }
 
 func (f *fakeAccounts) CreateUser(_ context.Context, u store.User) error {
@@ -267,7 +267,8 @@ func TestSubmitAndRunRequireLogin(t *testing.T) {
 		if w := doJSON(d, http.MethodPost, path, body); w.Code != http.StatusUnauthorized {
 			t.Fatalf("anonymous POST %s = %d, want 401", path, w.Code)
 		}
-		if w := doJSON(d, http.MethodPost, path, body, &http.Cookie{Name: sessionCookie, Value: "forged"}); w.Code != http.StatusUnauthorized {
+		forged := &http.Cookie{Name: sessionCookie, Value: "forged"} //nolint:gosec // request cookie in a test
+		if w := doJSON(d, http.MethodPost, path, body, forged); w.Code != http.StatusUnauthorized {
 			t.Fatalf("forged-cookie POST %s = %d, want 401", path, w.Code)
 		}
 	}

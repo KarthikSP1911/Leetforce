@@ -3,6 +3,7 @@
 // privileges as the sandbox (root, nsjail, cgroup v2).
 //
 //	judge run [-all] [-detail] [-lang NAME] problems/<slug> <solution-file>
+//	judge validate [-structure-only] [-strict] problems/<slug>|problems
 //
 // The exit status is 0 for AC, 1 for any other verdict, and 2 for a usage or
 // host error.
@@ -26,13 +27,18 @@ import (
 	"leetforce/judge/verdict"
 )
 
-const usage = `usage: judge run [-all] [-detail] [-lang NAME] <problem-dir> <solution-file>
+const usage = `usage: judge validate [-structure-only] [-strict] <problem-dir|problems-dir>
+       judge run [-all] [-detail] [-lang NAME] <problem-dir> <solution-file>
 
   -all       run every test even after a failure
   -detail    show input, expected output, actual output and stderr for failing sample tests
   -lang      python, cpp, java or go (default: from the file extension)
 
 Java solutions must declare "public class Main". Needs root, nsjail and cgroup v2.
+
+validate checks problem.yaml, the statement, starters and test files, then judges
+every solutions/<lang>/<verdict>.<ext> and requires that verdict (the second step
+needs root like run; -structure-only skips it, -strict also fails on warnings).
 `
 
 // extensions maps file extensions to language names.
@@ -51,6 +57,9 @@ func main() {
 }
 
 func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+	if len(args) > 0 && args[0] == "validate" {
+		return runValidate(ctx, args[1:], stdout, stderr)
+	}
 	if len(args) == 0 || args[0] != "run" {
 		_, _ = fmt.Fprint(stderr, usage)
 		return 2

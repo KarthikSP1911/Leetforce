@@ -126,7 +126,9 @@ for name, want in (("ac.py", "AC"), ("wa.py", "WA")):
 
 # --- SSE stream carries only status/verdict
 import http.client
-c = http.client.HTTPConnection("127.0.0.1", 8080, timeout=30)
+import urllib.parse
+_u = urllib.parse.urlparse(API)
+c = http.client.HTTPConnection(_u.hostname, _u.port or 80, timeout=30)
 _, raw = call("POST", "/submissions", {"problem": "sample-sum", "language": "python", "source": src("ac.py")}, hdr)
 sid = json.loads(raw)["id"]
 c.request("GET", f"/submissions/{sid}/events")
