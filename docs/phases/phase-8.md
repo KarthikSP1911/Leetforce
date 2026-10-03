@@ -22,7 +22,7 @@ The workspace can now judge code from the browser. Submit queues a submission, f
 | Lint and security | ✅ | `make fmt lint` 0 issues in 5 modules; `npm run lint`, `tsc --noEmit`, `prettier --check`, `npm run build` clean; Trivy 0.75.0 `fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --exit-code 1 --skip-dirs node_modules,bin .`: 0 findings (vulnerability DB date not captured; no `.trivyignore`) |
 
 ## Branches merged
-Generated from `git log --merges --oneline phase-8-start..HEAD` and `git log --no-merges` (17 commits).
+Generated from `git log --merges --oneline phase-8-start..HEAD` and `git log --no-merges` (19 commits at the PROGRESS commit, before the commit that records these stats).
 
 | Branch | Purpose | Commits |
 |---|---|---|
@@ -46,6 +46,7 @@ Generated from `git diff --name-status phase-8-start..HEAD` (35 files: 14 added,
 | `docs/adr/0016-run-and-submit-paths.md` | ADR for this phase |
 | `docs/phases/phase-8-log.md` | running log |
 | `docs/phases/phase-8.md` | this report |
+| `docs/phases/phase-8-summary.md` | plain-language explainer and review questions for the owner |
 | `queue/run.go` | `RunState`, `RunResult`, `SetRun` and `GetRun` with a 10 minute TTL; separate from the results stream |
 | `runner/internal/agent/run.go` | `processRun`: filters the problem to samples, sets `Detail`, calls `RunCustom` for custom input, writes the Run state; never reports to the results stream |
 | `runner/internal/agent/run_test.go` | tests incl. `TestProcessRunSamplesOnly` (hidden tests cannot appear in a Run result) |
@@ -120,7 +121,7 @@ None.
 - Solved status and users: Phase 9.
 
 ## Stats
-Measured with `git log --no-merges phase-8-start..HEAD` and `git diff --stat phase-8-start..HEAD` before this report was added.
-- Commits: 17 (excluding merges); 7 merge commits
-- Files: 14 added, 21 modified, 0 deleted (35)
-- Lines: +2232 / -70; this report and the summary add more
+Measured at the commit "set phase 8 to in review", with `git log --no-merges phase-8-start..HEAD` and `git diff --shortstat phase-8-start..HEAD`; the commit that records these numbers adds one more commit and a few lines.
+- Commits: 19 (excluding merges); 7 merge commits
+- Files: 16 added, 21 modified, 0 deleted (37)
+- Lines: +2505 / -70
