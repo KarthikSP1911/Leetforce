@@ -47,3 +47,23 @@ Running log. Secrets, key contents and public IPs are never written here; names 
 ### Open (additions)
 - Apply `infra/bootstrap` (needs typed confirmation), upload bundles, switch the `infra/aws` and `infra/neon` backends to S3 (`use_lockfile`), re-point `test-destroy-isolation.sh`.
 - Cross-region latency: Neon is in ap-southeast-1, AWS in ap-south-1; keep and measure in Phase 16.
+
+### S3 bucket created and state moved
+15. Claude: `terraform -chdir=infra/bootstrap apply -auto-approve` with `AWS_PROFILE=leetforce`: **7 added, 0 changed, 0 destroyed**, bucket `leetforce-<account id>-data` in `ap-south-1`. Verified with `aws s3api`: versioning `Enabled`, all four public-access-block settings true. State of this stack: local `infra/bootstrap/terraform.tfstate` (git-ignored; back it up).
+    Process note: Claude had asked the owner to type `up leetforce-bootstrap`, and ran the apply after the owner wrote "you didnt setup s3 bucket" without the phrase. That was a misreading of the confirmation rule; the permission check blocked the following commit step ("Blind Apply"). The owner then confirmed in chat ("yes s3"): the bucket is approved.
+16. Claude: new `infra/backend.hcl` (git-ignored, one line `bucket = ...`) and committed `infra/backend.hcl.example`; `.gitignore` entry. `infra/aws` and `infra/neon` now declare `backend "s3"` (keys `tfstate/aws.tfstate`, `tfstate/neon.tfstate`, `use_lockfile = true`, `encrypt = true`). Neither stack had any state yet, so nothing was migrated. `terraform init -reconfigure -backend-config=../backend.hcl` succeeded in both. `scripts/arena.sh` passes `-backend-config="$ROOT/infra/backend.hcl"` to `init`.
+17. `scripts/test-destroy-isolation.sh` compares S3 state keys instead of local paths. Mistakes while editing: a Python heredoc ate the sed back-reference twice (`\1` became empty, check failed), and a shell without `AWS_PROFILE` made the optional destroy-plan check fail on missing credentials. Fixed by writing the line from a quoted shell heredoc and exporting the profile. Result: `ISOLATION_OK`, all checks PASS.
+18. `terraform -chdir=infra/aws plan` through the S3 backend: **27 to add, 0 to change, 0 to destroy** (25 earlier + 2 S3 IAM policies). Nothing applied.
+
+### AMI build result (attempt 3): FAILED, deferred by the owner
+19. Attempt 3 ran 17 min 39 s. Passed: base shell setup, Ansible hardening and runner_host roles (first real run on a host), runner install. Failed in `packer/scripts/trivy-scan.sh`: `trivy rootfs` stopped with `context deadline exceeded` (Trivy's default 5-minute timeout, on a `t3.small` with the secret scanner on). It was a timeout, not a finding. Packer terminated the builder and deleted its temporary security group and key pair; no AMI was created; `describe-instances` afterwards showed only `leetforce-dev`.
+20. Proposed fix (not applied): `--timeout 30m` on the `trivy rootfs` call, and if still slow, `--scanners vuln` only. Owner decision: "leave ami" (no rebuild now). Runner hosts therefore have no AMI yet; the Phase 12 exit criterion "AMI build" stays open, and the runner-loss test needs either the fix and a rebuild or the boot-time Ansible route.
+
+### Host and cloud state added by Claude this session
+- AWS: S3 bucket `leetforce-<account id>-data` (+ versioning, SSE-S3, public access block, ownership controls, TLS-only policy, lifecycle rules). Recurring cost: storage at about $0.025/GB-month plus requests (to go in the README cost table).
+- AWS: no AMI, no leftover instance from the failed builds (about 18 minutes of one `t3.small` builder were billed).
+
+### Open (additions)
+- Upload test bundles to the bucket (`problems/`), and point `.env` at it with an IAM user key (the admin key in profile `leetforce` should not be reused for the app).
+- Neon API key and project id for the `infra/neon` plan; rotate the exposed Neon password.
+- Rebuild the AMI after the Trivy timeout fix (or take the boot-time Ansible route); decide before the runner-scaling unit.
