@@ -36,6 +36,7 @@ type Deps struct {
 	Limiter     Limiter        // rate-limit counters; nil turns limits off
 	Limits      Limits         // zero fields take defaults
 	Contests    ContestService // contests and contest-only problems; nil turns them off
+	Ranking     RankingService // contest standings and global ranking; may be nil
 
 	// TrustedProxies are the addresses whose X-Forwarded-For header is believed
 	// when finding the client IP (for example the Next.js proxy). Empty means
@@ -91,6 +92,8 @@ func New(d Deps) *gin.Engine {
 	r.POST("/submissions", requireJSON, d.createSubmission)
 	r.GET("/submissions/:id", d.getSubmission)
 	r.GET("/submissions/:id/events", d.streamEvents)
+	r.GET("/leaderboard", d.getLeaderboard)
+	r.GET("/contests/:slug/standings", d.getStandings)
 	r.POST("/runs", requireJSON, d.createRun)
 	r.GET("/runs/:id", d.getRun)
 	return r

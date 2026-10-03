@@ -43,7 +43,7 @@ Rules that shape the flow (from CLAUDE.md): runners never connect to the databas
 | 12 | Infrastructure as code `[x]` (code only; the AMI build did not succeed) | Terraform, Packer, Ansible for the places the stages run (nothing applied without confirmation) | the system can be described and rebuilt as code |
 | 13 | Cloud deployment (M4) `[x]` partial: code merged, only the S3 bucket applied; AMI not built; loss test not run; M4 not tagged | The same flow running in the cloud (k3s for the API, runners as ASG hosts), secrets via SSM, CI deploy | the flow survives losing a runner (not demonstrated) |
 | 14 | Contests `[x]` (code only; untested, gate in Phase 16) | Contest model, timed windows, contest-only problems, scoring in stages 2 and 9 | a mock contest runs end to end |
-| 15 | Leaderboard | Rankings fed by verdicts, caching, penalty rules | rankings correct under concurrent submissions |
+| 15 | Leaderboard `[x]` (code only; untested, gate in Phase 16) | Rankings fed by verdicts, caching, penalty rules | rankings correct under concurrent submissions |
 | 16 | Launch readiness (M5) | Load test, security review, backup and restore drill | findings resolved or accepted in writing |
 
 Notes: the phase names, builds and exits come from `docs/PLAN.md`. In the "Flow after" column, Phases 14 to 16 are my reading of the plan's build lists, not a promise, and will be corrected when each phase is planned (Phases 14 and 15 are built by others or later, so they are not ticked here).
@@ -407,8 +407,19 @@ Done: bucket applied; manifests validated (kubeconform, Trivy config, a throwawa
 6. `Store.Events` returns judged in-window contest verdicts; `contest.Score` ranks them ICPC style (`api/internal/contest/scoring.go`). Phase 15 turns this into the leaderboard.
 7. Mock contest: `make test-mock-contest` (`scripts/run-mock-contest.sh`).
 
-### Phase 15: Leaderboard (not built)
-Placeholder. Built by others or later; do not tick it until its "as built" flow is added here.
+### Phase 15: Leaderboard (as built; untested, gate in Phase 16)
+
+Decision record: [ADR 0025](adr/0025-leaderboard-ranking-and-cache.md). Log: [phase-15-log.md](phases/phase-15-log.md). Contest scoring uses the Phase 14 contract, stubbed on this branch.
+```
+ Ranking flow (added to stage 9, after the verdict is stored)
+ 1. Ingest      api/internal/ingest: RecordVerdict -> true only for a stored/replaced verdict -> Invalidator.OnVerdict
+ 2. Invalidate  api/internal/leaderboard/service.go: INCR lb:v:global and lb:v:contest:<id> in Redis (queue/kv.go), after the commit
+ 3. Read        GET /contests/:slug/standings, GET /leaderboard (api/internal/server/leaderboard.go)
+ 4. Cache       snapshot valid only if its version tag equals the counter read first; otherwise recompute, tag, store (TTL 15 s / 60 s)
+ 5. Compute     api/internal/store/leaderboard.go (SQL) -> leaderboard.scoreEvents (window, contest.Score, last-AC tie-break) / RankGlobal (weights 1/3/5)
+ 6. Web         web/src/app/leaderboard/page.tsx; web/src/components/contest/standings-slot.tsx (polls every 10 s)
+ 7. Exit test   make test-leaderboard-concurrent (api/internal/store/leaderboard_concurrent_test.go, -race): not yet run
+```
 
 ### Phase 16: Launch readiness (in progress)
 Placeholder for the flow checks (load test, security review, backup and restore drill). The docs and cost pass is in [phase-16-log.md](phases/phase-16-log.md) and [cost-review.md](cost-review.md); do not tick the phase until its exit criteria are met.

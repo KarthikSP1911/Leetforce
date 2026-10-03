@@ -34,6 +34,12 @@ type RunSetter interface {
 	SetRun(ctx context.Context, id string, st queue.RunState) error
 }
 
+// Invalidator is told about every verdict that was stored or replaced, so
+// cached rankings are dropped. It is not called for a duplicate.
+type Invalidator interface {
+	OnVerdict(ctx context.Context, submissionID string)
+}
+
 // Config tunes the loop. Zero values take the defaults noted per field.
 type Config struct {
 	Consumer  string        // consumer name in the API group (required)
@@ -51,8 +57,12 @@ type Ingester struct {
 	rec  Recorder
 	log  *slog.Logger
 	cfg  Config
-	runs RunSetter // optional
+	runs RunSetter   // optional
+	inv  Invalidator // optional
 }
+
+// SetInvalidator makes the Ingester notify inv after each stored verdict.
+func (g *Ingester) SetInvalidator(inv Invalidator) { g.inv = inv }
 
 // SetRuns makes the Ingester end dead-lettered Run jobs with an IE result.
 // Without it they are only acknowledged and logged.
@@ -149,6 +159,7 @@ func (g *Ingester) HandleResult(ctx context.Context, d *queue.ResultDelivery) {
 		g.log.Error("store verdict, will retry", "entry", d.ID, "submission", r.SubmissionID, "err", err)
 		return
 	case recorded:
+		g.invalidate(ctx, r.SubmissionID)
 		metrics.VerdictWrites.WithLabelValues("stored").Inc()
 		metrics.Verdicts.WithLabelValues(metrics.VerdictLabel(r.Verdict)).Inc()
 		g.log.Info("verdict stored", "submission", r.SubmissionID, "verdict", r.Verdict, "runner", r.RunnerID)
@@ -181,6 +192,7 @@ func (g *Ingester) HandleDead(ctx context.Context, d *queue.DeadDelivery) {
 		return
 	default:
 		if recorded {
+			g.invalidate(ctx, d.Job.SubmissionID)
 			metrics.Verdicts.WithLabelValues("IE").Inc()
 		}
 		g.log.Warn("job dead-lettered", "submission", d.Job.SubmissionID, "reason", d.Reason, "deliveries", d.Deliveries, "ie_stored", recorded)
@@ -200,6 +212,12 @@ func (g *Ingester) handleDeadRun(ctx context.Context, d *queue.DeadDelivery) {
 	}
 	g.log.Warn("run dead-lettered", "run", d.Job.SubmissionID, "reason", d.Reason, "deliveries", d.Deliveries)
 	g.ack(ctx, "dead letter", d.ID, g.src.AckDead)
+}
+
+func (g *Ingester) invalidate(ctx context.Context, submissionID string) {
+	if g.inv != nil {
+		g.inv.OnVerdict(ctx, submissionID)
+	}
 }
 
 func (g *Ingester) ack(ctx context.Context, what, id string, fn func(context.Context, string) error) {

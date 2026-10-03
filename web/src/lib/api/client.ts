@@ -5,6 +5,7 @@ import type {
   ProblemQuery,
 } from "@/types/problem";
 import type { User } from "@/types/auth";
+import type { Leaderboard, Standings } from "@/types/leaderboard";
 import type {
   ContestDetail,
   ContestProblem,
@@ -233,4 +234,25 @@ export async function listContestProblems(
     signal,
   );
   return body.problems;
+}
+
+export function getLeaderboard(
+  page: number,
+  perPage: number,
+  signal?: AbortSignal,
+): Promise<Leaderboard> {
+  return getJSON<Leaderboard>(
+    `/leaderboard?page=${page}&per_page=${perPage}`,
+    signal,
+  );
+}
+
+export function getStandings(
+  slug: string,
+  signal?: AbortSignal,
+): Promise<Standings> {
+  return getJSON<Standings>(
+    `/contests/${encodeURIComponent(slug)}/standings`,
+    signal,
+  );
 }

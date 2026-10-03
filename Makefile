@@ -4,7 +4,7 @@
 
 GO_MODULES := judge queue runner api storage tools/loadtest
 
-.PHONY: loadtest test-runner-loss build-runner-linux packer-validate build-ami lint-ansible test-destroy-isolation tf-validate test-alerts test-obs-e2e dev-obs down-obs validate-problems test-rejudge-e2e test-mock-contest test-auth-e2e test-live-e2e test-api-e2e build-api migrate-up migrate-down migrate-status dev down fmt lint test build-judge build-runner test-crash test-matrix test-sandbox test-adversarial bench-sandbox
+.PHONY: loadtest test-leaderboard-concurrent test-runner-loss build-runner-linux packer-validate build-ami lint-ansible test-destroy-isolation tf-validate test-alerts test-obs-e2e dev-obs down-obs validate-problems test-rejudge-e2e test-mock-contest test-auth-e2e test-live-e2e test-api-e2e build-api migrate-up migrate-down migrate-status dev down fmt lint test build-judge build-runner test-crash test-matrix test-sandbox test-adversarial bench-sandbox
 
 # Phase 12: cross-compile the runner for the AMI (static x86_64 Linux binary).
 build-runner-linux:
@@ -137,6 +137,10 @@ test-live-e2e:
 test-auth-e2e:
 	scripts/test-auth-e2e.sh
 
+# Phase 15 exit test: rankings correct under concurrent verdict ingests (race detector; needs DATABASE_URL and the Phase 14 migrations).
+test-leaderboard-concurrent:
+	scripts/test-leaderboard-concurrent.sh
+
 # Phase 13 exit test: against the deployed cloud stack, terminate one runner EC2 instance
 # while submissions are in flight; every submission must still get exactly one correct
 # verdict. Needs LEETFORCE_API_URL, AWS_PROFILE and LEETFORCE_CONFIRM_TERMINATE=yes
@@ -180,7 +184,7 @@ bench-sandbox:
 	cd judge && go build -o ../bin/sandbox-bench ./cmd/sandbox-bench
 	sudo -n env "PATH=$$PATH" ./bin/sandbox-bench $(BENCH_ARGS)
 
-# Phase 16: load test (ADR 0023). Drives a running API; ARGS are loadtest flags:
+# Phase 16: load test (ADR 0024). Drives a running API; ARGS are loadtest flags:
 #   make loadtest ARGS="-users 20 -duration 2m -ramp 20s -json out.json"
 #   LEETFORCE_LOADTEST_BASE_URL=https://host make loadtest ARGS="-mode contest -contest <slug>"
 loadtest:
