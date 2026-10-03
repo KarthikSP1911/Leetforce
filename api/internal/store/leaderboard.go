@@ -13,7 +13,7 @@ import (
 
 // The queries below read the Phase 14 tables (contests, contest_problems,
 // contest_participants, submissions.contest_id). Column names are the Phase 15
-// assumptions listed in ADR 0023; Phase 16 checks them against migration 14.
+// assumptions listed in ADR 0025; Phase 16 checks them against migration 14.
 
 // ContestBySlug returns a contest and its problems in contest order, or
 // leaderboard.ErrNotFound.

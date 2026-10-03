@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// Global score weights per distinct solved problem (ADR 0023).
+// Global score weights per distinct solved problem (ADR 0025).
 const (
 	WeightEasy   = 1
 	WeightMedium = 3

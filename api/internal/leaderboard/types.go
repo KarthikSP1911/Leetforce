@@ -1,7 +1,7 @@
 // Package leaderboard computes contest standings and the global ranking and
 // caches them in Redis. Both are pure functions of rows in Postgres: the cache
 // only saves recomputation, so it can never hold a ranking the database would
-// not give (see ADR 0023).
+// not give (see ADR 0025).
 package leaderboard
 
 import (
