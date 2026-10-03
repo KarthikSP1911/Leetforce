@@ -41,7 +41,17 @@ type Job struct {
 	// runner fetches exactly that test set. Empty only for jobs made by tools
 	// (lfq) that run against a problems directory.
 	TestSetVersion string `json:"test_set_version,omitempty"`
+	// Kind is "" for a submission and KindRun for a Run job. A Run job is never
+	// stored as a submission: its outcome goes to RunState, not the results stream.
+	Kind string `json:"kind,omitempty"`
+	// Custom and Input apply to Run jobs: when Custom is set the program runs
+	// once on Input; otherwise it runs on the problem's sample tests.
+	Custom bool   `json:"custom,omitempty"`
+	Input  string `json:"input,omitempty"`
 }
+
+// KindRun marks a Run job (see Job.Kind).
+const KindRun = "run"
 
 // Result is the verdict a runner reports. It deliberately carries no test
 // input, expected output or stderr (Submit never returns them).
