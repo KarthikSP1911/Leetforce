@@ -108,3 +108,52 @@ func (s *Store) MarkJudging(ctx context.Context, id string) (bool, error) {
 	}
 	return tag.RowsAffected() == 1, nil
 }
+
+// SetSubmissionClient tags a submission with the anonymous browser id that made
+// it. It is separate from InsertSubmission because it is best effort: a
+// submission without a tag is still judged, it just is not listed.
+func (s *Store) SetSubmissionClient(ctx context.Context, id, clientID string) error {
+	if _, err := s.pool.Exec(ctx, `UPDATE submissions SET client_id = $2 WHERE id = $1::uuid`, id, clientID); err != nil {
+		return fmt.Errorf("set submission client: %w", err)
+	}
+	return nil
+}
+
+// ListSubmissions returns the newest submissions one client made to one
+// problem, with their verdicts. Like GetSubmission it carries no source.
+func (s *Store) ListSubmissions(ctx context.Context, problem, clientID string, limit int) ([]Submission, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT s.id::text, s.problem_slug, s.language, s.status, s.test_set_version, s.created_at,
+		       v.verdict, v.runtime_ms, v.memory_kb, v.passed, v.total
+		FROM submissions s LEFT JOIN verdicts v ON v.submission_id = s.id
+		WHERE s.client_id = $1 AND s.problem_slug = $2
+		ORDER BY s.created_at DESC
+		LIMIT $3`, clientID, problem, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list submissions: %w", err)
+	}
+	defer rows.Close()
+	out := []Submission{}
+	for rows.Next() {
+		var sub Submission
+		var v struct {
+			Verdict   *string
+			RuntimeMS *int64
+			MemoryKB  *int64
+			Passed    *int
+			Total     *int
+		}
+		if err := rows.Scan(&sub.ID, &sub.Problem, &sub.Language, &sub.Status, &sub.TestSetVersion, &sub.CreatedAt,
+			&v.Verdict, &v.RuntimeMS, &v.MemoryKB, &v.Passed, &v.Total); err != nil {
+			return nil, fmt.Errorf("list submissions: %w", err)
+		}
+		if v.Verdict != nil {
+			sub.Verdict = &VerdictView{Verdict: *v.Verdict, RuntimeMS: *v.RuntimeMS, MemoryKB: *v.MemoryKB, Passed: *v.Passed, Total: *v.Total}
+		}
+		out = append(out, sub)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list submissions: %w", err)
+	}
+	return out, nil
+}

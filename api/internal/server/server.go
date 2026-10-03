@@ -62,6 +62,7 @@ func New(d Deps) *gin.Engine {
 
 	r.GET("/problems", d.listProblems)
 	r.GET("/problems/:slug", d.getProblem)
+	r.GET("/problems/:slug/submissions", d.listSubmissions)
 	r.POST("/submissions", d.createSubmission)
 	r.GET("/submissions/:id", d.getSubmission)
 	r.GET("/submissions/:id/events", d.streamEvents)
