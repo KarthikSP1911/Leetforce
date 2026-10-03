@@ -45,11 +45,18 @@ const (
 	maxPageSize     = 100
 )
 
+// problemItem is a list entry; Solved is true when the signed-in user has an
+// accepted submission (always false for anonymous callers).
+type problemItem struct {
+	store.Problem
+	Solved bool `json:"solved"`
+}
+
 type problemPage struct {
-	Problems []store.Problem `json:"problems"`
-	Total    int             `json:"total"`
-	Page     int             `json:"page"`
-	PageSize int             `json:"page_size"`
+	Problems []problemItem `json:"problems"`
+	Total    int           `json:"total"`
+	Page     int           `json:"page"`
+	PageSize int           `json:"page_size"`
 }
 
 // filterProblems applies ?q= (title substring, case-insensitive),
@@ -124,7 +131,19 @@ func (d Deps) listProblems(c *gin.Context) {
 	total := len(ps)
 	start := min((page-1)*size, total)
 	end := min(start+size, total)
-	c.JSON(http.StatusOK, problemPage{Problems: ps[start:end], Total: total, Page: page, PageSize: size})
+	items := make([]problemItem, 0, end-start)
+	var solved map[string]bool
+	if user, ok := d.currentUser(c); ok && d.Accounts != nil {
+		var err error
+		if solved, err = d.Accounts.SolvedProblems(c.Request.Context(), user.ID); err != nil {
+			// Solved marks are decoration: list the problems without them.
+			d.Logger.Warn("solved problems", "err", err)
+		}
+	}
+	for _, p := range ps[start:end] {
+		items = append(items, problemItem{Problem: p, Solved: solved[p.Slug]})
+	}
+	c.JSON(http.StatusOK, problemPage{Problems: items, Total: total, Page: page, PageSize: size})
 }
 
 func (d Deps) getProblem(c *gin.Context) {

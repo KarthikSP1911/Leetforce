@@ -37,7 +37,7 @@ Rules that shape the flow (from CLAUDE.md): runners never connect to the databas
 | 6 | Sandbox hardening `[x]` | Inside stage 6: gVisor vs nsjail decision, seccomp tuning, bigger adversarial suite | same flow, stronger box |
 | 7 | Web: problems and workspace `[x]` | Browser side of stage 1 with real data: problem list, split-pane workspace, Monaco | `browser -> /api rewrite -> API -> catalog + Postgres -> real problems shown` |
 | 8 | Web: run, submit, results `[x]` | Stages 1 and 10 in the UI: Run and Submit, console, result panel, SSE client | `browser submit -> ... -> verdict shown in the page` |
-| 9 | Auth and limits (M3) | Sign-up/login, sessions, rate limits per user and per IP, solved status in front of stage 1 | usable product on one machine |
+| 9 | Auth and limits (M3) `[x]` | Sign-up/login, sessions, rate limits per user and per IP, solved status in front of stage 1 | `browser (signed in) -> API (session, limits in Redis) -> ... -> verdict`; usable product on one machine |
 | 10 | Problem pipeline | Authoring side: import, validation, reference-solution check, rejudge by test-set version | `fixed test set -> queue -> rejudge` |
 | 11 | Observability | Watching every stage: metrics, dashboards, logs, alerts | dashboards show a live submission |
 | 12 | Infrastructure as code | Terraform, Packer, Ansible for the places the stages run (nothing applied without confirmation) | the system can be described and rebuilt as code |
@@ -280,6 +280,30 @@ Run is new; Submit keeps its Phase 5 path and gains a UI. Decision record: [ADR 
                 a row is queued or judging; Workspace.tsx hosts the tab and the console
 ```
 Not yet: unit 1 merged and verified on the dev host, migration 00004 applied to Neon, a real-browser end-to-end check in both themes, authentication and rate limits (Phase 9; the client id is not a credential).
+
+### Phase 9: Auth and limits (as built)
+
+Decision record: [ADR 0017](adr/0017-accounts-sessions-and-limits.md). Log: [phase-9-log.md](phases/phase-9-log.md).
+```
+ Sign up / log in
+ 1. client      web/src/components/auth/AuthForm.tsx -> signup/login (web/src/lib/api/client.ts): POST /api/auth/signup | /api/auth/login
+ 2. API         signup/login (api/internal/server/auth.go): limit per IP (and per account name for login), validate, bcrypt hash or compare
+                (dummy hash for unknown accounts), CreateUser / UserByLogin (api/internal/store/users.go)
+ 3. session     startSession: 32 random bytes -> cookie lf_session (HttpOnly, SameSite=Lax); sessions.token_hash = SHA-256(token), expires in 30 days
+ 4. browser     AuthProvider.tsx calls GET /api/me (currentUser looks the hash up) and shares the user; UserMenu.tsx shows the name
+
+ Submit or Run when signed in
+ 1. API         createSubmission / createRun (api/internal/server/submissions.go, runs.go): requireUser (401 if no session),
+                then limitUserAndIP -> Queue.Allow (queue/limit.go): INCR + PEXPIRE on <prefix>:rl:<scope>-user:<id> and <scope>-ip:<ip>;
+                over the limit -> 429 with Retry-After. Defaults: Submit 10/30 per min, Run 20/60 per min
+ 2. API         the rest is the Phase 4-8 path; the row is tagged with submissions.user_id (SetSubmissionUser)
+ 3. client IP   c.ClientIP() honours X-Forwarded-For only from LEETFORCE_TRUSTED_PROXIES (default none)
+
+ Lists
+ 1. GET /problems -> problemItem.solved from SolvedProblems (an AC verdict on any of the user's submissions); the Problems page forwards lf_session
+ 2. GET /problems/:slug/submissions -> the signed-in user's newest 50 (ListUserSubmissions); anonymous -> empty list, no query
+```
+Exit check: `make test-auth-e2e` on the dev host (all PASS), unit and Redis tests, web lint/typecheck/build. Not yet: the login and signup pages looked at in a browser.
 
 ## 4. Keeping this file true
 At the end of each phase: tick the phase in section 2, add its "as built" flow to section 3 (the detailed step list with file paths), and correct the "planned" rows if the plan changed.

@@ -109,26 +109,26 @@ func (s *Store) MarkJudging(ctx context.Context, id string) (bool, error) {
 	return tag.RowsAffected() == 1, nil
 }
 
-// SetSubmissionClient tags a submission with the anonymous browser id that made
-// it. It is separate from InsertSubmission because it is best effort: a
-// submission without a tag is still judged, it just is not listed.
-func (s *Store) SetSubmissionClient(ctx context.Context, id, clientID string) error {
-	if _, err := s.pool.Exec(ctx, `UPDATE submissions SET client_id = $2 WHERE id = $1::uuid`, id, clientID); err != nil {
-		return fmt.Errorf("set submission client: %w", err)
+// SetSubmissionUser records which account made a submission. It is separate
+// from InsertSubmission because it is best effort: a submission without an
+// owner is still judged, it just is not listed or counted as solved.
+func (s *Store) SetSubmissionUser(ctx context.Context, id, userID string) error {
+	if _, err := s.pool.Exec(ctx, `UPDATE submissions SET user_id = $2::uuid WHERE id = $1::uuid`, id, userID); err != nil {
+		return fmt.Errorf("set submission user: %w", err)
 	}
 	return nil
 }
 
-// ListSubmissions returns the newest submissions one client made to one
+// ListUserSubmissions returns the newest submissions one user made to one
 // problem, with their verdicts. Like GetSubmission it carries no source.
-func (s *Store) ListSubmissions(ctx context.Context, problem, clientID string, limit int) ([]Submission, error) {
+func (s *Store) ListUserSubmissions(ctx context.Context, problem, userID string, limit int) ([]Submission, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT s.id::text, s.problem_slug, s.language, s.status, s.test_set_version, s.created_at,
 		       v.verdict, v.runtime_ms, v.memory_kb, v.passed, v.total
 		FROM submissions s LEFT JOIN verdicts v ON v.submission_id = s.id
-		WHERE s.client_id = $1 AND s.problem_slug = $2
+		WHERE s.user_id = $1::uuid AND s.problem_slug = $2
 		ORDER BY s.created_at DESC
-		LIMIT $3`, clientID, problem, limit)
+		LIMIT $3`, userID, problem, limit)
 	if err != nil {
 		return nil, fmt.Errorf("list submissions: %w", err)
 	}

@@ -10,6 +10,12 @@
 //	LEETFORCE_REAPER_INTERVAL  how often stored-but-never-queued submissions are re-queued (default 15m;
 //	                        it also sweeps once at startup. Each sweep wakes Neon, so keep it long)
 //	LEETFORCE_REAPER_GRACE  how old such a submission must be before it is re-queued (default 2m)
+//	LEETFORCE_TRUSTED_PROXIES  comma-separated proxy addresses whose X-Forwarded-For is believed when
+//	                        finding the client IP for rate limits (default none; set 127.0.0.1 behind the
+//	                        local Next.js proxy)
+//	LEETFORCE_LIMIT_SUBMIT_USER, _SUBMIT_IP, _RUN_USER, _RUN_IP  per-minute limits (defaults 10, 30, 20, 60;
+//	                        a negative value turns that limit off)
+//	LEETFORCE_LIMIT_AUTH_IP, _LOGIN_ACCOUNT  per-10-minute sign-up/login limits (defaults 20, 10)
 package main
 
 import (
@@ -20,6 +26,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -137,9 +145,23 @@ func run() error {
 	reaperDone := make(chan struct{})
 	go func() { rp.Run(ctx); close(reaperDone) }()
 
+	limits, err := limitsFromEnv()
+	if err != nil {
+		return err
+	}
+	var proxies []string
+	for _, p := range strings.Split(os.Getenv("LEETFORCE_TRUSTED_PROXIES"), ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			proxies = append(proxies, p)
+		}
+	}
+	handler := server.New(server.Deps{Logger: log, Ready: ready, Problems: db, Samples: cat, Content: cat, Submissions: db,
+		Queue: q, Versions: db, Runs: q, Accounts: db, Limiter: q, Limits: limits, TrustedProxies: proxies})
+	go sweepSessions(ctx, db, log)
+
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           server.New(server.Deps{Logger: log, Ready: ready, Problems: db, Samples: cat, Content: cat, Submissions: db, Queue: q, Versions: db, Runs: q}),
+		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	errc := make(chan error, 1)
@@ -176,4 +198,47 @@ func envDuration(name string) (time.Duration, error) {
 		return 0, fmt.Errorf("%s: %q is not a positive duration", name, v)
 	}
 	return d, nil
+}
+
+// limitsFromEnv reads the optional rate-limit settings; unset keeps the default.
+func limitsFromEnv() (server.Limits, error) {
+	var l server.Limits
+	for name, dst := range map[string]*int{
+		"LEETFORCE_LIMIT_SUBMIT_USER":   &l.SubmitUser,
+		"LEETFORCE_LIMIT_SUBMIT_IP":     &l.SubmitIP,
+		"LEETFORCE_LIMIT_RUN_USER":      &l.RunUser,
+		"LEETFORCE_LIMIT_RUN_IP":        &l.RunIP,
+		"LEETFORCE_LIMIT_AUTH_IP":       &l.AuthIP,
+		"LEETFORCE_LIMIT_LOGIN_ACCOUNT": &l.LoginAccount,
+	} {
+		v := os.Getenv(name)
+		if v == "" {
+			continue
+		}
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return l, fmt.Errorf("%s: %q is not an integer", name, v)
+		}
+		*dst = n
+	}
+	return l, nil
+}
+
+// sweepSessions deletes expired sessions once a day. Expired sessions are
+// already refused at lookup; this only keeps the table small.
+func sweepSessions(ctx context.Context, db *store.Store, log *slog.Logger) {
+	t := time.NewTicker(24 * time.Hour)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			if n, err := db.DeleteExpiredSessions(ctx); err != nil {
+				log.Warn("sweep sessions", "err", err)
+			} else if n > 0 {
+				log.Info("expired sessions removed", "count", n)
+			}
+		}
+	}
 }

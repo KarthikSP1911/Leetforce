@@ -41,6 +41,7 @@ func (f *fakeRuns) GetRun(_ context.Context, id string) (queue.RunState, bool, e
 func runDeps(q *fakeQueue, runs *fakeRuns, v fakeVersions) Deps {
 	return Deps{
 		Logger:   slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Accounts: newFakeAccounts(),
 		Queue:    q,
 		Runs:     runs,
 		Versions: v,
@@ -52,6 +53,9 @@ func postRun(d Deps, body string) *httptest.ResponseRecorder {
 	w := httptest.NewRecorder()
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/runs", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	if fa, ok := d.Accounts.(*fakeAccounts); ok {
+		req.AddCookie(fa.cookie())
+	}
 	New(d).ServeHTTP(w, req)
 	return w
 }

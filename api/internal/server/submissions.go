@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"regexp"
 	"slices"
 
 	"github.com/gin-gonic/gin"
@@ -29,25 +28,12 @@ type SubmissionStore interface {
 	DeleteSubmission(ctx context.Context, id string) error
 	MarkEnqueued(ctx context.Context, id string) error
 	GetSubmission(ctx context.Context, id string) (store.Submission, error)
-	SetSubmissionClient(ctx context.Context, id, clientID string) error
-	ListSubmissions(ctx context.Context, problem, clientID string, limit int) ([]store.Submission, error)
+	SetSubmissionUser(ctx context.Context, id, userID string) error
+	ListUserSubmissions(ctx context.Context, problem, userID string, limit int) ([]store.Submission, error)
 }
-
-// clientHeader carries the anonymous browser id (see migration 00004).
-const clientHeader = "X-LeetForce-Client"
 
 // maxListSubmissions bounds the Submissions tab.
 const maxListSubmissions = 50
-
-var clientIDRe = regexp.MustCompile(`^[A-Za-z0-9-]{8,64}$`)
-
-// clientID returns the request's anonymous browser id, or "" if absent or malformed.
-func clientID(c *gin.Context) string {
-	if id := c.GetHeader(clientHeader); clientIDRe.MatchString(id) {
-		return id
-	}
-	return ""
-}
 
 // Enqueuer puts a job on the queue for the runners.
 type Enqueuer interface {
@@ -61,6 +47,14 @@ type submitRequest struct {
 }
 
 func (d Deps) createSubmission(c *gin.Context) {
+	user, ok := d.requireUser(c)
+	if !ok {
+		return
+	}
+	lim := d.limits()
+	if !d.limitUserAndIP(c, "submit", user.ID, lim.SubmitUser, lim.SubmitIP, lim.SubmitWindow) {
+		return
+	}
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBodyBytes)
 	var req submitRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -109,10 +103,8 @@ func (d Deps) createSubmission(c *gin.Context) {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "could not queue the submission, try again"})
 		return
 	}
-	if cid := clientID(c); cid != "" {
-		if err := d.Submissions.SetSubmissionClient(context.WithoutCancel(ctx), id, cid); err != nil {
-			d.Logger.Warn("tag submission with client", "id", id, "err", err)
-		}
+	if err := d.Submissions.SetSubmissionUser(context.WithoutCancel(ctx), id, user.ID); err != nil {
+		d.Logger.Warn("tag submission with user", "id", id, "err", err)
 	}
 	// Without this mark the reaper would queue the job a second time after its
 	// grace period. That is harmless (a verdict is stored once), so a failure
@@ -136,16 +128,16 @@ func (d Deps) getSubmission(c *gin.Context) {
 	c.JSON(http.StatusOK, sub)
 }
 
-// listSubmissions returns the caller's own submissions to a problem, newest
-// first. Without a valid client id it returns an empty list rather than every
+// listSubmissions returns the signed-in user's own submissions to a problem,
+// newest first. Anonymous callers get an empty list rather than every
 // submission, so the endpoint cannot be used to read other people's history.
 func (d Deps) listSubmissions(c *gin.Context) {
-	cid := clientID(c)
-	if cid == "" {
+	user, ok := d.currentUser(c)
+	if !ok {
 		c.JSON(http.StatusOK, gin.H{"submissions": []store.Submission{}})
 		return
 	}
-	subs, err := d.Submissions.ListSubmissions(c.Request.Context(), c.Param("slug"), cid, maxListSubmissions)
+	subs, err := d.Submissions.ListUserSubmissions(c.Request.Context(), c.Param("slug"), user.ID, maxListSubmissions)
 	if err != nil {
 		d.fail(c, "list submissions", err)
 		return

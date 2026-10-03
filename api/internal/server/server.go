@@ -28,6 +28,14 @@ type Deps struct {
 	Queue       Enqueuer
 	Versions    VersionSource // current test-set version, for Run jobs
 	Runs        RunStore      // state of Run jobs (Redis, never Postgres)
+	Accounts    AccountStore  // users and sessions
+	Limiter     Limiter       // rate-limit counters; nil turns limits off
+	Limits      Limits        // zero fields take defaults
+
+	// TrustedProxies are the addresses whose X-Forwarded-For header is believed
+	// when finding the client IP (for example the Next.js proxy). Empty means
+	// the TCP peer address is always used, so the header cannot be forged.
+	TrustedProxies []string
 
 	// Events tunes the SSE status stream; the zero value takes the defaults.
 	Events EventConfig
@@ -41,6 +49,8 @@ func New(d Deps) *gin.Engine {
 	d.slots = newStreamSlots(d.Events.withDefaults().MaxStreams)
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
+	// Cannot fail for an empty list; a bad entry is reported when the API starts.
+	_ = r.SetTrustedProxies(d.TrustedProxies)
 	r.Use(gin.Recovery(), requestLog(d.Logger))
 
 	r.GET("/healthz", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"status": "ok"}) })
@@ -61,6 +71,11 @@ func New(d Deps) *gin.Engine {
 		}
 		c.JSON(code, gin.H{"checks": checks})
 	})
+
+	r.POST("/auth/signup", d.signup)
+	r.POST("/auth/login", d.login)
+	r.POST("/auth/logout", d.logout)
+	r.GET("/me", d.me)
 
 	r.GET("/problems", d.listProblems)
 	r.GET("/problems/:slug", d.getProblem)

@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 )
 
@@ -96,9 +97,9 @@ func TestMarkJudging(t *testing.T) {
 	}
 }
 
-// ListSubmissions returns only the asking client's submissions to the problem,
-// newest first, with verdicts, and never another client's.
-func TestListSubmissions(t *testing.T) {
+// ListUserSubmissions returns only the asking user's submissions to the
+// problem, newest first, with verdicts, and never another user's.
+func TestListUserSubmissions(t *testing.T) {
 	s := testStore(t)
 	ctx := context.Background()
 	for _, slug := range []string{"sum", "other"} {
@@ -106,28 +107,32 @@ func TestListSubmissions(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	add := func(id, problem, client string) {
+	const u1, u2 = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+	for i, id := range []string{u1, u2} {
+		if err := s.CreateUser(ctx, User{ID: id, Email: fmt.Sprintf("u%d@example.com", i), Username: fmt.Sprintf("user%d", i), PasswordHash: "x"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	add := func(id, problem, user string) {
 		t.Helper()
 		if _, err := s.InsertSubmission(ctx, id, problem, "python", "x"); err != nil {
 			t.Fatal(err)
 		}
-		if client != "" {
-			if err := s.SetSubmissionClient(ctx, id, client); err != nil {
-				t.Fatal(err)
-			}
+		if err := s.SetSubmissionUser(ctx, id, user); err != nil {
+			t.Fatal(err)
 		}
 	}
 	const a, b, c, d = "11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222",
 		"33333333-3333-4333-8333-333333333333", "44444444-4444-4444-8444-444444444444"
-	add(a, "sum", "client-one")
-	add(b, "sum", "client-one")
-	add(c, "sum", "client-two")
-	add(d, "other", "client-one")
+	add(a, "sum", u1)
+	add(b, "sum", u1)
+	add(c, "sum", u2)
+	add(d, "other", u1)
 	if _, err := s.RecordVerdict(ctx, VerdictRecord{SubmissionID: a, Verdict: "AC", RuntimeMS: 3, MemoryKB: 100, Passed: 2, Total: 2}); err != nil {
 		t.Fatal(err)
 	}
 
-	got, err := s.ListSubmissions(ctx, "sum", "client-one", 10)
+	got, err := s.ListUserSubmissions(ctx, "sum", u1, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,10 +142,18 @@ func TestListSubmissions(t *testing.T) {
 	if got[0].Verdict != nil || got[1].Verdict == nil || got[1].Verdict.Verdict != "AC" {
 		t.Fatalf("verdicts = %+v / %+v", got[0].Verdict, got[1].Verdict)
 	}
-	if got, _ := s.ListSubmissions(ctx, "sum", "client-one", 1); len(got) != 1 {
+	if got, _ := s.ListUserSubmissions(ctx, "sum", u1, 1); len(got) != 1 {
 		t.Fatalf("limit not applied: %d rows", len(got))
 	}
-	if got, err := s.ListSubmissions(ctx, "sum", "nobody", 10); err != nil || len(got) != 0 {
-		t.Fatalf("unknown client = %+v, %v", got, err)
+	if got, err := s.ListUserSubmissions(ctx, "sum", "cccccccc-cccc-4ccc-8ccc-cccccccccccc", 10); err != nil || len(got) != 0 {
+		t.Fatalf("unknown user = %+v, %v", got, err)
+	}
+
+	solved, err := s.SolvedProblems(ctx, u1)
+	if err != nil || len(solved) != 1 || !solved["sum"] {
+		t.Fatalf("solved = %v, %v; want only sum (the one AC)", solved, err)
+	}
+	if solved, _ := s.SolvedProblems(ctx, u2); len(solved) != 0 {
+		t.Fatalf("user two solved = %v, want none", solved)
 	}
 }

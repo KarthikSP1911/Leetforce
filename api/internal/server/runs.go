@@ -44,6 +44,14 @@ type runRequest struct {
 // expected and actual output of failing samples and the program's stderr; that
 // is safe only because a run never touches hidden tests.
 func (d Deps) createRun(c *gin.Context) {
+	user, ok := d.requireUser(c)
+	if !ok {
+		return
+	}
+	lim := d.limits()
+	if !d.limitUserAndIP(c, "run", user.ID, lim.RunUser, lim.RunIP, lim.RunWindow) {
+		return
+	}
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxRunBodyBytes)
 	var req runRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

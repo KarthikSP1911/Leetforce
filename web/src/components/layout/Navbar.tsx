@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ThemeToggle } from "./ThemeToggle";
+import { UserMenu } from "./UserMenu";
 
 const links = [
   { href: "/problems", label: "Problems" },
@@ -45,12 +46,7 @@ export function Navbar() {
         </ul>
         <div className="ml-auto flex items-center gap-2">
           <ThemeToggle />
-          <Link
-            href="/login"
-            className="bg-primary rounded-md px-3 py-1.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-          >
-            Sign in
-          </Link>
+          <UserMenu />
         </div>
       </nav>
     </header>

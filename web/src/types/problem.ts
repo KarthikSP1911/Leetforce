@@ -9,6 +9,8 @@ export interface ProblemSummary {
   tags: string[];
   /** Percent 0-100, or null when nobody has submitted yet. */
   acceptance: number | null;
+  /** True when the signed-in user has an accepted submission. */
+  solved?: boolean;
 }
 
 export interface ProblemList {

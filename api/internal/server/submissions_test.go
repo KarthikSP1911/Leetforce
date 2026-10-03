@@ -26,21 +26,21 @@ type fakeSubs struct {
 	deleted  []string
 	enqueued []string // ids passed to MarkEnqueued
 	markErr  error
-	clients  map[string]string // submission id -> client id
+	owners   map[string]string // submission id -> user id
 	listed   []store.Submission
-	listArgs [3]string // problem, client id, limit asked of ListSubmissions
+	listArgs [3]string // problem, user id, limit asked of ListUserSubmissions
 }
 
-func (f *fakeSubs) SetSubmissionClient(_ context.Context, id, clientID string) error {
-	if f.clients == nil {
-		f.clients = map[string]string{}
+func (f *fakeSubs) SetSubmissionUser(_ context.Context, id, userID string) error {
+	if f.owners == nil {
+		f.owners = map[string]string{}
 	}
-	f.clients[id] = clientID
+	f.owners[id] = userID
 	return nil
 }
 
-func (f *fakeSubs) ListSubmissions(_ context.Context, problem, clientID string, limit int) ([]store.Submission, error) {
-	f.listArgs = [3]string{problem, clientID, strconv.Itoa(limit)}
+func (f *fakeSubs) ListUserSubmissions(_ context.Context, problem, userID string, limit int) ([]store.Submission, error) {
+	f.listArgs = [3]string{problem, userID, strconv.Itoa(limit)}
 	return f.listed, nil
 }
 
@@ -95,6 +95,12 @@ func post(t *testing.T, d Deps, body string) *httptest.ResponseRecorder {
 	w := httptest.NewRecorder()
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/submissions", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	if d.Accounts == nil {
+		d.Accounts = newFakeAccounts()
+	}
+	if fa, ok := d.Accounts.(*fakeAccounts); ok {
+		req.AddCookie(fa.cookie())
+	}
 	New(d).ServeHTTP(w, req)
 	return w
 }
@@ -197,24 +203,25 @@ func TestGetSubmission(t *testing.T) {
 func TestListSubmissions(t *testing.T) {
 	subs := &fakeSubs{listed: []store.Submission{{ID: subID, Problem: "sum", Language: "go", Status: store.StatusJudged,
 		Verdict: &store.VerdictView{Verdict: "AC", RuntimeMS: 4, MemoryKB: 900, Passed: 5, Total: 5}}}}
-	d := Deps{Submissions: subs}
-	list := func(client string) *httptest.ResponseRecorder {
+	accounts := newFakeAccounts()
+	d := Deps{Submissions: subs, Accounts: accounts}
+	list := func(signedIn bool) *httptest.ResponseRecorder {
 		d.Logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 		w := httptest.NewRecorder()
 		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/problems/sum/submissions", nil)
-		if client != "" {
-			req.Header.Set(clientHeader, client)
+		if signedIn {
+			req.AddCookie(accounts.cookie())
 		}
 		New(d).ServeHTTP(w, req)
 		return w
 	}
-	t.Run("lists the caller's submissions", func(t *testing.T) {
-		w := list("browser-abc12345")
+	t.Run("lists the signed-in user's submissions", func(t *testing.T) {
+		w := list(true)
 		if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"AC"`) {
 			t.Fatalf("status = %d, body %s", w.Code, w.Body)
 		}
-		if subs.listArgs != [3]string{"sum", "browser-abc12345", "50"} {
-			t.Fatalf("ListSubmissions args = %v", subs.listArgs)
+		if subs.listArgs != [3]string{"sum", fakeUserID, "50"} {
+			t.Fatalf("ListUserSubmissions args = %v", subs.listArgs)
 		}
 		for _, banned := range []string{"source", "test_set_version", "stderr"} {
 			if strings.Contains(w.Body.String(), banned) {
@@ -222,29 +229,24 @@ func TestListSubmissions(t *testing.T) {
 			}
 		}
 	})
-	for _, bad := range []string{"", "short", "has spaces in it!!"} {
+	t.Run("anonymous gets an empty list and no query", func(t *testing.T) {
 		subs.listArgs = [3]string{}
-		w := list(bad)
+		w := list(false)
 		if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"submissions":[]`) || subs.listArgs != [3]string{} {
-			t.Fatalf("client %q: status = %d, body %s, args %v (want an empty list and no query)", bad, w.Code, w.Body, subs.listArgs)
+			t.Fatalf("status = %d, body %s, args %v (want an empty list and no query)", w.Code, w.Body, subs.listArgs)
 		}
-	}
+	})
 }
 
-func TestCreateSubmissionTagsClient(t *testing.T) {
+func TestCreateSubmissionTagsUser(t *testing.T) {
 	subs, q := &fakeSubs{}, &fakeQueue{}
-	d := Deps{Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), Submissions: subs, Queue: q}
-	w := httptest.NewRecorder()
-	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/submissions", strings.NewReader(`{"problem":"sum","language":"go","source":"x"}`))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set(clientHeader, "browser-abc12345")
-	New(d).ServeHTTP(w, req)
-	if w.Code != http.StatusAccepted || len(subs.clients) != 1 {
-		t.Fatalf("status = %d, clients = %v", w.Code, subs.clients)
+	w := post(t, Deps{Submissions: subs, Queue: q}, `{"problem":"sum","language":"go","source":"x"}`)
+	if w.Code != http.StatusAccepted || len(subs.owners) != 1 {
+		t.Fatalf("status = %d, owners = %v", w.Code, subs.owners)
 	}
-	for _, c := range subs.clients {
-		if c != "browser-abc12345" {
-			t.Fatalf("client = %q", c)
+	for _, u := range subs.owners {
+		if u != fakeUserID {
+			t.Fatalf("owner = %q, want %q", u, fakeUserID)
 		}
 	}
 }
