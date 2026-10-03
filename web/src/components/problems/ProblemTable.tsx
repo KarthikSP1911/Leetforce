@@ -49,10 +49,7 @@ export function ProblemTable({
                 {"–"}
               </td>
               <td className="px-4 py-3 font-medium">
-                <Link
-                  href={`/problems/${p.slug}`}
-                  className="hover:text-primary"
-                >
+                <Link href={`/problems/${p.slug}`} className="hover:text-link">
                   {offset + i + 1}. {p.title}
                 </Link>
               </td>
