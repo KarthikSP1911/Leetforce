@@ -91,6 +91,9 @@ test-api-e2e:
 test-live-e2e:
 	scripts/test-live-e2e.sh
 
+test-auth-e2e:
+	scripts/test-auth-e2e.sh
+
 # Phase 10 exit test: fix a test set, restart the API, the old submission is
 # rejudged against the new version and its verdict replaced once. Needs psql,
 # DATABASE_URL and LEETFORCE_REDIS_URL in .env, sudo and nsjail; deletes the
