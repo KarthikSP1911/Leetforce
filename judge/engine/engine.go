@@ -41,6 +41,10 @@ const (
 	cpuKillSlack = time.Second
 	// detailBytes caps each field of a Detail.
 	detailBytes = 4 << 10
+	// MaxInputBytes is the largest custom input RunCustom accepts.
+	MaxInputBytes = 8 << 10
+	// customOutputBytes caps the stdout a custom run may produce.
+	customOutputBytes = 64 << 10
 )
 
 var (
@@ -48,6 +52,8 @@ var (
 	ErrUnknownLanguage = errors.New("unknown language")
 	// ErrSourceTooLarge is returned when the source exceeds MaxSourceBytes.
 	ErrSourceTooLarge = errors.New("source too large")
+	// ErrInputTooLarge is returned when a custom input exceeds MaxInputBytes.
+	ErrInputTooLarge = errors.New("input too large")
 )
 
 // Engine runs judging jobs. The zero value works on a Linux host as root.
@@ -84,6 +90,18 @@ type Detail struct {
 type CaseResult struct {
 	verdict.Case
 	Detail *Detail
+}
+
+// CustomReport is the outcome of running a program once on a user-supplied
+// input. There is no expected output, so Verdict is verdict.Completed ("")
+// when the program ran cleanly within its limits. It is for Run only.
+type CustomReport struct {
+	Verdict       verdict.Verdict
+	CompileOutput string
+	Stdout        string
+	Stderr        string
+	Time          time.Duration
+	Memory        uint64
 }
 
 // Report is the outcome of judging a submission.
@@ -144,6 +162,53 @@ func (e *Engine) Judge(ctx context.Context, p *problem.Problem, language string,
 	}
 	rep.Overall = verdict.Summarize(caseList(rep.Cases))
 	return rep, nil
+}
+
+// RunCustom compiles source and runs it once on input under the problem's
+// limits for the language. Like Judge, an error means the host failed, except
+// for ErrUnknownLanguage, ErrSourceTooLarge and ErrInputTooLarge, which say the
+// request itself was bad.
+func (e *Engine) RunCustom(ctx context.Context, p *problem.Problem, language string, source, input []byte) (*CustomReport, error) {
+	lg, ok := lang.Get(language)
+	if !ok {
+		return nil, fmt.Errorf("%w: %q", ErrUnknownLanguage, language)
+	}
+	if len(source) > MaxSourceBytes {
+		return nil, fmt.Errorf("%w: %d bytes, limit %d", ErrSourceTooLarge, len(source), MaxSourceBytes)
+	}
+	if len(input) > MaxInputBytes {
+		return nil, fmt.Errorf("%w: %d bytes, limit %d", ErrInputTooLarge, len(input), MaxInputBytes)
+	}
+
+	dir, err := e.newJobDir(source, lg)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = os.RemoveAll(dir) }()
+
+	if lg.Compile != nil {
+		out, ok, err := e.compile(ctx, dir, lg)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			return &CustomReport{Verdict: verdict.CE, CompileOutput: out}, nil
+		}
+	}
+
+	limit := p.Spec.LimitFor(language)
+	vlimits := verdict.Limits{Time: limit.Time(), MemoryBytes: limit.MemoryBytes(), OOMExitCode: lg.OOMExitCode}
+	res, err := e.runProgram(ctx, dir, lg, limit, input, customOutputBytes)
+	if err != nil {
+		return nil, fmt.Errorf("run custom input: %w", err)
+	}
+	return &CustomReport{
+		Verdict: verdict.Classify(*res, vlimits),
+		Stdout:  truncate(strings.ToValidUTF8(string(res.Stdout), "�"), detailBytes),
+		Stderr:  truncate(strings.ToValidUTF8(string(res.Stderr), "�"), detailBytes),
+		Time:    res.CPUTime,
+		Memory:  res.PeakMemoryBytes,
+	}, nil
 }
 
 func caseList(rs []CaseResult) []verdict.Case {
@@ -257,24 +322,7 @@ func truncate(s string, n int) string {
 }
 
 func (e *Engine) runTest(ctx context.Context, dir string, lg lang.Language, mode string, limit problem.Limit, vl verdict.Limits, t problem.Test, opts Options) (CaseResult, error) {
-	limits := sandbox.DefaultLimits()
-	limits.CPUTime = limit.Time() + cpuKillSlack
-	limits.WallTime = 2*limit.Time() + wallSlack
-	limits.MemoryBytes = limit.MemoryBytes()
-	limits.MaxPIDs = lg.RunPIDs
-	limits.MaxOutputBytes = outputCap(len(t.Expected))
-	limits.MaxResultBytes = 4 << 10
-	limits.TmpfsBytes = 8 << 20
-
-	res, err := sandbox.Run(ctx, sandbox.Spec{
-		Argv:          lg.Run(dir, limit.MemoryBytes()),
-		Env:           lg.RunEnv,
-		Stdin:         bytes.NewReader(t.Input),
-		ReadOnlyBinds: append([]string{dir}, lg.Binds...),
-		Limits:        limits,
-		NsjailPath:    e.NsjailPath,
-		CgroupRoot:    e.CgroupRoot,
-	})
+	res, err := e.runProgram(ctx, dir, lg, limit, t.Input, outputCap(len(t.Expected)))
 	if err != nil {
 		return CaseResult{}, fmt.Errorf("run test %s: %w", t.Name, err)
 	}
@@ -296,6 +344,29 @@ func (e *Engine) runTest(ctx context.Context, dir string, lg lang.Language, mode
 		}
 	}
 	return cr, nil
+}
+
+// runProgram runs the compiled program once in a sandbox with the given stdin
+// and stdout cap, under the problem's limits for the language.
+func (e *Engine) runProgram(ctx context.Context, dir string, lg lang.Language, limit problem.Limit, stdin []byte, maxOut int64) (*sandbox.Result, error) {
+	limits := sandbox.DefaultLimits()
+	limits.CPUTime = limit.Time() + cpuKillSlack
+	limits.WallTime = 2*limit.Time() + wallSlack
+	limits.MemoryBytes = limit.MemoryBytes()
+	limits.MaxPIDs = lg.RunPIDs
+	limits.MaxOutputBytes = maxOut
+	limits.MaxResultBytes = 4 << 10
+	limits.TmpfsBytes = 8 << 20
+
+	return sandbox.Run(ctx, sandbox.Spec{
+		Argv:          lg.Run(dir, limit.MemoryBytes()),
+		Env:           lg.RunEnv,
+		Stdin:         bytes.NewReader(stdin),
+		ReadOnlyBinds: append([]string{dir}, lg.Binds...),
+		Limits:        limits,
+		NsjailPath:    e.NsjailPath,
+		CgroupRoot:    e.CgroupRoot,
+	})
 }
 
 // outputCap is the most stdout a test may produce: generous compared with the
