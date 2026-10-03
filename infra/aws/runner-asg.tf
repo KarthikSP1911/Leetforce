@@ -98,6 +98,13 @@ resource "aws_autoscaling_group" "runner" {
     value               = "leetforce-runner"
     propagate_at_launch = false # the launch template already tags instances
   }
+
+  # scripts/test-runner-loss.sh finds the group by this tag to know a replacement is expected.
+  tag {
+    key                 = "Role"
+    value               = "runner"
+    propagate_at_launch = false
+  }
 }
 
 # Public addresses of the running runners (for SSH and the Prometheus tunnel).
