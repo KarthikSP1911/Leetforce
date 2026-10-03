@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Difficulty } from "@/types/problem";
 
 const fieldClass =
@@ -62,12 +63,12 @@ export function ProblemFilters({
       >
         Apply
       </button>
-      <a
+      <Link
         href="/problems"
         className="text-muted hover:text-primary h-9 content-center text-sm"
       >
         Reset
-      </a>
+      </Link>
     </form>
   );
 }
