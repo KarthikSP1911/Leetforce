@@ -16,8 +16,10 @@ import (
 // other IPs still get streams.
 func TestStreamSlotsPerIPCap(t *testing.T) {
 	s := newStreamSlots(5, 2)
-	if !s.acquire("203.0.113.7") || !s.acquire("203.0.113.7") {
-		t.Fatal("the first two streams of an IP must be accepted")
+	for i := 1; i <= 2; i++ {
+		if !s.acquire("203.0.113.7") {
+			t.Fatalf("stream %d of an IP under its cap was refused", i)
+		}
 	}
 	if s.acquire("203.0.113.7") {
 		t.Fatal("a third stream from the same IP must be refused")
