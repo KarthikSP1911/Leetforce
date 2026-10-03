@@ -149,3 +149,22 @@ Unit `feat/16-security-review`, branched from `phase/16-launch-readiness` at `62
 | `.trivyignore` | `AWS-0132` with reason and expiry |
 | `docs/security-review.md` | findings |
 | `docs/phases/phase-16-log.md` | this file |
+
+## Integration (Part B)
+
+Who: Claude (integrator). Date: 2026-10-04.
+
+| Step | Command | Result |
+|---|---|---|
+| Phase 16 branch | `git checkout -b phase/16-launch-readiness; git tag phase-16-start` at `main` 62e6926 | The session started on `main`, not on the phase branch; the branch and tag did not exist, so they were created |
+| Part A merges | `git merge --no-ff feat/16-{backup-restore,docs-cost,load-test,security-review}` | Four merges; `docs/phases/phase-16-log.md` had an add/add conflict each time (every subagent created it); resolved by keeping every section |
+| Merge Phase 14 | `git merge --no-ff phase/14-contests` | Conflicts in `Makefile` (`.PHONY` line) and `docs/FLOW.md`; resolved as a union |
+| ADR numbers | `git mv docs/adr/0023-load-test-tool.md docs/adr/0024-load-test-tool.md` | Phase 14 took 0023 and Phase 15 took 0025, so the load test ADR is 0024 |
+| Merge Phase 15 | `git merge --no-ff phase/15-leaderboard` | Conflicts in `Makefile`, `api/cmd/api/main.go`, `api/internal/server/server.go`, `web/src/lib/api/client.ts`, `web/src/components/contest/standings-slot.tsx`, `docs/FLOW.md`, `docs/PROGRESS.md`; resolved as a union (Deps has both `Contests` and `Ranking`; routes keep `requireJSON` on `POST /runs` from the security review); Phase 15 wins `standings-slot.tsx` |
+| Stub removal | `git rm api/internal/contest/contract_stub.go api/internal/leaderboard/score_none.go`; removed the `leaderboard_stub` build tag from `score_contract.go`, `penalty_test.go`, `store/leaderboard_concurrent_test.go` | `ContractScorer` now always uses `contest.Score` |
+| **Integration bug found** | `go test ./internal/leaderboard/` with and without the change | `contest.Score` ranks by `Event.Elapsed`, and the stub never set it, so every penalty came out 0. `ContractScorer` now sets `Elapsed: e.SubmittedAt.Sub(epoch)`. Regression test: `penalty_test.go` fails without it (`penalty 0, want 11`) and passes with it |
+| Migrations | `ls api/migrations` | 00001 to 00006, then 00015 (leaderboard indexes): ascending, with a gap |
+| Local gates (Windows PC) | `go vet`, `golangci-lint run`, `go test -count=1` for each module in `GO_MODULES` | `queue`, `storage`, `tools/loadtest`: pass. `api`: 3 lint issues (gofmt x2, noctx x1) fixed in `b00dd42`; all tests pass. `judge` and `runner`: cannot compile on Windows (Linux-only syscalls in `judge/sandbox`), so they need the dev host |
+| Web gates | `npm run lint`, `typecheck`, `npm test`, `npm run build` in `web/` | All pass; routes `/contest`, `/contest/[slug]`, `/leaderboard` build |
+
+Not yet run (need the Linux dev host and the real Neon database; waiting for the owner): `make test-sandbox`, `make test-adversarial`, `make test-api-e2e`, `make test-live-e2e`, `make test-auth-e2e`, `make test-rejudge-e2e`, `make validate-problems`, `scripts/seed-mock-contest.sh` and `scripts/run-mock-contest.sh`, `make test-leaderboard-concurrent`, the load test, the backup/restore drill, and the Trivy full scan on the merged tree.
