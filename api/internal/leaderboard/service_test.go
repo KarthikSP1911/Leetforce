@@ -165,3 +165,39 @@ func TestGlobalPaging(t *testing.T) {
 		t.Fatalf("per_page = %d, want clamp to %d", p.PerPage, MaxPer)
 	}
 }
+
+type contestSource struct {
+	fakeSource
+	c Contest
+}
+
+func (f *contestSource) ContestBySlug(context.Context, string) (Contest, error) { return f.c, nil }
+
+// Regression: the public standings listed the problem slugs of a contest that
+// had not started, although those problems are hidden until the start.
+func TestStandingsHideProblemsBeforeStart(t *testing.T) {
+	start := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	src := &contestSource{c: Contest{ID: "c", Slug: "c", StartsAt: start, EndsAt: start.Add(2 * time.Hour), Problems: []string{"a", "b"}}}
+	for _, tc := range []struct {
+		name string
+		now  time.Time
+		want int
+	}{
+		{"before the start", start.Add(-time.Minute), 0},
+		{"at the start", start, 2},
+		{"after the end", start.Add(3 * time.Hour), 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := newTestService(src, newFakeCache())
+			svc.now = func() time.Time { return tc.now }
+			svc.score = func([]Event) []Standing { return nil }
+			got, err := svc.Standings(context.Background(), "c")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(got.Problems) != tc.want {
+				t.Fatalf("problems = %v, want %d", got.Problems, tc.want)
+			}
+		})
+	}
+}
