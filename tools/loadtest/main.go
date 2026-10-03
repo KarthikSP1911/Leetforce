@@ -28,7 +28,6 @@ func main() {
 	flag.DurationVar(&cfg.Ramp, "ramp", 0, "spread virtual user start over this period")
 	flag.StringVar(&cfg.Mode, "mode", "mixed", "mixed (problems, run, submit) or contest (submit to a contest)")
 	flag.StringVar(&cfg.Contest, "contest", "", "contest slug for -mode contest")
-	flag.StringVar(&cfg.ContestPath, "contest-path", "/contests/%s/submissions", "contest submit path, %s is the slug")
 	flag.StringVar(&cfg.Problem, "problem", "", "problem slug (default: first in the list)")
 	flag.StringVar(&cfg.Language, "language", "python", "python, cpp, java or go")
 	flag.StringVar(&cfg.SourceFile, "source-file", "", "file with the solution to send (default: a trivial program)")
