@@ -192,10 +192,15 @@ func TestLeaderboardConcurrentIngest(t *testing.T) {
 	if len(events) != nSubs {
 		t.Fatalf("events in database = %d, want %d (a verdict was lost or doubled)", len(events), nSubs)
 	}
-	rebased := make([]leaderboard.Event, len(events))
-	for i, e := range events {
+	// The oracle applies the same window rule as the service: a verdict after
+	// the contest end does not count (the test stores submissions past it).
+	rebased := make([]leaderboard.Event, 0, len(events))
+	for _, e := range events {
+		if e.SubmittedAt.After(c.EndsAt) {
+			continue
+		}
 		e.SubmittedAt = time.Unix(0, 0).UTC().Add(e.SubmittedAt.Sub(c.StartsAt))
-		rebased[i] = e
+		rebased = append(rebased, e)
 	}
 	byUser := map[string]leaderboard.Standing{}
 	for _, st := range leaderboard.ContractScorer()(rebased) {
