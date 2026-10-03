@@ -3,6 +3,7 @@
 **Branch:** `feat/16-security-review`
 **Scope:** the whole repository at `62e6926` (api, runner, judge, queue, storage, web, infra, k8s, ansible, packer, scripts, docker-compose.yml, `.env.example`, `.github/workflows`), checked against the CLAUDE.md security rules.
 **Method:** code reading of every API response path and every runner/judge path that touches test data; `git log -G` and `git grep` over all history for key material; Trivy through the dev host; Terraform, Kubernetes, Ansible and systemd review.
+**Added at integration (Claude, same phase):** the Phase 14 and 15 code (contests, standings, leaderboard) was merged after the review above and was read separately; it produced SEC-16 to SEC-18. The Trivy full scan was re-run on the merged tree (see "Re-scan").
 **Not touched:** sandbox code (`judge/sandbox/`) was read only. No billable action was run and no cloud resource was started or stopped.
 
 ## Summary
@@ -24,6 +25,9 @@
 | SEC-13 | Low | Slow request bodies are not cut off in the API process | ACCEPTED |
 | SEC-14 | Info | Submission and run results are readable by anyone holding the id | ACCEPTED |
 | SEC-15 | Low | `X-Forwarded-Proto` decides the cookie `Secure` flag; trusted-proxy range is the whole pod CIDR | ACCEPTED |
+| SEC-16 | Medium | Standings listed the problem slugs of a contest that had not started | FIXED |
+| SEC-17 | Low | Neon dump file written world-readable when `pg_dump` runs in a container | FIXED |
+| SEC-18 | Low | Standings and the global leaderboard are public and unmetered | ACCEPTED |
 
 Everything else on the checklist was verified and found sound; see "Verified clean" at the end.
 
@@ -132,11 +136,30 @@ Everything else on the checklist was verified and found sound; see "Verified cle
 | Cgroup kill | `judge/sandbox/cgroup.go` writes `cgroup.kill` on timeout and limit breach and removes the cgroup before `Run` returns; nsjail has no network and an explicit environment (read only; the adversarial suite needs the dev host and was not run) | Clean |
 | Dependencies and images | `scripts/scan-staged.sh full` on the dev host, Trivy 0.75.0: 0 vulnerabilities in `api`, `judge`, `queue`, `runner`, `storage` Go modules and `web/package-lock.json`; Dockerfile and Compose clean; one misconfiguration (SEC-12) | Clean apart from SEC-12 |
 
+### SEC-16 Contest problems leaked through standings (Medium) FIXED
+- **Location:** `api/internal/leaderboard/service.go` (`ComputeStandings`).
+- **Description:** `GET /contests/:slug/standings` returned `problems` (the slugs) for any contest, including one that had not started, to anonymous callers. Contest problems are meant to be hidden until the start (they are 404 on the catalog endpoints). Statements and tests were never exposed, only the slugs.
+- **Fix:** the list is empty before `starts_at` (commit `e9a69c9`). Regression test `TestStandingsHideProblemsBeforeStart` fails without the fix (`problems = [a b], want 0`).
+
+### SEC-17 Dump file mode (Low) FIXED
+- **Location:** `scripts/backup-neon.sh`.
+- **Description:** found while running the restore drill. The script sets `umask 077`, but when `pg_dump` runs in a container (needed because the host client was PostgreSQL 16 and Neon runs 18) the file is created with the container's umask, so the dump, which holds emails, password hashes and submitted source, came out mode 644.
+- **Fix:** `chmod 600` after the dump (commit `32fe90b`). The test dumps made before the fix were deleted from the host. No automated test: the behaviour depends on a container runtime, so it was checked by hand on the host.
+
+### SEC-18 Public standings and leaderboard (Low) ACCEPTED
+- **Description:** `GET /contests/:slug/standings` and `GET /leaderboard` need no sign-in and are not rate limited. They expose usernames, solve counts, penalties and, during a contest, which problem each user solved. They never expose source, hidden tests or verdict details.
+- **Why accepted:** public rankings are the purpose of the feature. Database load is bounded because both responses come from a Redis snapshot (15 s and 60 s TTL) tied to a version counter, so a flood of reads recomputes at most once per TTL. Add a per-IP read limit if abuse appears.
+
+## Re-scan
+
+`scripts/scan-staged.sh full` (Trivy 0.75.0, vulnerability, secret and misconfiguration scanners, HIGH and CRITICAL) on the merged Phase 16 tree, including the new `framer-motion` dependency: clean, exit 0. The only suppression is the AWS-0132 entry in `.trivyignore` (SEC-12, expires 2027-04-03).
+
 ## Tests added
 
 - `api/internal/server/events_ip_test.go`: per-IP stream cap (SEC-01).
 - `api/internal/server/security_login_test.go`: shared login budget across email and username (SEC-02).
 - `api/internal/server/security_json_test.go`: 415 for non-JSON POSTs (SEC-03).
 - `web/src/lib/safe-next.test.ts`: open-redirect inputs (SEC-04).
+- `api/internal/leaderboard/service_test.go`: `TestStandingsHideProblemsBeforeStart` (SEC-16).
 
 Run: `cd api && go test ./internal/server/`, `cd web && npm test`.

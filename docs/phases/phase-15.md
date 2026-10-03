@@ -1,10 +1,10 @@
 # Phase 15: Leaderboard
 
 **Branch:** `phase/15-leaderboard` (worktree `../Leetforce-p15`)
-**Range:** `phase-15-start..HEAD` (not merged; Phase 16 merges)
+**Range:** `phase-15-start..phase-15-done` (merged to `main` together with Phase 16)
 **Dates:** 2026-10-03 (one session, parallel with phases 14 and 16)
 **Milestone:** none
-**Status:** in review, untested; gate in Phase 16. Log: [phase-15-log.md](phase-15-log.md)
+**Status:** done; gate passed in Phase 16. Log: [phase-15-log.md](phase-15-log.md)
 
 ## Summary
 Adds contest standings (`GET /contests/:slug/standings`, ICPC rules via the Phase 14 `Score` contract, stubbed here) and a global ranking (`GET /leaderboard`, weighted distinct solves), both cached in Redis with a version counter that the ingester bumps after every stored verdict. A concurrency test and a make target exist but were not run.
@@ -12,7 +12,7 @@ Adds contest standings (`GET /contests/:slug/standings`, ICPC rules via the Phas
 ## Exit criteria
 | Criterion (from PLAN.md) | Status | Evidence |
 |---|---|---|
-| Rankings are correct under concurrent submissions | NOT VERIFIED | `make test-leaderboard-concurrent` written (`TestLeaderboardConcurrentIngest`), deliberately not run; Phase 16 runs it after merging Phase 14 |
+| Rankings are correct under concurrent submissions | PASS | `make test-leaderboard-concurrent`: `TestLeaderboardConcurrentIngest` passes 3 of 3 runs with `-race` against the real schema (Phase 16 combined gate on the dev host, head `1a153e4`, log in [phase-16-log.md](phase-16-log.md)). Two defects in the test itself were found and fixed first: contest problems inserted without the required `label`, and an oracle that scored verdicts after the contest end |
 
 ## Branches merged
 None. Units were committed directly on `phase/15-leaderboard` (owner override: work fast, parallel phases).
@@ -78,3 +78,7 @@ None.
 - Commits: 6 (excluding merges), plus this report
 - Files: 22 added, 6 modified (counted before this report), 0 deleted
 - Lines: +1834 / -13 before this report
+
+## Integration (Phase 16)
+
+The stub of the Phase 14 contract (`contract_stub.go`, `score_none.go`, the `leaderboard_stub` build tag) was deleted. The merge exposed one real defect: the adapter never set `contest.Event.Elapsed`, so every penalty scored 0; `penalty_test.go` fails without the fix. Its ADR is 0025. See [phase-16-log.md](phase-16-log.md).

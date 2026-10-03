@@ -1,7 +1,7 @@
 # Phase 14: Contests
 
 **Branch:** `phase/14-contests`
-**Range:** `phase-14-start..HEAD` (not merged to `main`; Phase 16 merges)
+**Range:** `phase-14-start..phase-14-done` (merged to `main` together with Phase 16)
 **Dates:** 2026-10-03 (one session, parallel with Phases 15 and 16)
 **Milestone:** none
 **Log:** [phase-14-log.md](phase-14-log.md) · **Contract for Phase 15:** [phase-14-contract.md](phase-14-contract.md)
@@ -12,9 +12,9 @@ Contests exist as a timed window over a set of problems, with registration, cont
 ## Exit criteria
 | Criterion (from PLAN.md) | Status | Evidence |
 |---|---|---|
-| a full mock contest runs end to end | not yet verified | written: `make test-mock-contest` (`scripts/run-mock-contest.sh`); runs in Phase 16 |
-| scoring rules correct | unit-tested only | `go test ./internal/contest/` (`TestScore`, `TestScorePerProblem`, `TestStatusAt`) pass |
-| visibility and register rules | unit-tested only | `TestProblemsVisibility`, `TestRegister` pass (fake store); SQL gates untested |
+| a full mock contest runs end to end | PASS | `make test-mock-contest`: 32 checks, `PASS: a full mock contest ran end to end (register, AC/WA/CE, visibility, scoring)` (Phase 16 combined gate on the dev host, head `1a153e4`, log in [phase-16-log.md](phase-16-log.md)). A first run failed 2 visibility checks only because a demo contest from the owner's browser session held the same problems; it passed once that contest was removed |
+| scoring rules correct | PASS (unit and end to end) | `go test ./internal/contest/` (`TestScore`, `TestScorePerProblem`, `TestStatusAt`) pass |
+| visibility and register rules | PASS | `TestProblemsVisibility`, `TestRegister`, and the mock contest checks (hidden for anonymous and unregistered, 409 outside the window, 409 after the end) against the real database |
 
 ## Branches merged
 | Branch | Purpose | Commits |
@@ -88,3 +88,7 @@ None.
 - Commits: 3 (excluding merges), plus docs commits
 - Files: 18 added, 11 modified, 0 deleted (code commits)
 - Lines: +1828 / -16 (code commits)
+
+## Integration (Phase 16)
+
+Merged into `phase/16-launch-readiness` with conflicts only in `Makefile` and `docs/FLOW.md`. Its ADR is 0023. Phase 16 later found that the public standings leaked the contest problem list before the start (SEC-16, fixed with a regression test). See [phase-16-log.md](phase-16-log.md).

@@ -168,3 +168,67 @@ Who: Claude (integrator). Date: 2026-10-04.
 | Web gates | `npm run lint`, `typecheck`, `npm test`, `npm run build` in `web/` | All pass; routes `/contest`, `/contest/[slug]`, `/leaderboard` build |
 
 Not yet run (need the Linux dev host and the real Neon database; waiting for the owner): `make test-sandbox`, `make test-adversarial`, `make test-api-e2e`, `make test-live-e2e`, `make test-auth-e2e`, `make test-rejudge-e2e`, `make validate-problems`, `scripts/seed-mock-contest.sh` and `scripts/run-mock-contest.sh`, `make test-leaderboard-concurrent`, the load test, the backup/restore drill, and the Trivy full scan on the merged tree.
+
+## Fixes found by the gates (all on `fix/16-*` branches, merged with default messages)
+
+| Found by | Defect | Fix | Regression check |
+|---|---|---|---|
+| Local lint | 3 lint issues in merged code (gofmt twice, noctx once) | `b00dd42` | `make lint` |
+| Merge | `ContractScorer` never set `Event.Elapsed`, so every penalty was 0 | in the Phase 15 merge commit | `penalty_test.go` fails without it (`penalty 0, want 11`) |
+| Review of the load tool | contest mode posted to a guessed route that does not exist | `fix/16-loadtest-contest-route` | `tools/loadtest` tests with a fake contest server |
+| First gate run | `test-leaderboard-concurrent` failed with Permission denied: scripts committed without the executable bit (six of them) | `15468ac` | `make check-scripts`, part of `make lint` |
+| Re-run | leaderboard test inserted `contest_problems` without the NOT NULL `label` | `c373614` | the test itself, now passing |
+| Re-run | leaderboard test oracle scored verdicts after the contest end (240 submissions one minute apart, 180 minute window); the service was right | `fix/16-leaderboard-oracle` | the test itself, 3 of 3 runs |
+| Load test run | a stale API and runner from before this session held the fixed port 18085, so the first load test hit an old build | script now picks a free port and checks its own API process is the one answering | `scripts/test-loadtest-local.sh` |
+| Restore drill | dump file mode 644 when `pg_dump` runs in a container (SEC-17) | `32fe90b` | checked by hand on the host |
+| Own review of Phases 14 and 15 | standings listed contest problem slugs before the start (SEC-16) | `e9a69c9` | `TestStandingsHideProblemsBeforeStart` fails without it |
+
+## Mistakes and corrections
+
+- The session was started on `main` and the phase branch did not exist; it was created with the `phase-16-start` tag.
+- A first mock-contest failure came from a demo contest created in the owner's browser session (it held the same problems and hid them from the test users). The demo contest was removed for the gate and recreated afterwards.
+- Two commits were rejected by commitlint (a `style` type, an over-long header) and redone. One commit was made with a reused message file, so the phase branch was reset to the commit before it (nothing had been pushed) and the change redone with its own message.
+- A combined shell command failed to parse and applied nothing; edits were redone from script files.
+- The restore drill first recorded one table because a Docker shim passed `-i` to `psql` and swallowed the rest of the table list from a pipe; the shim was fixed. (Not a defect in the scripts.)
+- The dev host disk was 98% full; `go clean -cache` freed about 1.9 GB (regenerable). Nothing else on the host was deleted.
+- A web edit to the Navbar made a mistake with `prettier` reordering classes that broke a text replacement; checked and redone.
+
+## Final combined gate (one run on the final code)
+
+Run on the dev host (Ubuntu 24.04, 1 vCPU, 911 MB RAM, real Neon database and Upstash Redis, sandbox as root with nsjail and cgroup v2) by `~/gates16f.sh`, head `1a153e4` (the last commit that touches code; later commits are documents only). Start 19:45:48, end 20:04:26 on the host clock. Per-step logs are in `~/gates16f/` on the host. The Trivy and Go versions are Trivy 0.75.0 and Go 1.27.1.
+
+| Step | Command | Result |
+|---|---|---|
+| scripts executable | `make check-scripts` | rc 0 |
+| migrations | `make migrate-status` | rc 0; head `00015_leaderboard_indexes.sql` (applied to the real Neon database earlier with `make migrate-up`, rc 0) |
+| format | `make fmt` | rc 0, no files changed |
+| lint | `make lint` | rc 0, 0 issues in all modules |
+| unit tests | `make test` | rc 0, 24 packages ok, 0 failures |
+| build | `make build-judge build-runner build-api` | rc 0 |
+| problems | `make validate-problems` | rc 0, `5 of 5 problems valid` (starter warnings only) |
+| sandbox | `make test-sandbox` | rc 0 |
+| adversarial | `make test-adversarial` | rc 0, 49 passing tests, 0 failed or skipped |
+| API e2e | `make test-api-e2e` | rc 0: `AC stored through API, runner and ingest; a duplicate verdict changed nothing; a dead-lettered job became IE` |
+| live e2e | `make test-live-e2e` | rc 0: queued, judging, verdict over SSE; no hidden data in any response; an orphan re-queued and judged |
+| auth e2e | `make test-auth-e2e` | rc 0: accounts, login required, limits, solved status, Run and Submit as a signed-in user |
+| rejudge e2e | `make test-rejudge-e2e` | rc 0: a fixed test set re-queued the submission, the new verdict replaced the old one once |
+| mock contest (Phase 14 exit) | `make test-mock-contest` | rc 0, 32 checks, `PASS: a full mock contest ran end to end` |
+| leaderboard concurrency (Phase 15 exit) | `make test-leaderboard-concurrent` | rc 0, `TestLeaderboardConcurrentIngest` PASS 3 of 3 with `-race` (about 33 s each) |
+| load test (Phase 16 exit) | `make test-loadtest-local` | rc 0, see below |
+
+Load test numbers (6 users x 2 iterations per mode, a single 1 vCPU host, one runner, throwaway queue prefix, limits raised, free port):
+
+| Mode | Submissions accepted | Reached a verdict | Errors | Rate limited | Time to verdict p50 / p95 / max |
+|---|---|---|---|---|---|
+| mixed (sign-up, list, Run, Submit, SSE) | 12 | 12 | 0 | 0 | 8.1 s / 8.4 s / 8.4 s |
+| contest (register, contest problems, Submit with `contest_id`, SSE) | 12 | 12 | 0 | 0 | 6.6 s / 8.2 s / 8.2 s |
+
+These figures say the system works under a small load; they are not a capacity claim (one runner, one CPU).
+
+Web gates on the PC (final tree): `npm run lint`, `npm run typecheck`, `npm test` (2 pass), `npm run build` all rc 0. `go vet ./...` and `go test ./...` in `api/` on the PC: all pass.
+
+Trivy: `scripts/scan-staged.sh full` (Trivy 0.75.0) on the merged tree: clean, exit 0.
+
+Restore drill (`docs/runbook-backup-restore.md` has the table): scratch database PASS; S3 PASS but vacuous; Neon branch mode not run.
+
+Not run: `terraform apply`, the AMI build, the runner-loss test, anything in the cloud (the owner did not ask for them; see `docs/launch-checklist.md`).

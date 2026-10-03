@@ -95,8 +95,8 @@ Row counts are compared against counts taken at dump time. If the source takes w
 
 | Date | Who | Target | Dump size | Time to restore | Result | Notes |
 |---|---|---|---|---|---|---|
-| (not yet run) | | scratchdb | | | | |
-| (not yet run) | | Neon branch | | | | |
-| (not yet run) | | S3 bundles | | | | |
+| 2026-10-03 | Claude, approved by the owner | scratchdb (PostgreSQL 18 container on the dev host) | 33 KB | about 14 s for dump, restore and verify | PASS | goose version 15; 8 tables restored with equal counts (problems 5, users 4, submissions 124, verdicts 119, sessions 5, contests 0); scratch database dropped. Needed PostgreSQL 18 client tools (Neon is 18.6, the host had 16): run through the `postgres:18-alpine` image |
+| not run | | Neon branch | | | | Owner chose the local scratch target; the branch mode and its Neon API calls (written from memory of the v2 API) are untested |
+| 2026-10-03 | Claude, approved by the owner | S3 bundles (AWS bucket, owner's `leetforce` profile from the PC) | 0 objects | a few seconds | PASS, vacuous | The real bucket holds no objects under `problems/` yet, so only the mechanics were exercised (sync, count, checksum, scratch prefix, cleanup). Re-run after the test bundles are uploaded |
 
 PITR window confirmed from the Neon console: `____` (date and who checked).
