@@ -9,20 +9,23 @@ services:
     volumes:
       - redis-data:/data
 
-  # S3-compatible object store for problem test data (ADR 0011). MinIO stopped
-  # publishing container images in 2025, so local development uses RustFS; the
-  # code only speaks the S3 API, and the cloud uses real S3.
-  s3:
-    image: rustfs/rustfs:1.0.0
-    environment:
-      RUSTFS_ACCESS_KEY: ${LEETFORCE_S3_ACCESS_KEY:?set LEETFORCE_S3_ACCESS_KEY in .env}
-      RUSTFS_SECRET_KEY: ${LEETFORCE_S3_SECRET_KEY:?set LEETFORCE_S3_SECRET_KEY in .env}
-    ports:
-      - "127.0.0.1:9000:9000"
-      - "127.0.0.1:9001:9001"
-    volumes:
-      - s3-data:/data
+  # Problem test data now lives in real S3 in every environment (Phase 13, ADR 0021),
+  # so there is no local object store by default. RustFS is kept below, commented out,
+  # for fully offline work: uncomment it, uncomment s3-data under volumes, and set
+  # LEETFORCE_S3_ENDPOINT=127.0.0.1:9000 and LEETFORCE_S3_USE_TLS=false in .env.
+  # MinIO stopped publishing container images in 2025 (ADR 0011), hence RustFS.
+  #
+  # s3:
+  #   image: rustfs/rustfs:1.0.0
+  #   environment:
+  #     RUSTFS_ACCESS_KEY: ${LEETFORCE_S3_ACCESS_KEY:?set LEETFORCE_S3_ACCESS_KEY in .env}
+  #     RUSTFS_SECRET_KEY: ${LEETFORCE_S3_SECRET_KEY:?set LEETFORCE_S3_SECRET_KEY in .env}
+  #   ports:
+  #     - "127.0.0.1:9000:9000"
+  #     - "127.0.0.1:9001:9001"
+  #   volumes:
+  #     - s3-data:/data
 
 volumes:
   redis-data:
-  s3-data:
+  # s3-data:

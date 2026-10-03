@@ -144,6 +144,44 @@ data "aws_iam_policy_document" "control_ssm" {
   }
 }
 
+# The single bucket from infra/bootstrap (ADR 0021). Runners may only read test bundles;
+# the control host (API) may also write them. Neither can see tfstate/.
+locals {
+  data_bucket_arn = "arn:aws:s3:::leetforce-${data.aws_caller_identity.current.account_id}-data"
+}
+
+data "aws_iam_policy_document" "runner_s3" {
+  statement {
+    actions   = ["s3:GetObject"]
+    resources = ["${local.data_bucket_arn}/problems/*"]
+  }
+  statement {
+    actions   = ["s3:ListBucket"]
+    resources = [local.data_bucket_arn]
+    condition {
+      test     = "StringLike"
+      variable = "s3:prefix"
+      values   = ["problems/*"]
+    }
+  }
+}
+
+data "aws_iam_policy_document" "control_s3" {
+  statement {
+    actions   = ["s3:GetObject", "s3:PutObject"]
+    resources = ["${local.data_bucket_arn}/problems/*"]
+  }
+  statement {
+    actions   = ["s3:ListBucket", "s3:GetBucketLocation"]
+    resources = [local.data_bucket_arn]
+    condition {
+      test     = "StringLike"
+      variable = "s3:prefix"
+      values   = ["problems/*"]
+    }
+  }
+}
+
 resource "aws_iam_role" "runner" {
   name_prefix        = "leetforce-runner-"
   assume_role_policy = data.aws_iam_policy_document.ec2_assume.json
@@ -153,6 +191,12 @@ resource "aws_iam_role_policy" "runner_ssm" {
   name   = "read-runner-parameters"
   role   = aws_iam_role.runner.id
   policy = data.aws_iam_policy_document.runner_ssm.json
+}
+
+resource "aws_iam_role_policy" "runner_s3" {
+  name   = "read-problem-bundles"
+  role   = aws_iam_role.runner.id
+  policy = data.aws_iam_policy_document.runner_s3.json
 }
 
 resource "aws_iam_instance_profile" "runner" {
@@ -169,6 +213,12 @@ resource "aws_iam_role_policy" "control_ssm" {
   name   = "read-leetforce-parameters"
   role   = aws_iam_role.control.id
   policy = data.aws_iam_policy_document.control_ssm.json
+}
+
+resource "aws_iam_role_policy" "control_s3" {
+  name   = "readwrite-problem-bundles"
+  role   = aws_iam_role.control.id
+  policy = data.aws_iam_policy_document.control_s3.json
 }
 
 resource "aws_iam_instance_profile" "control" {
