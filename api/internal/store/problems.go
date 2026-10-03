@@ -17,7 +17,20 @@ type Problem struct {
 	Title      string   `json:"title"`
 	Difficulty string   `json:"difficulty"`
 	Tags       []string `json:"tags"`
+	// Acceptance is the percentage (0-100) of judged submissions that got AC,
+	// or nil when the problem has no judged submissions. Read-only: filled by
+	// the list/get queries, ignored by UpsertProblem.
+	Acceptance *float64 `json:"acceptance"`
 }
+
+// problemSelect computes acceptance from verdicts (internal errors, IE, are not
+// the user's fault and are left out of the denominator).
+const problemSelect = `
+	SELECT p.slug, p.title, p.difficulty, p.tags,
+	       (SELECT 100.0 * count(*) FILTER (WHERE v.verdict = 'AC') / NULLIF(count(*), 0)
+	          FROM submissions s JOIN verdicts v ON v.submission_id = s.id
+	         WHERE s.problem_slug = p.slug AND v.verdict <> 'IE')::float8 AS acceptance
+	  FROM problems p`
 
 // UpsertProblem inserts or updates a problem and its current test-set version.
 func (s *Store) UpsertProblem(ctx context.Context, p Problem, testSetVersion string) error {
@@ -40,7 +53,7 @@ func (s *Store) UpsertProblem(ctx context.Context, p Problem, testSetVersion str
 
 // ListProblems returns all problems ordered by slug.
 func (s *Store) ListProblems(ctx context.Context) ([]Problem, error) {
-	rows, err := s.pool.Query(ctx, `SELECT slug, title, difficulty, tags FROM problems ORDER BY slug`)
+	rows, err := s.pool.Query(ctx, problemSelect+` ORDER BY p.slug`)
 	if err != nil {
 		return nil, fmt.Errorf("list problems: %w", err)
 	}
@@ -53,7 +66,7 @@ func (s *Store) ListProblems(ctx context.Context) ([]Problem, error) {
 
 // GetProblem returns one problem, or ErrNotFound.
 func (s *Store) GetProblem(ctx context.Context, slug string) (Problem, error) {
-	rows, err := s.pool.Query(ctx, `SELECT slug, title, difficulty, tags FROM problems WHERE slug = $1`, slug)
+	rows, err := s.pool.Query(ctx, problemSelect+` WHERE p.slug = $1`, slug)
 	if err != nil {
 		return Problem{}, fmt.Errorf("get problem: %w", err)
 	}

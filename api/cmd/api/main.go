@@ -138,7 +138,7 @@ func run() error {
 
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           server.New(server.Deps{Logger: log, Ready: ready, Problems: db, Samples: cat, Submissions: db, Queue: q}),
+		Handler:           server.New(server.Deps{Logger: log, Ready: ready, Problems: db, Samples: cat, Content: cat, Submissions: db, Queue: q}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	errc := make(chan error, 1)

@@ -106,3 +106,23 @@ func (c *Catalog) Samples(slug string) []Sample {
 	}
 	return out
 }
+
+// Statement returns the markdown statement of a problem ("" if unknown or none).
+func (c *Catalog) Statement(slug string) string {
+	if p, ok := c.problems[slug]; ok {
+		return p.Statement
+	}
+	return ""
+}
+
+// Starters returns the starter code per language (an empty map if unknown or
+// none). The map is a copy, so callers cannot change the catalog.
+func (c *Catalog) Starters(slug string) map[string]string {
+	out := map[string]string{}
+	if p, ok := c.problems[slug]; ok {
+		for l, code := range p.Starters {
+			out[l] = code
+		}
+	}
+	return out
+}
