@@ -181,6 +181,11 @@ func run() error {
 		Addr:              addr,
 		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
+		// Idle keep-alive connections are reaped. There is deliberately no ReadTimeout
+		// or WriteTimeout: Go keeps the read deadline armed while a handler runs, so
+		// either would cut the SSE streams, which carry their own limit
+		// (EventConfig.MaxDuration).
+		IdleTimeout: 2 * time.Minute,
 	}
 	errc := make(chan error, 1)
 	go func() { errc <- srv.ListenAndServe() }()
