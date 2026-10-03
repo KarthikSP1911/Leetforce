@@ -27,7 +27,7 @@ function Field({
   const isPassword = type === "password";
   return (
     <div>
-      <label htmlFor={id} className="mb-1.5 block text-sm font-medium">
+      <label htmlFor={id} className="mb-1 block text-sm font-medium">
         {label}
       </label>
       <div className="relative">
@@ -37,6 +37,8 @@ function Field({
           type={isPassword && shown ? "text" : type}
           required
           autoComplete={autoComplete}
+          placeholder={hint}
+          aria-label={hint ? `${label} (${hint})` : undefined}
           className={`${inputClass} ${isPassword ? "pr-16" : ""}`}
         />
         {isPassword && (
@@ -51,7 +53,6 @@ function Field({
           </button>
         )}
       </div>
-      {hint && <p className="text-muted mt-1.5 text-xs">{hint}</p>}
     </div>
   );
 }
@@ -107,7 +108,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
   }
 
   return (
-    <main className="mx-auto grid w-full max-w-5xl flex-1 items-center gap-12 px-4 py-12 lg:grid-cols-2 lg:py-20">
+    <main className="mx-auto grid min-h-[calc(100dvh-3.6rem)] w-full max-w-5xl items-center gap-12 px-4 py-4 lg:grid-cols-2">
       <div className="hidden lg:block">
         <h1 className="text-3xl leading-tight font-bold tracking-tight">
           {isLogin ? "Welcome back" : "Join LeetForce"}
@@ -135,14 +136,14 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
         <h2 className="mb-1 text-2xl font-bold">
           {isLogin ? "Sign in" : "Create account"}
         </h2>
-        <p className="text-muted mb-5 text-sm">
+        <p className="text-muted mb-4 text-sm">
           {isLogin
             ? "Use your email or username."
             : "It takes less than a minute."}
         </p>
         <form
           onSubmit={onSubmit}
-          className="bg-panel border-panel-border space-y-4 rounded-lg border p-6"
+          className="bg-panel border-panel-border space-y-3 rounded-lg border p-5"
         >
           {isLogin ? (
             <Field
@@ -189,7 +190,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
             {pending ? "Please wait…" : isLogin ? "Sign in" : "Create account"}
           </button>
         </form>
-        <p className="text-muted mt-5 text-center text-sm">
+        <p className="text-muted mt-4 text-center text-sm">
           {isLogin ? "No account yet? " : "Already have an account? "}
           <Link
             href={`${isLogin ? "/signup" : "/login"}${nextQuery}`}

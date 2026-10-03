@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useId, useRef, useState } from "react";
 
 export interface SelectOption {
@@ -141,33 +142,39 @@ export function Select({
           <path d="m6 9 6 6 6-6" />
         </svg>
       </button>
-      {open && (
-        <ul
-          id={listId}
-          role="listbox"
-          aria-label={label}
-          aria-activedescendant={`${listId}-${active}`}
-          className="bg-panel border-panel-border absolute z-30 mt-1 max-h-60 w-full min-w-36 overflow-auto rounded-lg border py-1 shadow-lg"
-        >
-          {options.map((o, i) => (
-            <li
-              key={o.value}
-              id={`${listId}-${i}`}
-              role="option"
-              aria-selected={o.value === current}
-              onMouseEnter={() => setActive(i)}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => pick(i)}
-              className={`flex cursor-pointer items-center justify-between gap-2 px-3 py-1.5 text-sm ${
-                i === active ? "bg-hover" : ""
-              } ${o.value === current ? "text-link font-semibold" : ""}`}
-            >
-              <span className="truncate">{o.label}</span>
-              {o.value === current && <span aria-hidden="true">{"✓"}</span>}
-            </li>
-          ))}
-        </ul>
-      )}
+      <AnimatePresence>
+        {open && (
+          <motion.ul
+            initial={{ opacity: 0, y: -4, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -4, scale: 0.98 }}
+            transition={{ duration: 0.12 }}
+            id={listId}
+            role="listbox"
+            aria-label={label}
+            aria-activedescendant={`${listId}-${active}`}
+            className="bg-panel border-panel-border absolute z-30 mt-1 max-h-60 w-full min-w-36 overflow-auto rounded-lg border py-1 shadow-lg"
+          >
+            {options.map((o, i) => (
+              <li
+                key={o.value}
+                id={`${listId}-${i}`}
+                role="option"
+                aria-selected={o.value === current}
+                onMouseEnter={() => setActive(i)}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => pick(i)}
+                className={`flex cursor-pointer items-center justify-between gap-2 px-3 py-1.5 text-sm ${
+                  i === active ? "bg-hover" : ""
+                } ${o.value === current ? "text-link font-semibold" : ""}`}
+              >
+                <span className="truncate">{o.label}</span>
+                {o.value === current && <span aria-hidden="true">{"✓"}</span>}
+              </li>
+            ))}
+          </motion.ul>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

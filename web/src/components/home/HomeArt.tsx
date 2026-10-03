@@ -1,3 +1,7 @@
+"use client";
+
+import { motion } from "framer-motion";
+
 // Inline SVG artwork for the home page. Colours come from theme aliases
 // (stroke-panel-border, fill-panel, text-link, text-muted), so both themes work.
 
@@ -66,15 +70,22 @@ function NodeBox({
   w,
   h,
   node,
+  i,
 }: {
   x: number;
   y: number;
   w: number;
   h: number;
   node: Node;
+  i: number;
 }) {
   return (
-    <g>
+    <motion.g
+      initial={{ opacity: 0, y: 8 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-40px" }}
+      transition={{ duration: 0.4, delay: i * 0.12 }}
+    >
       <rect
         x={x}
         y={y}
@@ -101,7 +112,7 @@ function NodeBox({
       >
         {node.note}
       </text>
-    </g>
+    </motion.g>
   );
 }
 
@@ -127,13 +138,19 @@ export function PipelineDiagram() {
             w={w}
             h={h}
             node={n}
+            i={i}
           />
         ))}
         {nodes.slice(0, -1).map((n, i) => {
           const x1 = 20 + i * (w + gap) + w;
           return (
-            <line
+            <motion.line
               key={n.title}
+              initial={{ pathLength: 0, opacity: 0 }}
+              whileInView={{ pathLength: 1, opacity: 1 }}
+              viewport={{ once: true, margin: "-40px" }}
+              transition={{ duration: 0.4, delay: 0.15 + i * 0.12 }}
+
               x1={x1 + 4}
               y1={62}
               x2={x1 + gap - 4}
@@ -144,7 +161,11 @@ export function PipelineDiagram() {
             />
           );
         })}
-        <path
+        <motion.path
+          initial={{ pathLength: 0 }}
+          whileInView={{ pathLength: 1 }}
+          viewport={{ once: true, margin: "-40px" }}
+          transition={{ duration: 0.9, delay: 0.8 }}
           d={`M ${20 + 3 * (w + gap) + w / 2} ${30 + h + 4} V 150 H ${20 + w / 2} V ${30 + h + 8}`}
           fill="none"
           className="stroke-link"
@@ -177,11 +198,16 @@ export function PipelineDiagram() {
             w={220}
             h={56}
             node={n}
+            i={i}
           />
         ))}
         {nodes.slice(0, -1).map((n, i) => (
-          <line
+          <motion.line
             key={n.title}
+            initial={{ pathLength: 0, opacity: 0 }}
+            whileInView={{ pathLength: 1, opacity: 1 }}
+            viewport={{ once: true, margin: "-40px" }}
+            transition={{ duration: 0.4, delay: 0.15 + i * 0.12 }}
             x1={140}
             y1={16 + i * 96 + 60}
             x2={140}
@@ -191,7 +217,11 @@ export function PipelineDiagram() {
             markerEnd="url(#pipe-arrow)"
           />
         ))}
-        <path
+        <motion.path
+          initial={{ pathLength: 0 }}
+          whileInView={{ pathLength: 1 }}
+          viewport={{ once: true, margin: "-40px" }}
+          transition={{ duration: 0.9, delay: 0.8 }}
           d={`M 254 ${16 + 3 * 96 + 28} H 290 V ${16 + 28} H 254`}
           fill="none"
           className="stroke-link"

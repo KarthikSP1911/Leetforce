@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -56,26 +57,32 @@ export function UserMenu() {
         </span>
         <span className="hidden sm:inline">{user.username}</span>
       </button>
-      {open && (
-        <div
-          role="menu"
-          className="bg-panel border-panel-border absolute right-0 mt-1 min-w-36 rounded-lg border py-1"
-        >
-          <button
-            type="button"
-            role="menuitem"
-            autoFocus
-            onClick={async () => {
-              setOpen(false);
-              await signOut();
-              router.refresh();
-            }}
-            className="hover:bg-hover w-full px-3 py-2 text-left text-sm"
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -4, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -4, scale: 0.98 }}
+            transition={{ duration: 0.12 }}
+            role="menu"
+            className="bg-panel border-panel-border absolute right-0 mt-1 min-w-36 rounded-lg border py-1"
           >
-            Sign out
-          </button>
-        </div>
-      )}
+            <button
+              type="button"
+              role="menuitem"
+              autoFocus
+              onClick={async () => {
+                setOpen(false);
+                await signOut();
+                router.refresh();
+              }}
+              className="hover:bg-hover w-full px-3 py-2 text-left text-sm"
+            >
+              Sign out
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
