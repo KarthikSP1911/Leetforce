@@ -228,6 +228,13 @@ func (d Deps) login(c *gin.Context) {
 		d.fail(c, "user by login", err)
 		return
 	}
+	if err == nil {
+		// The same account can be named by email or by username; counting by the
+		// resolved account id stops those two names doubling the guess budget.
+		if !d.limit(c, "login-user", u.ID, lim.LoginAccount, lim.AuthWindow) {
+			return
+		}
+	}
 	match := bcrypt.CompareHashAndPassword(hash, []byte(req.Password)) == nil
 	if err != nil || !match {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "wrong email, username or password"})
