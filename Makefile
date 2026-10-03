@@ -4,7 +4,7 @@
 
 GO_MODULES := judge queue runner api storage tools/loadtest
 
-.PHONY: loadtest test-loadtest-local test-leaderboard-concurrent test-runner-loss build-runner-linux packer-validate build-ami lint-ansible test-destroy-isolation tf-validate test-alerts test-obs-e2e dev-obs down-obs validate-problems test-rejudge-e2e test-mock-contest test-auth-e2e test-live-e2e test-api-e2e build-api migrate-up migrate-down migrate-status dev down fmt lint test build-judge build-runner test-crash test-matrix test-sandbox test-adversarial bench-sandbox
+.PHONY: check-scripts loadtest test-loadtest-local test-leaderboard-concurrent test-runner-loss build-runner-linux packer-validate build-ami lint-ansible test-destroy-isolation tf-validate test-alerts test-obs-e2e dev-obs down-obs validate-problems test-rejudge-e2e test-mock-contest test-auth-e2e test-live-e2e test-api-e2e build-api migrate-up migrate-down migrate-status dev down fmt lint test build-judge build-runner test-crash test-matrix test-sandbox test-adversarial bench-sandbox
 
 # Phase 12: cross-compile the runner for the AMI (static x86_64 Linux binary).
 build-runner-linux:
@@ -59,7 +59,11 @@ down:
 fmt:
 	@for m in $(GO_MODULES); do (cd $$m && golangci-lint fmt ./...) || exit 1; done
 
-lint:
+# Scripts the Makefile runs must be executable in git (a Windows checkout loses the bit).
+check-scripts:
+	@bad=$$(git ls-files -s -- 'scripts/*.sh' 'scripts/**/*.sh' | grep -v '^100755' || true); [ -z "$$bad" ] || { echo "not executable in git:"; echo "$$bad"; exit 1; }
+
+lint: check-scripts
 	@for m in $(GO_MODULES); do (cd $$m && go vet ./... && golangci-lint run ./...) || exit 1; done
 
 test:
