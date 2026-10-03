@@ -1,6 +1,6 @@
 // Command loadtest drives a LeetForce API with virtual users: sign-up, problem
 // list, Run, Submit and the SSE stream until a verdict. It uses only the
-// standard library (ADR 0023).
+// standard library (ADR 0024).
 //
 // Test accounts are named lfload_<runid>_<n>; see docs/phases/phase-16-log.md
 // for the SQL that deletes them.

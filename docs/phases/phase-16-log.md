@@ -75,9 +75,9 @@ Who: Claude (docs subagent). Branch `feat/16-docs-cost` off `phase/16-launch-rea
 Branch `feat/16-load-test` (off `phase/16-launch-readiness`). Done by Claude, in a worktree on the Windows machine; the real stack was not run (needs the dev host).
 
 ### What was added
-- `tools/loadtest/` (`main.go`, `load.go`, `report.go`, `load_test.go`, `go.mod`): stdlib-only Go load tester. See `docs/adr/0023-load-test-tool.md`.
+- `tools/loadtest/` (`main.go`, `load.go`, `report.go`, `load_test.go`, `go.mod`): stdlib-only Go load tester. See `docs/adr/0024-load-test-tool.md`.
 - `go.work`: added `./tools/loadtest`. `Makefile`: `tools/loadtest` added to `GO_MODULES`, new `loadtest` target.
-- `docs/adr/0023-load-test-tool.md`.
+- `docs/adr/0024-load-test-tool.md`.
 
 ### Routes used (verified in `api/internal/server/server.go`)
 `POST /auth/signup` (201), `GET /problems`, `POST /runs` (202) and `GET /runs/:id` (`status` becomes `done`), `POST /submissions` (202), `GET /submissions/:id/events` (SSE, `event: verdict` ends it). API listens on `:8080` by default (`LEETFORCE_API_ADDR`). Contest endpoint: no contest routes were committed on `phase/14-contests` when checked, so `POST /contests/<slug>/submissions` is an assumption; override with `-contest-path`. A 404 aborts with an error.

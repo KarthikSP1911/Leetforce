@@ -1,8 +1,8 @@
-# 0023. Load test tool: a stdlib Go program
+# 0024. Load test tool: a stdlib Go program
 
 **Status:** accepted (Phase 16)
 
-Numbering note: 0023 was the next free number on `feat/16-load-test` (highest was 0022). Phases 14 and 15 may add ADRs; if 0023 is taken at merge time, renumber this file and its references in `Makefile`, `tools/loadtest/main.go` and `docs/phases/phase-16-log.md`.
+Numbering note: renumbered from 0023 to 0024 at integration (Phase 14 took 0023, Phase 15 took 0025).
 
 ## Context
 Phase 16 needs evidence that the platform holds under concurrent users: sign-up, problem list, Run, Submit, SSE status streaming to a verdict, and contest submissions (Phase 14). The numbers wanted are per-step counts and errors, p50/p95/p99 latency, time-to-verdict and submissions per second. The API enforces per-user and per-IP rate limits (ADR 0017), so a load test will see 429s that are correct behaviour, not failures. The real stack runs only on the dev host or in the cloud, so the tool must run anywhere with just a base URL.
