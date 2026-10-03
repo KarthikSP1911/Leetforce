@@ -5,15 +5,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useUser } from "@/components/auth/AuthProvider";
 import { ApiError, login, signup } from "@/lib/api/client";
+import { safeNext } from "@/lib/safe-next";
 
 const inputClass =
   "bg-background border-panel-border w-full rounded-md border px-3 py-2 text-sm";
-
-function safeNext(next: string | null): string {
-  return next && next.startsWith("/") && !next.startsWith("//")
-    ? next
-    : "/problems";
-}
 
 function Field({
   id,
