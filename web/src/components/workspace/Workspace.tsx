@@ -179,7 +179,13 @@ function Console({
   );
 }
 
-export function Workspace({ problem }: { problem: ProblemDetail }) {
+export function Workspace({
+  problem,
+  contest,
+}: {
+  problem: ProblemDetail;
+  contest?: string;
+}) {
   const available = languages.filter((l) => problem.starters[l.id]);
   const options = available.length > 0 ? available : languages;
   const [language, setLanguage] = useState<Language>(options[0].id);
@@ -192,8 +198,10 @@ export function Workspace({ problem }: { problem: ProblemDetail }) {
   );
   const [custom, setCustom] = useState("");
   const [listVersion, setListVersion] = useState(0);
-  const { result, busy, run, submit } = useJudge(problem.slug, () =>
-    setListVersion((v) => v + 1),
+  const { result, busy, run, submit } = useJudge(
+    problem.slug,
+    () => setListVersion((v) => v + 1),
+    contest,
   );
 
   const source = code[language] ?? "";
