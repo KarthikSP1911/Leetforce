@@ -36,6 +36,7 @@ import (
 
 	"leetforce/api/internal/catalog"
 	"leetforce/api/internal/ingest"
+	"leetforce/api/internal/leaderboard"
 	"leetforce/api/internal/metrics"
 	"leetforce/api/internal/reaper"
 	"leetforce/api/internal/rejudge"
@@ -135,6 +136,8 @@ func run() error {
 	host, _ := os.Hostname()
 	ing := ingest.New(q, db, log, ingest.Config{Consumer: fmt.Sprintf("api-%s-%d", host, os.Getpid())})
 	ing.SetRuns(q)
+	ranking := leaderboard.New(db, q, leaderboard.ContractScorer(), log)
+	ing.SetInvalidator(ranking)
 	ingestDone := make(chan struct{})
 	go func() { ing.Run(ctx); close(ingestDone) }()
 	watcher := ingest.NewStatusWatcher(q, db, log, ingest.StatusConfig{})
@@ -164,7 +167,7 @@ func run() error {
 		}
 	}
 	handler := server.New(server.Deps{Logger: log, Ready: ready, Problems: db, Samples: cat, Content: cat, Submissions: db,
-		Queue: q, Versions: db, Runs: q, Accounts: db, Limiter: q, Limits: limits, TrustedProxies: proxies})
+		Queue: q, Versions: db, Runs: q, Accounts: db, Limiter: q, Limits: limits, Ranking: ranking, TrustedProxies: proxies})
 	go sweepSessions(ctx, db, log)
 
 	queueEvery, err := envDuration("LEETFORCE_METRICS_QUEUE_EVERY")
