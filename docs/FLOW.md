@@ -360,5 +360,22 @@ Decision record: [ADR 0019](adr/0019-observability.md). Log: [phase-11-log.md](p
 ```
 Exit check: `make test-obs-e2e` on the dev host, `make test-alerts` and the dashboard filling during `scripts/obs-demo.sh`.
 
+### Phase 12: Infrastructure as code (as built, in progress)
+
+Decision record: [ADR 0020](adr/0020-infrastructure-as-code.md). Log: [phase-12-log.md](phases/phase-12-log.md). Nothing here is applied or built yet; the flow itself does not change, this phase describes the hosts it will run on.
+```
+ Describing the places the stages run
+ 1. infra/neon    Terraform imports the existing Neon project (import block, prevent_destroy); state is infra/neon/terraform.tfstate;
+                  output database_url is sensitive and goes to SSM in Phase 13
+ 2. infra/aws     default VPC only: control host + runner_count runner hosts, security groups open to owner_cidr (22, k3s 6443),
+                  per-port egress, IMDSv2, encrypted gp3; IAM: runners read /leetforce/runner/* only, the control host /leetforce/*
+ 3. arena.sh      scripts/arena.sh up|down|status acts on infra/aws only; up and down each need a typed phrase
+ 4. Ansible       ansible/site.yml: hardening (SSH, sysctl, ufw, unattended upgrades, auditd) on every host; runner_host (toolchains,
+                  nsjail at the pinned commit, lfrunner user) on runners
+ 5. Packer        packer/runner.pkr.hcl: Ubuntu 24.04 + Ansible + runner binary and unit (disabled) + Trivy gate -> encrypted, IMDSv2 AMI;
+                  infra/aws takes it through runner_ami_id
+```
+Exit checks: `make test-destroy-isolation` (offline), `make tf-validate`, `make packer-validate`, `make lint-ansible`; `terraform plan` and `make build-ami` need credentials and the owner's confirmation.
+
 ## 4. Keeping this file true
 At the end of each phase: tick the phase in section 2, add its "as built" flow to section 3 (the detailed step list with file paths), and correct the "planned" rows if the plan changed.
