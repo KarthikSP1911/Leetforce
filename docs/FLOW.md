@@ -1,6 +1,6 @@
 # LeetForce flow, phase by phase
 
-This file shows how a submission flows through the system and which phase builds each part. It is updated at the end of every phase. Phases 0 to 5 are **as built** (section 3). Phases 6 to 16 are **planned**, taken from [PLAN.md](PLAN.md); the plan is firm only a phase or two ahead, the rest are outlines that get refined at the start of their session.
+This file shows how a submission flows through the system and which phase builds each part. It is updated at the end of every phase. Phases 0 to 7 are **as built** (section 3). Phases 8 to 16 are **planned**, taken from [PLAN.md](PLAN.md); the plan is firm only a phase or two ahead, the rest are outlines that get refined at the start of their session.
 
 ## 1. The end-to-end flow (the finished system)
 ```
@@ -35,7 +35,7 @@ Rules that shape the flow (from CLAUDE.md): runners never connect to the databas
 | 4 | API and database `[x]` | Stages 1-2 and 9: Gin API, Neon Postgres, migrations, idempotent verdict writes, test-set version recorded | `curl -> API -> Postgres + Redis -> runner -> Redis -> API ingest -> Postgres` (verdict idempotent; poll `GET /submissions/:id`) |
 | 5 | Live status and storage (M2) `[x]` | Stage 10 and test data: SSE status stream, S3-compatible bucket for tests (RustFS locally, ADR 0011), the Judging state, hidden-test redaction checked end to end, a reaper for rows never queued | `curl submit -> API -> queue -> runner (tests from the bucket) -> sandbox -> verdict -> SSE`, end to end on one machine |
 | 6 | Sandbox hardening `[x]` | Inside stage 6: gVisor vs nsjail decision, seccomp tuning, bigger adversarial suite | same flow, stronger box |
-| 7 | Web: problems and workspace | Browser side of stage 1 with real data: problem list, split-pane workspace, Monaco | `browser shows real problems` |
+| 7 | Web: problems and workspace `[x]` | Browser side of stage 1 with real data: problem list, split-pane workspace, Monaco | `browser -> /api rewrite -> API -> catalog + Postgres -> real problems shown` |
 | 8 | Web: run, submit, results | Stages 1 and 10 in the UI: Run and Submit, console, result panel, SSE client | `browser submit -> ... -> verdict shown in the page` |
 | 9 | Auth and limits (M3) | Sign-up/login, sessions, rate limits per user and per IP, solved status in front of stage 1 | usable product on one machine |
 | 10 | Problem pipeline | Authoring side: import, validation, reference-solution check, rejudge by test-set version | `fixed test set -> queue -> rejudge` |
@@ -228,6 +228,20 @@ The flow does not change. Only stages 6 and 7 (the box) get stronger, and the ru
  5. benchmarks         make bench-sandbox (judge/cmd/sandbox-bench); numbers in ADR 0013 and docs/phases/phase-6-log.md
 ```
 Exit test: `make test-adversarial` passes on the merged tree (nsjail); `make test-sandbox` passes; `make bench-sandbox` prints the nsjail vs gVisor table. Not yet: the adversarial suite against the unprivileged runner, and per-backend expectations for the 3 adversarial tests that fail under gVisor.
+
+### Phase 7: Web: problems and workspace (as built)
+
+The submission flow does not change. The browser can now read real problems; Run and Submit stay disabled until Phase 8. Decision record: [ADR 0015](adr/0015-catalog-content-and-workspace-delivery.md).
+```
+ browser (/problems, /problems/<slug>) -> Next.js server components -> API -> catalog on disk + Postgres
+ 1. list page        web/src/app/problems/page.tsx; components/problems/{ProblemFilters,ProblemTable,Pagination}.tsx (GET form: q, difficulty, tag, page)
+ 2. workspace page   web/src/app/problems/[slug]/page.tsx; components/workspace/{Workspace,SplitPane,Tabs,CodeEditor}.tsx (statement markdown, language selector, Monaco, console with sample cases)
+ 3. API client       web/src/lib/api/client.ts (server: LEETFORCE_API_URL; browser: /api rewrite in web/next.config.ts); types in web/src/types/problem.ts
+ 4. API              GET /problems (filter, paginate, acceptance) and GET /problems/:slug (statement, starters, samples): api/internal/server/problems.go, api/internal/store/problems.go
+ 5. catalog          judge/problem loads statement.md and starters/<lang>.<ext> beside problem.yaml; api/internal/catalog serves them (read at startup)
+ 6. theme            --link role in web/src/app/globals.css (blue in light, sky in dark)
+```
+Exit check: browsed the list and a problem in dark and light mode in Chrome against the real API and Neon; focus ring, tab order, separator arrow keys and tab roles were checked; 16 reference solutions (4 new problems x 4 languages) judge AC in the sandbox. Not yet: Run and Submit (Phase 8), the narrow-screen layout verified in a browser, auth and solved status (Phase 9).
 
 ## 4. Keeping this file true
 At the end of each phase: tick the phase in section 2, add its "as built" flow to section 3 (the detailed step list with file paths), and correct the "planned" rows if the plan changed.

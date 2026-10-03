@@ -23,6 +23,7 @@ type Deps struct {
 
 	Problems    ProblemStore
 	Samples     SampleSource
+	Content     ContentSource // statement and starters; may be nil
 	Submissions SubmissionStore
 	Queue       Enqueuer
 

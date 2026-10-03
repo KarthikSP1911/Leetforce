@@ -74,6 +74,19 @@ type Problem struct {
 	Tests      []Test
 	TestSetVer string
 	Dir        string
+	// Statement is the optional statement.md (markdown), empty if absent.
+	Statement string
+	// Starters maps a language to its optional starters/<file> template code.
+	// Neither field is part of the test-set version.
+	Starters map[string]string
+}
+
+// StarterFiles maps each language to the starter file name under starters/.
+var StarterFiles = map[string]string{
+	"python": "python.py",
+	"cpp":    "cpp.cpp",
+	"java":   "java.java",
+	"go":     "go.go",
 }
 
 // LimitFor returns the limit for a language: the override if present,
@@ -107,11 +120,52 @@ func Load(dir string) (*Problem, error) {
 		return nil, err
 	}
 	p := &Problem{Spec: spec, Tests: tests, Dir: dir}
+	if p.Statement, p.Starters, err = loadContent(dir); err != nil {
+		return nil, err
+	}
 	if err := p.Validate(); err != nil {
 		return nil, fmt.Errorf("validate %s: %w", path, err)
 	}
 	p.TestSetVer = Version(spec.Checker, tests)
 	return p, nil
+}
+
+// loadContent reads the optional statement.md and starters/<lang>.<ext>
+// files. Starters are named python.py, cpp.cpp, java.java and go.go; any other
+// file in starters/ is an error so a typo cannot silently drop a template.
+func loadContent(dir string) (string, map[string]string, error) {
+	var statement string
+	raw, err := os.ReadFile(filepath.Join(dir, "statement.md")) //nolint:gosec // operator-chosen dir
+	switch {
+	case err == nil:
+		statement = string(raw)
+	case !errors.Is(err, os.ErrNotExist):
+		return "", nil, fmt.Errorf("load statement: %w", err)
+	}
+	starters := map[string]string{}
+	entries, err := os.ReadDir(filepath.Join(dir, "starters"))
+	if errors.Is(err, os.ErrNotExist) {
+		return statement, starters, nil
+	}
+	if err != nil {
+		return "", nil, fmt.Errorf("load starters: %w", err)
+	}
+	byFile := map[string]string{}
+	for lang, f := range StarterFiles {
+		byFile[f] = lang
+	}
+	for _, e := range entries {
+		lang, ok := byFile[e.Name()]
+		if !ok || e.IsDir() {
+			return "", nil, fmt.Errorf("load starters: unexpected entry %q (allowed: python.py, cpp.cpp, java.java, go.go)", e.Name())
+		}
+		code, err := os.ReadFile(filepath.Join(dir, "starters", e.Name())) //nolint:gosec // operator-chosen dir
+		if err != nil {
+			return "", nil, fmt.Errorf("load starter %q: %w", e.Name(), err)
+		}
+		starters[lang] = string(code)
+	}
+	return statement, starters, nil
 }
 
 func loadTests(dir string, samples []string) ([]Test, error) {

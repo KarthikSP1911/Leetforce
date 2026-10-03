@@ -1,0 +1,14 @@
+slug: max-subarray-sum
+title: Maximum Subarray Sum
+difficulty: medium
+tags: [array, dynamic-programming]
+checker: tokens
+limits:
+  default:
+    time_ms: 1000
+    memory_mb: 128
+  overrides:
+    java:
+      time_ms: 2000
+      memory_mb: 256
+samples: [01, 02]
