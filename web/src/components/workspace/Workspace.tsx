@@ -6,6 +6,7 @@ import type { Difficulty, Language, ProblemDetail } from "@/types/problem";
 import { useJudge } from "@/hooks/useJudge";
 import { CodeEditor } from "./CodeEditor";
 import { ResultPanel, type ConsoleResult } from "./ResultPanel";
+import { SubmissionsTab } from "./SubmissionsTab";
 import { SplitPane } from "./SplitPane";
 import { Tabs } from "./Tabs";
 
@@ -190,7 +191,10 @@ export function Workspace({ problem }: { problem: ProblemDetail }) {
     problem.samples.length > 0 ? "samples" : "custom",
   );
   const [custom, setCustom] = useState("");
-  const { result, busy, run, submit } = useJudge(problem.slug);
+  const [listVersion, setListVersion] = useState(0);
+  const { result, busy, run, submit } = useJudge(problem.slug, () =>
+    setListVersion((v) => v + 1),
+  );
 
   const source = code[language] ?? "";
   const doRun = () => {
@@ -273,9 +277,10 @@ export function Workspace({ problem }: { problem: ProblemDetail }) {
                   id: "submissions",
                   label: "Submissions",
                   content: (
-                    <p className="text-muted p-4 text-sm">
-                      Your submissions will appear here.
-                    </p>
+                    <SubmissionsTab
+                      slug={problem.slug}
+                      refreshKey={listVersion}
+                    />
                   ),
                 },
               ]}
