@@ -53,7 +53,7 @@ func serve(f *fakeStore, signedIn bool, method, path string) *httptest.ResponseR
 		},
 	}.Routes(r)
 	w := httptest.NewRecorder()
-	r.ServeHTTP(w, httptest.NewRequest(method, path, nil))
+	r.ServeHTTP(w, httptest.NewRequestWithContext(context.Background(), method, path, nil))
 	return w
 }
 
