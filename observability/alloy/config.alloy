@@ -1,0 +1,35 @@
+// Reads the JSON logs of the API and the runner (copied from the dev host by
+// scripts/obs-logs.sh into /logs) and pushes them to Loki. Only level and
+// service become labels; submission ids and the like stay in the line, so the
+// label set stays small.
+local.file_match "leetforce" {
+  path_targets = [
+    {__path__ = "/logs/api.log", service = "api"},
+    {__path__ = "/logs/runner.log", service = "runner"},
+  ]
+}
+
+loki.source.file "leetforce" {
+  targets    = local.file_match.leetforce.targets
+  forward_to = [loki.process.leetforce.receiver]
+}
+
+loki.process "leetforce" {
+  stage.json {
+    expressions = { level = "level", ts = "time" }
+  }
+  stage.timestamp {
+    source = "ts"
+    format = "RFC3339Nano"
+  }
+  stage.labels {
+    values = { level = "" }
+  }
+  forward_to = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

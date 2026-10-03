@@ -1,0 +1,80 @@
+# Alert rules. There is no notifier (ADR 0019): firing alerts show in the
+# Prometheus Alerts page and on the Grafana "Submission flow" dashboard.
+# Rules are unit tested with promtool: make test-alerts.
+groups:
+  - name: leetforce-runners
+    rules:
+      - alert: RunnerDown
+        expr: up{job="runner"} == 0
+        for: 1m
+        labels: {severity: critical}
+        annotations:
+          summary: "A runner metrics endpoint is not answering"
+          description: "No runner has answered a scrape for 1 minute. Queued submissions will wait."
+      - alert: RunnerSilent
+        expr: time() - leetforce_runner_last_poll_timestamp_seconds > 60
+        for: 1m
+        labels: {severity: warning}
+        annotations:
+          summary: "A runner is up but has not polled the queue for over a minute"
+          description: "Runner {{ $labels.instance }} answers scrapes but its job loop looks stuck, or Redis is unreachable from it."
+      - alert: RunnerHostFailures
+        expr: sum(increase(leetforce_runner_host_failures_total[10m])) > 3
+        labels: {severity: warning}
+        annotations:
+          summary: "Runners are failing for host reasons (receive, judge or publish)"
+          description: "More than 3 host failures in 10 minutes. See the runner logs in Loki."
+  - name: leetforce-queue
+    rules:
+      - alert: QueueBacklog
+        expr: leetforce_queue_waiting > 20
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "More than 20 jobs have been waiting for a runner for 5 minutes"
+          description: "Waiting jobs: {{ $value }}. Add runners or check why they are slow."
+      - alert: QueueStuck
+        expr: leetforce_queue_oldest_job_age_seconds > 120
+        for: 2m
+        labels: {severity: critical}
+        annotations:
+          summary: "The oldest unfinished job is older than 2 minutes"
+          description: "Age {{ $value | humanizeDuration }}. Users are waiting on a verdict; check runners."
+      - alert: DeadLetters
+        expr: leetforce_queue_dead_letters > 0
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "Jobs sit in the dead-letter stream (they failed too many times)"
+          description: "Dead letters: {{ $value }}. Each becomes an IE verdict for its submission."
+      - alert: QueueSampleFailing
+        expr: leetforce_queue_sample_success == 0
+        for: 2m
+        labels: {severity: warning}
+        annotations:
+          summary: "The API cannot read the queue from Redis"
+          description: "Queue gauges are stale. Check Redis (Upstash) and the API logs."
+  - name: leetforce-api
+    rules:
+      - alert: APIDown
+        expr: up{job="api"} == 0
+        for: 1m
+        labels: {severity: critical}
+        annotations:
+          summary: "The API metrics endpoint is not answering"
+          description: "The API, or the SSH tunnel to it, is down."
+      - alert: API5xxRate
+        expr: |
+          sum(rate(leetforce_http_requests_total{status=~"5.."}[5m]))
+            / sum(rate(leetforce_http_requests_total[5m])) > 0.05
+        for: 5m
+        labels: {severity: critical}
+        annotations:
+          summary: "More than 5% of API responses are 5xx"
+          description: "5xx ratio {{ $value | humanizePercentage }} over 5 minutes."
+      - alert: InternalErrorVerdicts
+        expr: increase(leetforce_verdicts_total{verdict="IE"}[15m]) > 0
+        labels: {severity: warning}
+        annotations:
+          summary: "Submissions ended with IE (internal error), the platform's fault"
+          description: 'IE verdicts in the last 15 minutes: {{ $value | printf "%.0f" }}.'
