@@ -45,6 +45,10 @@ Running log (CLAUDE.md "Documenting every step"). Entries: who, command, why, re
 - README cost table: control host, runner hosts, per-host EBS and public IPv4, AMI snapshot and builder, Neon plan (unchecked). No dollar figures are written because prices vary by region and I did not look them up; the README already tells the reader to check the AWS pricing pages.
 - `docs/adr/0020-infrastructure-as-code.md`, this log, `docs/FLOW.md` Phase 12 section (marked in progress), `docs/PROGRESS.md`.
 
+### Continuation (Claude, same session)
+- The owner replied "continue" without credentials. Re-checked: `aws sts get-caller-identity` returns no account, `NEON_API_KEY` is unset, no `terraform.tfvars` exists. So `terraform plan` and the AMI build were not run and are recorded as not demonstrated.
+- Wrote `docs/phases/phase-12.md` (file list from `git diff --name-status phase-12-start..395f83b`: 30 added, 5 modified, 4 deleted; a first draft said 34 added, corrected after counting with `uniq -c`) and `docs/phases/phase-12-summary.md`. PROGRESS set to `in review`; FLOW ticked with the caveat.
+
 ### Exit criteria status at this point
 - `terraform plan` clean: **not yet shown.** Needs AWS credentials and `owner_cidr`/`key_name` (aws) and `NEON_API_KEY` plus the Neon project id (neon). Both stacks pass `fmt`, `validate` and Trivy.
 - AMI builds: **not yet shown.** `packer validate` passes; the build is billable and needs the owner's confirmation and AWS credentials.

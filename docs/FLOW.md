@@ -40,7 +40,7 @@ Rules that shape the flow (from CLAUDE.md): runners never connect to the databas
 | 9 | Auth and limits (M3) `[x]` | Sign-up/login, sessions, rate limits per user and per IP, solved status in front of stage 1 | `browser (signed in) -> API (session, limits in Redis) -> ... -> verdict`; usable product on one machine |
 | 10 | Problem pipeline `[x]` | Authoring side: import, validation, reference-solution check, rejudge by test-set version | `fixed test set -> API start detects the new version -> queue -> runner -> new verdict replaces the old one` |
 | 11 | Observability `[x]` | Watching every stage: metrics, dashboards, logs, alerts | dashboards show a live submission |
-| 12 | Infrastructure as code | Terraform, Packer, Ansible for the places the stages run (nothing applied without confirmation) | the system can be described and rebuilt as code |
+| 12 | Infrastructure as code `[x]` (code only; plan and AMI build pending) | Terraform, Packer, Ansible for the places the stages run (nothing applied without confirmation) | the system can be described and rebuilt as code |
 | 13 | Cloud deployment (M4) | The same flow running in the cloud (k3s), runner scaling, secrets via SSM, CI deploy | the flow survives losing a runner |
 | 14 | Contests | Contest model, timed windows, contest-only problems, scoring in stages 2 and 9 | a mock contest runs end to end |
 | 15 | Leaderboard | Rankings fed by verdicts, caching, penalty rules | rankings correct under concurrent submissions |
@@ -360,7 +360,7 @@ Decision record: [ADR 0019](adr/0019-observability.md). Log: [phase-11-log.md](p
 ```
 Exit check: `make test-obs-e2e` on the dev host, `make test-alerts` and the dashboard filling during `scripts/obs-demo.sh`.
 
-### Phase 12: Infrastructure as code (as built, in progress)
+### Phase 12: Infrastructure as code (as built; code only, nothing applied)
 
 Decision record: [ADR 0020](adr/0020-infrastructure-as-code.md). Log: [phase-12-log.md](phases/phase-12-log.md). Nothing here is applied or built yet; the flow itself does not change, this phase describes the hosts it will run on.
 ```
