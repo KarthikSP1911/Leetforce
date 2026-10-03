@@ -1,0 +1,61 @@
+#!/bin/bash
+# First-boot configuration of a LeetForce runner (rendered by Terraform, runs as
+# root through cloud-init). Reads the runner settings from SSM Parameter Store with
+# the instance role, writes /etc/leetforce/runner.env and starts the service.
+# Safe to re-run. It never prints a parameter value.
+set -euo pipefail
+umask 077
+
+prefix='${ssm_prefix}/runner'
+region='${region}'
+env_file=/etc/leetforce/runner.env
+required="LEETFORCE_REDIS_URL LEETFORCE_S3_ENDPOINT LEETFORCE_S3_BUCKET LEETFORCE_S3_USE_TLS"
+
+export PATH="$PATH:/snap/bin"
+command -v aws >/dev/null || { echo "runner-userdata: aws cli not found (ansible runner_host role installs it)" >&2; exit 1; }
+
+# The instance role can take a few seconds to become usable after launch.
+raw=$(mktemp)
+tmp=$(mktemp)
+trap 'rm -f "$raw" "$tmp"' EXIT
+ok=0
+for attempt in 1 2 3 4 5 6; do
+  if aws ssm get-parameters-by-path --region "$region" --path "$prefix" --recursive \
+    --with-decryption --query 'Parameters[].[Name,Value]' --output text >"$raw" 2>/dev/null; then
+    ok=1
+    break
+  fi
+  echo "runner-userdata: SSM not reachable yet (attempt $attempt)" >&2
+  sleep 10
+done
+[ "$ok" = 1 ] || { echo "runner-userdata: cannot read SSM path $prefix" >&2; exit 1; }
+
+# One KEY=value line per parameter. Only LEETFORCE_* names are accepted and values
+# must be a single line, so a parameter cannot inject extra settings.
+: >"$tmp"
+while IFS=$'\t' read -r name value; do
+  [ -n "$name" ] || continue
+  key="$${name##*/}"
+  case "$key" in
+    LEETFORCE_[A-Z0-9_]*) ;;
+    *) echo "runner-userdata: ignoring $key" >&2; continue ;;
+  esac
+  printf '%s=%s\n' "$key" "$value" >>"$tmp"
+done <"$raw"
+
+missing=0
+for key in $required; do
+  if ! grep -q "^$key=." "$tmp"; then
+    echo "runner-userdata: required parameter $prefix/$key is missing or empty" >&2
+    missing=1
+  fi
+done
+[ "$missing" = 0 ] || exit 1
+
+install -d -m 0750 -o root -g lfrunner /etc/leetforce
+install -m 0640 -o root -g lfrunner "$tmp" "$env_file"
+
+systemctl daemon-reload
+systemctl enable leetforce-runner
+systemctl restart leetforce-runner
+echo "runner-userdata: leetforce-runner configured and started"
