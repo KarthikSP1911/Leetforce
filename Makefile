@@ -4,7 +4,15 @@
 
 GO_MODULES := judge queue runner api storage
 
-.PHONY: test-alerts test-obs-e2e dev-obs down-obs validate-problems test-rejudge-e2e test-auth-e2e test-live-e2e test-api-e2e build-api migrate-up migrate-down migrate-status dev down fmt lint test build-judge build-runner test-crash test-matrix test-sandbox test-adversarial bench-sandbox
+.PHONY: test-destroy-isolation tf-validate test-alerts test-obs-e2e dev-obs down-obs validate-problems test-rejudge-e2e test-auth-e2e test-live-e2e test-api-e2e build-api migrate-up migrate-down migrate-status dev down fmt lint test build-judge build-runner test-crash test-matrix test-sandbox test-adversarial bench-sandbox
+
+# Phase 12 exit check: destroying infra/aws cannot reach infra/neon (static, offline).
+test-destroy-isolation:
+	scripts/test-destroy-isolation.sh
+
+# terraform fmt/validate for both stacks (no credentials, creates nothing).
+tf-validate:
+	for d in infra/neon infra/aws; do terraform -chdir=$$d fmt -check && terraform -chdir=$$d init -backend=false -input=false >/dev/null && terraform -chdir=$$d validate || exit 1; done
 
 # Phase 11 exit test: leetforce_ metrics follow a live submission flow, and a
 # lost runner shows as waiting, ageing jobs (dev host; real DB, throwaway Redis prefix).
