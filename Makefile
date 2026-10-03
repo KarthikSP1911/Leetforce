@@ -4,7 +4,7 @@
 
 GO_MODULES := judge queue runner api storage
 
-.PHONY: test-live-e2e test-api-e2e build-api migrate-up migrate-down migrate-status dev down fmt lint test build-judge build-runner test-crash test-matrix test-sandbox test-adversarial bench-sandbox
+.PHONY: validate-problems test-rejudge-e2e test-live-e2etest-api-e2e build-api migrate-up migrate-down migrate-status dev down fmt lint test build-judge build-runner test-crash test-matrix test-sandbox test-adversarial bench-sandbox
 
 # Local Redis and S3 (RustFS) (needs Docker and LEETFORCE_S3_SECRET_KEY in .env).
 dev:
@@ -27,6 +27,15 @@ test:
 build-judge:
 	@mkdir -p bin
 	cd judge && go build -o ../bin/judge ./cmd/judge
+
+# Phase 10: validates every problem under problems/ (spec, statement, starters,
+# test pairs) and judges every solutions/<lang>/<verdict>.<ext> against its
+# promised verdict. Needs the sandbox (root, nsjail, cgroup v2). One problem:
+#   make validate-problems DIR=problems/fizz-count
+# Structure only, no sandbox: bin/judge validate -structure-only problems
+DIR ?= problems
+validate-problems: build-judge
+	sudo -n bin/judge validate $(DIR)
 
 # Builds the runner to bin/runner and the queue tool to bin/lfq. The runner needs
 # root and LEETFORCE_REDIS_URL, for example:
