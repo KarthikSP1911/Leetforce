@@ -1,9 +1,9 @@
 # LeetForce progress
 
-**Current phase:** 8 - Web: run, submit, results
+**Current phase:** 9 - Auth and limits (M3)
 **Status:** done
-**Resume point:** start Phase 9
-**Open decisions:** Phase 8 review skipped by the owner: understanding questions unanswered; decisions A (anonymous browser id until Phase 9, ADR 0016) and B (no rate limit on POST /runs until Phase 9) stay on Claude defaults; the dev host is still up and billable. Phase 7 review skipped by the owner: understanding questions unanswered; decisions A (keep --lf-success token; light-mode Easy 3.30:1), B (Monaco from CDN, ADR 0015) and C (dev host left running) stay on Claude defaults. Phase 6 review skipped by the owner: understanding questions unanswered; decisions A (ADR 0013 stays PROPOSED: nsjail default, gVisor opt-in), B (shared runner and program uid, ADR 0014) and C (Phase 5 decisions) stay on Claude's defaults. Phase 6: confirm ADR 0013 (nsjail default, gVisor opt-in) and the shared uid in ADR 0014. Phase 5 review skipped by the owner: understanding questions unanswered; decisions A (RustFS instead of MinIO), B (runner no-database guard allows two interface-only `database/sql` packages) and C (Neon plan and Upstash usage, 15-minute reaper) stay on Claude's defaults. Carried over: Phase 4 understanding questions unanswered; Neon plan and limits unchecked; Phase 2 decisions A and C on defaults; runner privilege model (Phase 6); `web/AGENTS.md` and `web/CLAUDE.md` stay untracked
+**Resume point:** Phase 10 (same session)
+**Open decisions:** Phase 9 review skipped by the owner (two phases in one session): decisions A (keep the limit numbers in ADR 0017) and B (no email verification or password reset yet) stay on Claude defaults; the new login pages are unverified in a browser; Trivy not run this session. Phase 8 review skipped by the owner: understanding questions unanswered; decisions A (anonymous browser id until Phase 9, ADR 0016) and B (no rate limit on POST /runs until Phase 9) stay on Claude defaults; the dev host is still up and billable. Phase 7 review skipped by the owner: understanding questions unanswered; decisions A (keep --lf-success token; light-mode Easy 3.30:1), B (Monaco from CDN, ADR 0015) and C (dev host left running) stay on Claude defaults. Phase 6 review skipped by the owner: understanding questions unanswered; decisions A (ADR 0013 stays PROPOSED: nsjail default, gVisor opt-in), B (shared runner and program uid, ADR 0014) and C (Phase 5 decisions) stay on Claude's defaults. Phase 6: confirm ADR 0013 (nsjail default, gVisor opt-in) and the shared uid in ADR 0014. Phase 5 review skipped by the owner: understanding questions unanswered; decisions A (RustFS instead of MinIO), B (runner no-database guard allows two interface-only `database/sql` packages) and C (Neon plan and Upstash usage, 15-minute reaper) stay on Claude's defaults. Carried over: Phase 4 understanding questions unanswered; Neon plan and limits unchecked; Phase 2 decisions A and C on defaults; runner privilege model (Phase 6); `web/AGENTS.md` and `web/CLAUDE.md` stay untracked
 
 | Phase | Name | Status | Sessions | Summary |
 |---|---|---|---|---|
@@ -15,4 +15,5 @@
 | 5 | Live status and storage | done | 1 | [summary](phases/phase-5-summary.md) |
 | 6 | Sandbox hardening | done | 1 | [summary](phases/phase-6-summary.md) |
 | 7 | Web: problems and workspace | done | 1 | [summary](phases/phase-7-summary.md) |
-| 8 | Web: run, submit, results | in review | 1 | [summary](phases/phase-8-summary.md) |
+| 8 | Web: run, submit, results | done | 1 | [summary](phases/phase-8-summary.md) |
+| 9 | Auth and limits | done | 1 | [summary](phases/phase-9-summary.md) |
