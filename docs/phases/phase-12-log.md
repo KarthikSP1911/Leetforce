@@ -49,6 +49,9 @@ Running log (CLAUDE.md "Documenting every step"). Entries: who, command, why, re
 - The owner replied "continue" without credentials. Re-checked: `aws sts get-caller-identity` returns no account, `NEON_API_KEY` is unset, no `terraform.tfvars` exists. So `terraform plan` and the AMI build were not run and are recorded as not demonstrated.
 - Wrote `docs/phases/phase-12.md` (file list from `git diff --name-status phase-12-start..395f83b`: 30 added, 5 modified, 4 deleted; a first draft said 34 added, corrected after counting with `uniq -c`) and `docs/phases/phase-12-summary.md`. PROGRESS set to `in review`; FLOW ticked with the caveat.
 
+### Review and merge
+- The owner chose "Skip review, merge now" in chat. Recorded in the summary and PROGRESS; no answers were written for the owner. Plan and AMI build carried to Phase 13.
+
 ### Exit criteria status at this point
 - `terraform plan` clean: **not yet shown.** Needs AWS credentials and `owner_cidr`/`key_name` (aws) and `NEON_API_KEY` plus the Neon project id (neon). Both stacks pass `fmt`, `validate` and Trivy.
 - AMI builds: **not yet shown.** `packer validate` passes; the build is billable and needs the owner's confirmation and AWS credentials.

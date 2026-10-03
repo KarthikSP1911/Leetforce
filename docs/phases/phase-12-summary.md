@@ -97,12 +97,15 @@ Decisions for you:
 - B. Keep local state, or move to an S3 bucket with locking before Phase 13 (small recurring cost)?
 
 ## Review Q&A
-Not yet held.
+Skipped by the owner (in chat, 2026-10-03: chose "Skip review, merge now"). Understanding questions 1-5 and decisions A and B were not answered; nothing was answered on the owner's behalf. Decision B stays on the default (local state). Decision A is carried to Phase 13: `terraform plan` for both stacks and the billable AMI build are still to be demonstrated.
 
 ## Open decisions
-- A and B above. Carried over: earlier review answers in `docs/PROGRESS.md`; `web/AGENTS.md` and `web/CLAUDE.md` stay untracked.
+- A (credentials and AMI build confirmation, first item of Phase 13) and B (state backend; default local). Carried over: earlier review answers in `docs/PROGRESS.md`; `web/AGENTS.md` and `web/CLAUDE.md` stay untracked.
 
 ## Handoff
-- **State:** branch `phase/12-infra-as-code`, tag `phase-12-start`; not yet merged to `main`, no `phase-12-done` tag. No AWS or Neon resource exists because of this phase.
+- **State:** branch `phase/12-infra-as-code` merged into `main`, tags `phase-12-start` and `phase-12-done`. No AWS or Neon resource exists because of this phase.
 - **Next phase:** 13 - Cloud deployment: k3s manifests, runner scaling, secrets in SSM, CI deploy. It needs the plans and the AMI build from this phase to be done first.
-- **Next session prompt:** to be filled in at the end of the review.
+- **Next session prompt:**
+  ```
+  Continue LeetForce. Read CLAUDE.md, docs/PROGRESS.md and docs/phases/phase-12-summary.md, then start Phase 13 (Cloud deployment). Ask me the recap question and show me the session plan before writing any code.
+  ```
