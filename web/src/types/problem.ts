@@ -21,7 +21,7 @@ export interface ProblemList {
 export interface Sample {
   name?: string;
   input: string;
-  output: string;
+  expected: string;
 }
 
 export interface ProblemDetail extends ProblemSummary {
