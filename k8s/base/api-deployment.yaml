@@ -22,6 +22,9 @@ spec:
         - name: ghcr-pull
       securityContext:
         runAsNonRoot: true
+        # Numeric ids: the kubelet cannot verify a user given by name (distroless "nonroot" = 65532).
+        runAsUser: 65532
+        runAsGroup: 65532
         seccompProfile:
           type: RuntimeDefault
       containers:
