@@ -1,0 +1,14 @@
+slug: reverse-words
+title: Reverse Words
+difficulty: easy
+tags: [string, array]
+checker: exact
+limits:
+  default:
+    time_ms: 1000
+    memory_mb: 128
+  overrides:
+    java:
+      time_ms: 2000
+      memory_mb: 256
+samples: [01, 02]

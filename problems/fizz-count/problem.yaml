@@ -1,0 +1,14 @@
+slug: fizz-count
+title: Fizz Count
+difficulty: easy
+tags: [math]
+checker: tokens
+limits:
+  default:
+    time_ms: 1000
+    memory_mb: 128
+  overrides:
+    java:
+      time_ms: 2000
+      memory_mb: 256
+samples: [01, 02]
