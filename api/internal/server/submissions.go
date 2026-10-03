@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"leetforce/api/internal/metrics"
 	"leetforce/api/internal/store"
 	"leetforce/queue"
 )
@@ -112,6 +113,7 @@ func (d Deps) createSubmission(c *gin.Context) {
 	if err := d.Submissions.MarkEnqueued(context.WithoutCancel(ctx), id); err != nil {
 		d.Logger.Warn("mark submission enqueued", "id", id, "err", err)
 	}
+	metrics.SubmissionsCreated.WithLabelValues(req.Language).Inc()
 	c.JSON(http.StatusAccepted, gin.H{"id": id, "status": store.StatusQueued})
 }
 

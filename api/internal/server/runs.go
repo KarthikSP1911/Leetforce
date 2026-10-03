@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"leetforce/api/internal/metrics"
 	"leetforce/api/internal/store"
 	"leetforce/queue"
 )
@@ -113,6 +114,7 @@ func (d Deps) createRun(c *gin.Context) {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "could not queue the run, try again"})
 		return
 	}
+	metrics.RunsCreated.WithLabelValues(req.Language).Inc()
 	c.JSON(http.StatusAccepted, gin.H{"id": id, "status": queue.RunQueued})
 }
 

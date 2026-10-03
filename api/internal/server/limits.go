@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+
+	"leetforce/api/internal/metrics"
 )
 
 // Limiter counts hits against a key in a fixed window. queue.Queue implements
@@ -64,10 +66,12 @@ func (d Deps) limit(c *gin.Context, scope, key string, limit int, window time.Du
 		// Without the counter we cannot tell abuse from use. The queue is on the
 		// same Redis, so a submission would fail anyway: fail closed.
 		d.Logger.Error("rate limit", "scope", scope, "err", err)
+		metrics.RateLimitErrors.Inc()
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "try again in a moment"})
 		return false
 	}
 	if !ok {
+		metrics.RateLimited.WithLabelValues(scope).Inc()
 		secs := max(1, int(math.Ceil(retry.Seconds())))
 		c.Header("Retry-After", strconv.Itoa(secs))
 		c.JSON(http.StatusTooManyRequests, gin.H{"error": "too many requests, retry in " + strconv.Itoa(secs) + "s"})
