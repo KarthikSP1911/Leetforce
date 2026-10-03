@@ -127,6 +127,14 @@ func (d Deps) listProblems(c *gin.Context) {
 			tags = append(tags, t)
 		}
 	}
+	hidden, err := d.hiddenProblems(c)
+	if err != nil {
+		d.fail(c, "hidden problems", err)
+		return
+	}
+	if len(hidden) > 0 {
+		ps = slices.DeleteFunc(ps, func(p store.Problem) bool { return hidden[p.Slug] })
+	}
 	ps = filterProblems(ps, c.Query("q"), difficulty, tags)
 	total := len(ps)
 	start := min((page-1)*size, total)
@@ -147,6 +155,9 @@ func (d Deps) listProblems(c *gin.Context) {
 }
 
 func (d Deps) getProblem(c *gin.Context) {
+	if d.problemHidden(c, c.Param("slug")) {
+		return
+	}
 	p, err := d.Problems.GetProblem(c.Request.Context(), c.Param("slug"))
 	if errors.Is(err, store.ErrNotFound) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "problem not found"})

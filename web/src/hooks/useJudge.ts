@@ -25,7 +25,11 @@ function message(e: unknown): string {
  * one stops watching the old one. `onSubmission` fires when a submission is
  * created and again when it gets its verdict, so the Submissions tab can refresh.
  */
-export function useJudge(problem: string, onSubmission?: () => void) {
+export function useJudge(
+  problem: string,
+  onSubmission?: () => void,
+  contest?: string,
+) {
   const [result, setResult] = useState<ConsoleResult>({ kind: "idle" });
   const [busy, setBusy] = useState(false);
   const stop = useRef<(() => void) | undefined>(undefined);
@@ -78,7 +82,12 @@ export function useJudge(problem: string, onSubmission?: () => void) {
     async (language: Language, source: string) => {
       begin("submit");
       try {
-        const { id } = await createSubmission({ problem, language, source });
+        const { id } = await createSubmission({
+          problem,
+          language,
+          source,
+          contest_id: contest,
+        });
         changed.current?.();
         stop.current = watchSubmission(id, {
           onUpdate: (s) => {
@@ -100,7 +109,7 @@ export function useJudge(problem: string, onSubmission?: () => void) {
         fail(message(e), e instanceof ApiError && e.status === 401);
       }
     },
-    [begin, fail, problem],
+    [begin, fail, problem, contest],
   );
 
   return { result, busy, run, submit };

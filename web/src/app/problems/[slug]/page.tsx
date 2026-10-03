@@ -25,7 +25,15 @@ export async function generateMetadata({
   return { title: `${p.title} | LeetForce` };
 }
 
-export default async function ProblemPage({ params }: { params: Params }) {
+export default async function ProblemPage({
+  params,
+  searchParams,
+}: {
+  params: Params;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { slug } = await params;
-  return <Workspace problem={await load(slug)} />;
+  const c = (await searchParams).contest;
+  const contest = (Array.isArray(c) ? c[0] : c) || undefined;
+  return <Workspace problem={await load(slug)} contest={contest} />;
 }
