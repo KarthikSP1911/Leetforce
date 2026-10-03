@@ -1,0 +1,93 @@
+- name: Install security packages
+  ansible.builtin.apt:
+    name: [ufw, unattended-upgrades, auditd]
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+# AllowTcpForwarding stays on: Prometheus reaches 127.0.0.1:9101/9102 through an SSH tunnel (Phase 11).
+- name: SSH drop-in (keys only, no root, few attempts)
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/99-leetforce.conf
+    mode: "0644"
+    content: |
+      PermitRootLogin no
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      PubkeyAuthentication yes
+      X11Forwarding no
+      MaxAuthTries 3
+      LoginGraceTime 30
+      ClientAliveInterval 300
+      ClientAliveCountMax 2
+      AllowAgentForwarding no
+      AllowTcpForwarding yes
+  notify: Reload sshd
+
+# A bad drop-in must not lock the host out: validate before the handler reloads sshd.
+- name: Check sshd configuration
+  ansible.builtin.command: sshd -t
+  changed_when: false
+
+- name: Kernel and network sysctl hardening
+  ansible.posix.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/99-leetforce.conf
+    reload: true
+  loop:
+    - { name: kernel.dmesg_restrict, value: "1" }
+    - { name: kernel.kptr_restrict, value: "2" }
+    - { name: kernel.yama.ptrace_scope, value: "1" }
+    - { name: fs.protected_hardlinks, value: "1" }
+    - { name: fs.protected_symlinks, value: "1" }
+    - { name: fs.suid_dumpable, value: "0" }
+    - { name: net.ipv4.conf.all.rp_filter, value: "1" }
+    - { name: net.ipv4.conf.default.rp_filter, value: "1" }
+    - { name: net.ipv4.conf.all.accept_redirects, value: "0" }
+    - { name: net.ipv4.conf.all.send_redirects, value: "0" }
+    - { name: net.ipv4.conf.all.accept_source_route, value: "0" }
+    - { name: net.ipv4.tcp_syncookies, value: "1" }
+    - { name: net.ipv6.conf.all.accept_redirects, value: "0" }
+  # Deliberately NOT set: kernel.apparmor_restrict_unprivileged_userns stays at the
+  # Ubuntu default (1); the runner relies on the leetforce-nsjail AppArmor profile (ADR 0014).
+
+- name: Firewall default policy for incoming traffic
+  community.general.ufw:
+    direction: incoming
+    policy: deny
+
+- name: Firewall default policy for outgoing traffic
+  community.general.ufw:
+    direction: outgoing
+    policy: allow
+
+- name: Allow SSH (rate limited)
+  community.general.ufw:
+    rule: limit
+    port: "22"
+    proto: tcp
+
+- name: Enable the firewall
+  community.general.ufw:
+    state: enabled
+
+- name: Unattended security upgrades
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    mode: "0644"
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+
+- name: Keep auditd running
+  ansible.builtin.service:
+    name: auditd
+    state: started
+    enabled: true
+
+- name: Remove unneeded network services
+  ansible.builtin.apt:
+    name: [telnet, rsh-client, rsh-server, talk, xinetd]
+    state: absent
+    purge: true

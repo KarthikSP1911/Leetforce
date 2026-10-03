@@ -1,0 +1,7 @@
+# One ID per line, reason and expiry above it (CLAUDE.md "Security scanning with Trivy").
+#
+# AWS-0104: egress to 0.0.0.0/0 in infra/aws/main.tf, limited to ports 443, 80, 6379, 53/udp,
+# 123/udp (plus 5432 on the control host). Upstash, Neon and S3 have no fixed IP ranges and
+# there is no NAT or VPC endpoint by design (cost rule), so the destination cannot be narrowed.
+# The sandbox itself has no network. Revisit in Phase 13; expires 2027-01-03.
+AWS-0104 exp:2027-01-03

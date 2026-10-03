@@ -4,7 +4,32 @@
 
 GO_MODULES := judge queue runner api storage
 
-.PHONY: test-alerts test-obs-e2e dev-obs down-obs validate-problems test-rejudge-e2e test-auth-e2e test-live-e2e test-api-e2e build-api migrate-up migrate-down migrate-status dev down fmt lint test build-judge build-runner test-crash test-matrix test-sandbox test-adversarial bench-sandbox
+.PHONY: build-runner-linux packer-validate build-ami lint-ansible test-destroy-isolation tf-validate test-alerts test-obs-e2e dev-obs down-obs validate-problems test-rejudge-e2e test-auth-e2e test-live-e2e test-api-e2e build-api migrate-up migrate-down migrate-status dev down fmt lint test build-judge build-runner test-crash test-matrix test-sandbox test-adversarial bench-sandbox
+
+# Phase 12: cross-compile the runner for the AMI (static x86_64 Linux binary).
+build-runner-linux:
+	cd runner && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ../bin/runner-linux-amd64 ./cmd/runner
+
+# Phase 12: packer fmt and validate in a container; free, no AWS credentials needed.
+packer-validate: build-runner-linux
+	docker run --rm --entrypoint sh -v "$(CURDIR):/w" -w /w/packer -e AWS_REGION=ap-south-1 hashicorp/packer:latest -c 'packer init . && packer fmt -check . && packer validate .'
+
+# Phase 12: BILLABLE. Builds the runner AMI (a t3.small builder for about 15 minutes, then a snapshot).
+# Needs AWS credentials in the environment and the owner's confirmation in chat (CLAUDE.md cost rules).
+build-ami: build-runner-linux
+	docker run --rm -v "$(CURDIR):/w" -w /w/packer -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_SESSION_TOKEN -e AWS_REGION=ap-south-1 hashicorp/packer:latest build .
+
+# Phase 12: syntax-check and lint the Ansible playbook in a throwaway container (needs Docker).
+lint-ansible:
+	docker run --rm -v "$(CURDIR)/ansible:/a" -w /a python:3.12-slim sh -c 'pip install -q ansible ansible-lint && ansible-galaxy collection install -r requirements.yml >/dev/null && ansible-lint site.yml'
+
+# Phase 12 exit check: destroying infra/aws cannot reach infra/neon (static, offline).
+test-destroy-isolation:
+	scripts/test-destroy-isolation.sh
+
+# terraform fmt/validate for both stacks (no credentials, creates nothing).
+tf-validate:
+	for d in infra/neon infra/aws; do terraform -chdir=$$d fmt -check && terraform -chdir=$$d init -backend=false -input=false >/dev/null && terraform -chdir=$$d validate || exit 1; done
 
 # Phase 11 exit test: leetforce_ metrics follow a live submission flow, and a
 # lost runner shows as waiting, ageing jobs (dev host; real DB, throwaway Redis prefix).

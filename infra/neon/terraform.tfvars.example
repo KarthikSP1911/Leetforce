@@ -1,0 +1,2 @@
+# Copy to terraform.tfvars (git-ignored).
+project_id = "REPLACE-WITH-NEON-PROJECT-ID"

@@ -40,7 +40,7 @@ Rules that shape the flow (from CLAUDE.md): runners never connect to the databas
 | 9 | Auth and limits (M3) `[x]` | Sign-up/login, sessions, rate limits per user and per IP, solved status in front of stage 1 | `browser (signed in) -> API (session, limits in Redis) -> ... -> verdict`; usable product on one machine |
 | 10 | Problem pipeline `[x]` | Authoring side: import, validation, reference-solution check, rejudge by test-set version | `fixed test set -> API start detects the new version -> queue -> runner -> new verdict replaces the old one` |
 | 11 | Observability `[x]` | Watching every stage: metrics, dashboards, logs, alerts | dashboards show a live submission |
-| 12 | Infrastructure as code | Terraform, Packer, Ansible for the places the stages run (nothing applied without confirmation) | the system can be described and rebuilt as code |
+| 12 | Infrastructure as code `[x]` (code only; plan and AMI build pending) | Terraform, Packer, Ansible for the places the stages run (nothing applied without confirmation) | the system can be described and rebuilt as code |
 | 13 | Cloud deployment (M4) | The same flow running in the cloud (k3s), runner scaling, secrets via SSM, CI deploy | the flow survives losing a runner |
 | 14 | Contests | Contest model, timed windows, contest-only problems, scoring in stages 2 and 9 | a mock contest runs end to end |
 | 15 | Leaderboard | Rankings fed by verdicts, caching, penalty rules | rankings correct under concurrent submissions |
@@ -359,6 +359,23 @@ Decision record: [ADR 0019](adr/0019-observability.md). Log: [phase-11-log.md](p
                 QueueSampleFailing, APIDown, API5xxRate, InternalErrorVerdicts; no notifier; make test-alerts runs promtool tests
 ```
 Exit check: `make test-obs-e2e` on the dev host, `make test-alerts` and the dashboard filling during `scripts/obs-demo.sh`.
+
+### Phase 12: Infrastructure as code (as built; code only, nothing applied)
+
+Decision record: [ADR 0020](adr/0020-infrastructure-as-code.md). Log: [phase-12-log.md](phases/phase-12-log.md). Nothing here is applied or built yet; the flow itself does not change, this phase describes the hosts it will run on.
+```
+ Describing the places the stages run
+ 1. infra/neon    Terraform imports the existing Neon project (import block, prevent_destroy); state is infra/neon/terraform.tfstate;
+                  output database_url is sensitive and goes to SSM in Phase 13
+ 2. infra/aws     default VPC only: control host + runner_count runner hosts, security groups open to owner_cidr (22, k3s 6443),
+                  per-port egress, IMDSv2, encrypted gp3; IAM: runners read /leetforce/runner/* only, the control host /leetforce/*
+ 3. arena.sh      scripts/arena.sh up|down|status acts on infra/aws only; up and down each need a typed phrase
+ 4. Ansible       ansible/site.yml: hardening (SSH, sysctl, ufw, unattended upgrades, auditd) on every host; runner_host (toolchains,
+                  nsjail at the pinned commit, lfrunner user) on runners
+ 5. Packer        packer/runner.pkr.hcl: Ubuntu 24.04 + Ansible + runner binary and unit (disabled) + Trivy gate -> encrypted, IMDSv2 AMI;
+                  infra/aws takes it through runner_ami_id
+```
+Exit checks: `make test-destroy-isolation` (offline), `make tf-validate`, `make packer-validate`, `make lint-ansible`; `terraform plan` and `make build-ami` need credentials and the owner's confirmation.
 
 ## 4. Keeping this file true
 At the end of each phase: tick the phase in section 2, add its "as built" flow to section 3 (the detailed step list with file paths), and correct the "planned" rows if the plan changed.

@@ -32,6 +32,9 @@ bin/
 !*.tfvars.example
 crash.log
 
+# Ansible: real inventory holds host addresses
+ansible/inventory/hosts.ini
+
 # OS and editors
 .DS_Store
 Thumbs.db
@@ -47,3 +50,6 @@ npm-debug.log*
 # Phase 11: Prometheus/Grafana stack output (logs are copied from the dev host)
 observability/logs/*
 !observability/logs/.gitkeep
+
+# Packer build output
+packer/packer-manifest.json
