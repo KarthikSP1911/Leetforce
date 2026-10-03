@@ -4,6 +4,7 @@ import type {
   ProblemList,
   ProblemQuery,
 } from "@/types/problem";
+import type { User } from "@/types/auth";
 import type {
   RunCreated,
   RunState,
@@ -15,6 +16,7 @@ export class ApiError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    readonly retryAfter?: number,
   ) {
     super(message);
     this.name = "ApiError";
@@ -33,28 +35,31 @@ function baseUrl(): string {
 async function getJSON<T>(
   path: string,
   signal?: AbortSignal,
-  headers?: Record<string, string>,
+  cookie?: string,
 ): Promise<T> {
   const res = await fetch(`${baseUrl()}${path}`, {
     cache: "no-store",
     signal,
-    headers,
+    headers: cookie ? { Cookie: cookie } : undefined,
   });
   return readJSON<T>(res);
 }
 
 async function postJSON<T>(
   path: string,
-  body: unknown,
-  headers?: Record<string, string>,
+  body?: unknown,
   signal?: AbortSignal,
+  cookie?: string,
 ): Promise<T> {
   const res = await fetch(`${baseUrl()}${path}`, {
     method: "POST",
     cache: "no-store",
     signal,
-    headers: { "Content-Type": "application/json", ...headers },
-    body: JSON.stringify(body),
+    headers: {
+      "Content-Type": "application/json",
+      ...(cookie ? { Cookie: cookie } : {}),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
   });
   return readJSON<T>(res);
 }
@@ -68,21 +73,32 @@ async function readJSON<T>(res: Response): Promise<T> {
     } catch {
       // keep statusText
     }
-    throw new ApiError(res.status, message);
+    const retry = Number.parseInt(res.headers.get("Retry-After") ?? "", 10);
+    throw new ApiError(
+      res.status,
+      message,
+      Number.isFinite(retry) ? retry : undefined,
+    );
   }
+  if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
 
 export function listProblems(
   query: ProblemQuery = {},
   signal?: AbortSignal,
+  opts: { cookie?: string } = {},
 ): Promise<ProblemList> {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
     if (value !== undefined && value !== "") params.set(key, String(value));
   }
   const qs = params.toString();
-  return getJSON<ProblemList>(`/problems${qs ? `?${qs}` : ""}`, signal);
+  return getJSON<ProblemList>(
+    `/problems${qs ? `?${qs}` : ""}`,
+    signal,
+    opts.cookie,
+  );
 }
 
 export function getProblem(
@@ -95,36 +111,40 @@ export function getProblem(
   );
 }
 
-// Anonymous browser id for "my submissions" until accounts exist (Phase 9).
-// It is kept in localStorage; if storage is blocked, a per-page id is used.
-const CLIENT_KEY = "lf-client";
-let memoryClient: string | undefined;
-
-export function clientId(): string {
-  try {
-    const saved = window.localStorage.getItem(CLIENT_KEY);
-    if (saved) return saved;
-    const fresh = crypto.randomUUID();
-    window.localStorage.setItem(CLIENT_KEY, fresh);
-    return fresh;
-  } catch {
-    memoryClient ??= crypto.randomUUID();
-    return memoryClient;
-  }
+export async function signup(req: {
+  email: string;
+  username: string;
+  password: string;
+}): Promise<User> {
+  return (await postJSON<{ user: User }>("/auth/signup", req)).user;
 }
 
-const clientHeaders = () => ({ "X-LeetForce-Client": clientId() });
+export async function login(req: {
+  login: string;
+  password: string;
+}): Promise<User> {
+  return (await postJSON<{ user: User }>("/auth/login", req)).user;
+}
+
+export async function logout(): Promise<void> {
+  await postJSON<void>("/auth/logout");
+}
+
+/** The signed-in user, or null when anonymous. */
+export async function getMe(signal?: AbortSignal): Promise<User | null> {
+  try {
+    return (await getJSON<{ user: User }>("/me", signal)).user;
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 401) return null;
+    throw e;
+  }
+}
 
 export function createSubmission(
   req: { problem: string; language: Language; source: string },
   signal?: AbortSignal,
 ): Promise<SubmissionCreated> {
-  return postJSON<SubmissionCreated>(
-    "/submissions",
-    req,
-    clientHeaders(),
-    signal,
-  );
+  return postJSON<SubmissionCreated>("/submissions", req, signal);
 }
 
 export function getSubmission(
@@ -141,7 +161,6 @@ export async function listSubmissions(
   const body = await getJSON<{ submissions: Submission[] }>(
     `/problems/${encodeURIComponent(slug)}/submissions`,
     signal,
-    clientHeaders(),
   );
   return body.submissions;
 }
@@ -151,7 +170,7 @@ export function createRun(
   req: { problem: string; language: Language; source: string; input?: string },
   signal?: AbortSignal,
 ): Promise<RunCreated> {
-  return postJSON<RunCreated>("/runs", req, undefined, signal);
+  return postJSON<RunCreated>("/runs", req, signal);
 }
 
 export function getRun(id: string, signal?: AbortSignal): Promise<RunState> {

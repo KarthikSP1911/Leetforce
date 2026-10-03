@@ -8,8 +8,13 @@ import type { Language } from "@/types/problem";
 
 function message(e: unknown): string {
   if (e instanceof ApiError) {
+    if (e.status === 401) return "Sign in to run or submit code.";
     if (e.status === 413) return "Your code or input is too large.";
-    if (e.status === 429) return "Too many requests. Wait a moment.";
+    if (e.status === 429) {
+      return e.retryAfter
+        ? `Too many requests. Try again in ${e.retryAfter} seconds.`
+        : "Too many requests. Wait a moment.";
+    }
     return e.message || "The request failed.";
   }
   return "Could not reach the server. Try again.";
@@ -37,9 +42,9 @@ export function useJudge(problem: string, onSubmission?: () => void) {
     setResult({ kind: "pending", action, status: "queued" });
   }, []);
 
-  const fail = useCallback((msg: string) => {
+  const fail = useCallback((msg: string, signIn?: boolean) => {
     setBusy(false);
-    setResult({ kind: "error", message: msg });
+    setResult({ kind: "error", message: msg, signIn });
   }, []);
 
   const run = useCallback(
@@ -60,10 +65,10 @@ export function useJudge(problem: string, onSubmission?: () => void) {
               });
             }
           },
-          onError: fail,
+          onError: (m) => fail(m),
         });
       } catch (e) {
-        fail(message(e));
+        fail(message(e), e instanceof ApiError && e.status === 401);
       }
     },
     [begin, fail, problem],
@@ -89,10 +94,10 @@ export function useJudge(problem: string, onSubmission?: () => void) {
               });
             }
           },
-          onError: fail,
+          onError: (m) => fail(m),
         });
       } catch (e) {
-        fail(message(e));
+        fail(message(e), e instanceof ApiError && e.status === 401);
       }
     },
     [begin, fail, problem],

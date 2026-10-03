@@ -1,6 +1,9 @@
 "use client";
 
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useUser } from "@/components/auth/AuthProvider";
 import { listSubmissions } from "@/lib/api/client";
 import type { Submission, Verdict } from "@/types/submission";
 
@@ -60,7 +63,7 @@ function Status({ s }: { s: Submission }) {
 }
 
 /**
- * This browser's submissions to one problem, newest first. `refreshKey` changes
+ * Your submissions to one problem, newest first. `refreshKey` changes
  * when the page submits something; while any row is unfinished the list is
  * re-read every couple of seconds, so a verdict appears without a reload.
  */
@@ -71,11 +74,15 @@ export function SubmissionsTab({
   slug: string;
   refreshKey: number;
 }) {
+  const { user, loading } = useUser();
+  const userId = user?.id;
+  const pathname = usePathname();
   const [rows, setRows] = useState<Submission[] | null>(null);
   const [failed, setFailed] = useState(false);
   const pending = rows?.some((r) => r.status !== "judged") ?? false;
 
   useEffect(() => {
+    if (loading || !userId) return;
     const ctl = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     const load = async () => {
@@ -98,8 +105,21 @@ export function SubmissionsTab({
       if (timer) clearTimeout(timer);
     };
     // `pending` is not a dependency: the loop keeps itself going.
-  }, [slug, refreshKey]);
+  }, [slug, refreshKey, userId, loading]);
 
+  if (!loading && !user) {
+    return (
+      <p className="text-muted p-4 text-sm">
+        <Link
+          href={`/login?next=${encodeURIComponent(pathname)}`}
+          className="text-link font-semibold underline"
+        >
+          Sign in
+        </Link>{" "}
+        to see your submissions.
+      </p>
+    );
+  }
   if (rows === null) {
     return (
       <p className="text-muted p-4 text-sm">
@@ -110,7 +130,7 @@ export function SubmissionsTab({
   if (rows.length === 0) {
     return (
       <p className="text-muted p-4 text-sm">
-        No submissions from this browser yet. Submit your code to see it here.
+        No submissions yet. Submit your code to see it here.
       </p>
     );
   }
