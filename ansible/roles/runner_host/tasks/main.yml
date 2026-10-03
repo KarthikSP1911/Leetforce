@@ -50,6 +50,11 @@
     state: absent
     autoremove: true
 
+- name: Install the AWS CLI (first-boot user data reads runner settings from SSM)
+  ansible.builtin.command:
+    cmd: snap install aws-cli --classic
+    creates: /snap/bin/aws
+
 - name: Unprivileged runner user
   ansible.builtin.user:
     name: lfrunner
