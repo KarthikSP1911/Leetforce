@@ -4,7 +4,20 @@
 
 GO_MODULES := judge queue runner api storage
 
-.PHONY: lint-ansible test-destroy-isolation tf-validate test-alerts test-obs-e2e dev-obs down-obs validate-problems test-rejudge-e2e test-auth-e2e test-live-e2e test-api-e2e build-api migrate-up migrate-down migrate-status dev down fmt lint test build-judge build-runner test-crash test-matrix test-sandbox test-adversarial bench-sandbox
+.PHONY: build-runner-linux packer-validate build-ami lint-ansible test-destroy-isolation tf-validate test-alerts test-obs-e2e dev-obs down-obs validate-problems test-rejudge-e2e test-auth-e2e test-live-e2e test-api-e2e build-api migrate-up migrate-down migrate-status dev down fmt lint test build-judge build-runner test-crash test-matrix test-sandbox test-adversarial bench-sandbox
+
+# Phase 12: cross-compile the runner for the AMI (static x86_64 Linux binary).
+build-runner-linux:
+	cd runner && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ../bin/runner-linux-amd64 ./cmd/runner
+
+# Phase 12: packer fmt and validate in a container; free, no AWS credentials needed.
+packer-validate: build-runner-linux
+	docker run --rm --entrypoint sh -v "$(CURDIR):/w" -w /w/packer -e AWS_REGION=ap-south-1 hashicorp/packer:latest -c 'packer init . && packer fmt -check . && packer validate .'
+
+# Phase 12: BILLABLE. Builds the runner AMI (a t3.small builder for about 15 minutes, then a snapshot).
+# Needs AWS credentials in the environment and the owner's confirmation in chat (CLAUDE.md cost rules).
+build-ami: build-runner-linux
+	docker run --rm -v "$(CURDIR):/w" -w /w/packer -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_SESSION_TOKEN -e AWS_REGION=ap-south-1 hashicorp/packer:latest build .
 
 # Phase 12: syntax-check and lint the Ansible playbook in a throwaway container (needs Docker).
 lint-ansible:
