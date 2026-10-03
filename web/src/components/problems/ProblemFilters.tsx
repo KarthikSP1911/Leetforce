@@ -65,7 +65,7 @@ export function ProblemFilters({
       </button>
       <Link
         href="/problems"
-        className="text-muted hover:text-primary h-9 content-center text-sm"
+        className="text-muted hover:text-link h-9 content-center text-sm"
       >
         Reset
       </Link>
