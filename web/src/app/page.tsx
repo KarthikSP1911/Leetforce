@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { HeroGrid, PipelineDiagram } from "@/components/home/HomeArt";
+import { ButtonLink, Enter, Reveal } from "@/components/motion/Motion";
 
 export const metadata = {
   title: "LeetForce | Practice code, get a verdict in seconds",
@@ -132,7 +133,7 @@ export default function Home() {
       <section className="border-panel-border relative overflow-hidden border-b">
         <HeroGrid />
         <div className="relative mx-auto grid w-full max-w-6xl items-center gap-12 px-4 py-16 lg:grid-cols-2 lg:py-24">
-          <div>
+          <Enter>
             <p className="text-link mb-4 text-sm font-semibold tracking-wide uppercase">
               Online judge
             </p>
@@ -147,12 +148,12 @@ export default function Home() {
               with runtime and memory.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/problems" className={primaryBtn}>
+              <ButtonLink href="/problems" className={primaryBtn}>
                 Start solving
-              </Link>
-              <Link href="/contest" className={secondaryBtn}>
+              </ButtonLink>
+              <ButtonLink href="/contest" className={secondaryBtn}>
                 View contests
-              </Link>
+              </ButtonLink>
             </div>
             <ul className="text-muted mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm">
               <li>Python</li>
@@ -160,10 +161,10 @@ export default function Home() {
               <li>Java</li>
               <li>Go</li>
             </ul>
-          </div>
-          <div className="flex lg:justify-end">
+          </Enter>
+          <Enter x={24} delay={0.15} className="flex lg:justify-end">
             <VerdictPreview />
-          </div>
+          </Enter>
         </div>
       </section>
 
@@ -173,9 +174,9 @@ export default function Home() {
           Your code never runs next to the website or the database. It travels
           through a queue to a runner and executes only inside a sandbox.
         </p>
-        <div className="bg-panel border-panel-border mt-8 rounded-lg border p-6">
+        <Reveal className="bg-panel border-panel-border mt-8 rounded-lg border p-6">
           <PipelineDiagram />
-        </div>
+        </Reveal>
       </section>
 
       <section className="border-panel-border border-t">
@@ -186,15 +187,16 @@ export default function Home() {
             built in.
           </p>
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {features.map((f) => (
-              <div
+            {features.map((f, i) => (
+              <Reveal
                 key={f.title}
-                className="bg-panel border-panel-border rounded-lg border p-5"
+                delay={(i % 3) * 0.07}
+                className="bg-panel border-panel-border hover:border-link h-full rounded-lg border p-5 transition-colors"
               >
                 <Icon>{f.icon}</Icon>
                 <h3 className="mt-4 text-base font-semibold">{f.title}</h3>
                 <p className="text-muted mt-2 text-sm leading-6">{f.text}</p>
-              </div>
+              </Reveal>
             ))}
           </div>
         </div>
@@ -205,15 +207,17 @@ export default function Home() {
           <h2 className="text-2xl font-bold">How it works</h2>
           <ol className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {steps.map((s, i) => (
-              <li
-                key={s.title}
-                className="bg-panel border-panel-border rounded-lg border p-5"
-              >
-                <span className="text-link font-mono text-sm font-semibold">
-                  {String(i + 1).padStart(2, "0")}
-                </span>
-                <h3 className="mt-2 text-base font-semibold">{s.title}</h3>
-                <p className="text-muted mt-2 text-sm leading-6">{s.text}</p>
+              <li key={s.title}>
+                <Reveal
+                  delay={i * 0.08}
+                  className="bg-panel border-panel-border h-full rounded-lg border p-5"
+                >
+                  <span className="text-link font-mono text-sm font-semibold">
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <h3 className="mt-2 text-base font-semibold">{s.title}</h3>
+                  <p className="text-muted mt-2 text-sm leading-6">{s.text}</p>
+                </Reveal>
               </li>
             ))}
           </ol>
@@ -221,7 +225,7 @@ export default function Home() {
       </section>
 
       <section className="mx-auto w-full max-w-6xl px-4 py-16">
-        <div className="bg-panel border-panel-border flex flex-col items-start justify-between gap-6 rounded-lg border p-8 sm:flex-row sm:items-center">
+        <Reveal className="bg-panel border-panel-border flex flex-col items-start justify-between gap-6 rounded-lg border p-8 sm:flex-row sm:items-center">
           <div>
             <h2 className="text-xl font-bold">Ready to start?</h2>
             <p className="text-muted mt-1 text-sm">
@@ -229,14 +233,14 @@ export default function Home() {
             </p>
           </div>
           <div className="flex gap-3">
-            <Link href="/signup" className={primaryBtn}>
+            <ButtonLink href="/signup" className={primaryBtn}>
               Create account
-            </Link>
-            <Link href="/login" className={secondaryBtn}>
+            </ButtonLink>
+            <ButtonLink href="/login" className={secondaryBtn}>
               Sign in
-            </Link>
+            </ButtonLink>
           </div>
-        </div>
+        </Reveal>
       </section>
 
       <footer className="border-panel-border text-muted border-t">

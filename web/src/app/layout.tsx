@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { AuthProvider } from "@/components/auth/AuthProvider";
 import { Navbar } from "@/components/layout/Navbar";
+import { MotionProvider } from "@/components/motion/Motion";
 import "./globals.css";
 
 const inter = Inter({
@@ -38,10 +39,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         />
       </head>
       <body className="flex min-h-full flex-col">
-        <AuthProvider>
-          <Navbar />
-          {children}
-        </AuthProvider>
+        <MotionProvider>
+          <AuthProvider>
+            <Navbar />
+            {children}
+          </AuthProvider>
+        </MotionProvider>
       </body>
     </html>
   );
