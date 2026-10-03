@@ -42,7 +42,7 @@ Rules that shape the flow (from CLAUDE.md): runners never connect to the databas
 | 11 | Observability `[x]` | Watching every stage: metrics, dashboards, logs, alerts | dashboards show a live submission |
 | 12 | Infrastructure as code `[x]` (code only; plan and AMI build pending) | Terraform, Packer, Ansible for the places the stages run (nothing applied without confirmation) | the system can be described and rebuilt as code |
 | 13 | Cloud deployment (M4) (in progress: code merged, not applied; AMI not built) | The same flow running in the cloud (k3s for the API, runners as ASG hosts), secrets via SSM, CI deploy | the flow survives losing a runner |
-| 14 | Contests | Contest model, timed windows, contest-only problems, scoring in stages 2 and 9 | a mock contest runs end to end |
+| 14 | Contests `[x]` (code only; untested, gate in Phase 16) | Contest model, timed windows, contest-only problems, scoring in stages 2 and 9 | a mock contest runs end to end |
 | 15 | Leaderboard | Rankings fed by verdicts, caching, penalty rules | rankings correct under concurrent submissions |
 | 16 | Launch readiness (M5) | Load test, security review, backup and restore drill | findings resolved or accepted in writing |
 
@@ -395,6 +395,16 @@ Decision records: [ADR 0021](adr/0021-single-s3-bucket.md), [ADR 0022](adr/0022-
  6. Exit test     make test-runner-loss (scripts/test-runner-loss.sh): terminate one runner mid-job; every submission still gets one verdict
 ```
 Done: bucket applied; manifests validated (kubeconform, Trivy config, a throwaway kind cluster); `infra/aws` plan 34 to add. Not done: AMI (three failed builds), `apply` of `infra/aws`, SSM push, image push, the loss test, the `infra/neon` plan.
+
+### Phase 14: Contests (as built; untested, gate in Phase 16)
+
+1. A contest is a row in `contests` (slug, `starts_at`, `ends_at`) with problems in `contest_problems` (label A, B, ...) and registrations in `contest_participants` (`api/migrations/00006_contests.sql`). Status is derived from the clock (`api/internal/contest/model.go`).
+2. Browser: `/contest` lists contests; `/contest/[slug]` shows a countdown, Register, problem tabs and the standings slot (`web/src/app/contest/`, `web/src/components/contest/`).
+3. `POST /contests/:slug/register` records the user (`api/internal/contest/handlers.go`).
+4. Contest problems are 404 on the list, detail, history, Run and Submit endpoints until the start, and during the contest for unregistered users (`HiddenProblems` in `api/internal/contest/store.go`, applied in `api/internal/server/`).
+5. `POST /submissions` with `contest_id` is checked (window, registration, problem in contest: 409 or 422), tagged with `submissions.contest_id` before it is queued (`api/internal/server/submissions.go`). The runner, sandbox and verdict path are unchanged.
+6. `Store.Events` returns judged in-window contest verdicts; `contest.Score` ranks them ICPC style (`api/internal/contest/scoring.go`). Phase 15 turns this into the leaderboard.
+7. Mock contest: `make test-mock-contest` (`scripts/run-mock-contest.sh`).
 
 ## 4. Keeping this file true
 At the end of each phase: tick the phase in section 2, add its "as built" flow to section 3 (the detailed step list with file paths), and correct the "planned" rows if the plan changed.
