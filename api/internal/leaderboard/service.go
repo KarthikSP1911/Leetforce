@@ -105,10 +105,16 @@ func (s *Service) ComputeStandings(ctx context.Context, c Contest) (ContestStand
 		return ContestStandings{}, err
 	}
 	rows := scoreEvents(c, events, names, s.score)
+	// Contest problems are hidden until the start (CLAUDE.md visibility rule),
+	// so the problem list must not leak through the public standings either.
+	problems := c.Problems
+	if s.now().Before(c.StartsAt) {
+		problems = []string{}
+	}
 	return ContestStandings{
 		Contest:     ContestInfo{Slug: c.Slug, Title: c.Title, StartsAt: c.StartsAt.UTC(), EndsAt: c.EndsAt.UTC()},
 		GeneratedAt: s.now().UTC(),
-		Problems:    c.Problems,
+		Problems:    problems,
 		Standings:   rows,
 	}, nil
 }
