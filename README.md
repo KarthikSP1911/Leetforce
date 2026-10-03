@@ -12,7 +12,7 @@
 
 LeetForce is a LeetCode-style judge: you write a solution in Python, C++, Java or Go in a browser editor, and a fleet of runners compiles and runs it in isolated sandboxes against hidden tests. The result is one verdict (AC, WA, TLE, MLE, RE, CE, OLE) with runtime and memory. Untrusted code only ever runs inside the sandbox (nsjail plus cgroup v2, with gVisor as an opt-in backend), runners never touch the database, and hidden tests, expected outputs and raw stderr are never returned for Submit.
 
-Status: Phases 0 to 13 are merged (see [docs/PROGRESS.md](docs/PROGRESS.md)). The cloud deployment is code only: the S3 bucket is the one cloud resource created for it so far, and the runner AMI, the k3s control host and the runner fleet have not been applied or built ([docs/phases/phase-13.md](docs/phases/phase-13.md)). Contests, the leaderboard and launch readiness are Phases 14 to 16.
+Status: Phases 0 to 16 are built (see [docs/PROGRESS.md](docs/PROGRESS.md)), including contests, the leaderboard and launch readiness (security review, load test, backup and restore runbook). The cloud deployment is code only: the S3 bucket is the one cloud resource created for it so far, and the runner AMI, the k3s control host and the runner fleet have not been applied or built ([docs/phases/phase-13.md](docs/phases/phase-13.md), [docs/launch-checklist.md](docs/launch-checklist.md)).
 
 ## Architecture
 
@@ -56,6 +56,170 @@ Run (samples or custom input) uses the same queue but keeps its state in a short
 | `problems/` | Problem definitions (`problem.yaml`, tests, statements, starters, reference solutions) |
 | `infra/` | Terraform: `bootstrap` (S3), `neon` (database project), `aws` (hosts) |
 | `packer/`, `ansible/`, `k8s/`, `observability/` | Runner AMI, host provisioning, API manifests, Prometheus/Grafana/Loki |
+
+## System design (high-level)
+
+### Goals and constraints
+
+| Goal | How the design meets it |
+|---|---|
+| Run untrusted code safely | Every run happens in a sandbox (nsjail with a cgroup v2 per job, gVisor as an opt-in backend). The whole cgroup is killed on timeout or limit breach. |
+| Never leak hidden tests | Submit returns only the verdict, runtime and memory. Test inputs, expected outputs and raw stderr are shown only for Run on samples or custom input. |
+| Survive a crashed runner | Jobs sit in a Redis Streams consumer group. A job that is not acknowledged is reclaimed with `XAUTOCLAIM` by another runner, and verdict writes are idempotent. |
+| Rejudge after a test fix | Every submission records the test-set version it was judged against, so stale ones can be re-queued and the new verdict replaces the old one once. |
+| Keep the database safe | Runners never connect to Postgres. They only talk to Redis, S3 and the API's ingest path. |
+| Stay cheap | One small API host, Neon and Upstash free or low tiers, and runners that can scale from zero. See the [cost table](#cost-table). |
+
+### Components
+
+```mermaid
+flowchart TB
+  subgraph Client
+    B[Browser<br/>Next.js, Monaco, SSE client]
+  end
+
+  subgraph Edge["Web tier"]
+    W[Next.js server<br/>pages, /api rewrite]
+  end
+
+  subgraph Control["Control plane (k3s control host)"]
+    A[API<br/>Gin: auth, catalog, runs, submissions,<br/>contests, leaderboard, SSE]
+    I[Ingest worker<br/>idempotent verdict writes]
+    RP[Reaper<br/>re-queues saved but never queued submissions]
+    RJ[Rejudge<br/>on test-set version change]
+  end
+
+  subgraph Data["Managed data stores"]
+    PG[(Neon Postgres<br/>users, sessions, problems,<br/>submissions, verdicts, contests)]
+    RD[(Redis Streams, Upstash<br/>jobs, results, status,<br/>run state, rate limits, cache)]
+    S3[(S3<br/>test bundles by version,<br/>Terraform state)]
+  end
+
+  subgraph Fleet["Judging fleet (Auto Scaling group of runner hosts)"]
+    R1[Runner agent]
+    R2[Runner agent]
+    SB1[Sandbox<br/>nsjail + cgroup v2]
+    SB2[Sandbox<br/>nsjail + cgroup v2]
+  end
+
+  subgraph Obs["Observability"]
+    PR[Prometheus]
+    GR[Grafana]
+    LK[Loki]
+  end
+
+  B --> W --> A
+  A <--> PG
+  A <--> RD
+  A -->|publish catalog and tests| S
+  RD -->|XREADGROUP / XAUTOCLAIM| R1
+  RD --> R2
+  R1 --> SB1
+  R2 --> SB2
+  R1 -->|read bundle| S
+  R2 -->|read bundle| S
+  R1 -->|results, status| RD
+  R2 --> RD
+  RD -->|results| I --> PG
+  RP --> PG
+  RP --> RD
+  RJ --> PG
+  RJ --> RD
+  A -. SSE: queued, judging, verdict .-> B
+  A --> PR
+  R1 --> PR
+  PR --> GR
+  LK --> GR
+```
+
+| Component | Responsibility | Where it lives |
+|---|---|---|
+| Web | Problem list, split-pane workspace, console, contests, leaderboard. Talks only to `/api/*`, which Next.js proxies to the API, so the API address never reaches the browser and there is no CORS. | `web/` |
+| API | Accounts and sessions, problem catalog, Run and Submit, contests and visibility rules, rankings, SSE status streams, rate limits, health and metrics. | `api/` |
+| Ingest, reaper, rejudge | Background loops inside the API process: write verdicts from the results stream, re-queue submissions that were saved but never queued (an API crash between the insert and the enqueue), and re-queue submissions judged against an older test set. | `api/internal/ingest`, `reaper`, `rejudge` |
+| Queue | Redis Streams with consumer groups (`runners` for jobs, `api` for results), per-job heartbeat, run state keys, sliding-window rate limiter, version counters for ranking caches. | `queue/` |
+| Runner | Pulls a job, downloads and unpacks the test bundle for the job's version, compiles and runs inside the sandbox, publishes the verdict. No database access. | `runner/` |
+| Judge engine and sandbox | Language drivers, checkers, verdict derivation from host facts (exit status, cgroup counters), and the sandbox backends. The harness reports over a dedicated file descriptor, never by parsing user stdout. | `judge/` |
+| Storage | S3 bucket with one `problems/<slug>/<version>.tar.gz` bundle per test-set version. Hosts use their IAM role, with no keys on disk. | `storage/`, `infra/` |
+
+### Request flows
+
+**Submit** (the durable path):
+
+1. The browser posts to `/api/submissions`. The API checks the session, the rate limits, the problem and, for a contest submission, the window and registration.
+2. The API inserts a `submissions` row stamped with the current `test_set_version`, then adds a job to the Redis jobs stream.
+3. A runner claims the job, sends a heartbeat every 10 seconds, fetches the bundle for that version and judges each test in a fresh sandbox.
+4. The runner publishes the verdict to the results stream and acknowledges the job.
+5. The ingest worker writes the verdict. The write is keyed by submission ID, so a redelivery changes nothing.
+6. The API's SSE stream tells the browser about each change: queued, judging, then the verdict. Ranking caches are invalidated after the commit.
+
+**Run** (samples or custom input): the same queue and runners, but the state lives in a short-lived Redis key and never reaches Postgres. This is the only path that may show failing case details.
+
+**Contest**: a contest is a timed window over a fixed problem set. Its status (upcoming, running, ended) is derived from the clock, never stored. Contest problems are hidden from the public catalog until the start, and during the contest from users who have not registered. Only judged submissions inside the window count, ranked ICPC style: most problems solved, then least penalty (minutes to the first accepted answer plus 20 per rejected attempt).
+
+**Leaderboard**: standings and the global ranking are computed from verdicts in SQL, then cached in Redis. A cache entry is valid only while its version counter matches the counter read first, and every committed verdict increments the counter, so a read never serves a stale ranking for longer than one recompute.
+
+### Data ownership
+
+| Store | Holds | Written by | Read by |
+|---|---|---|---|
+| Neon Postgres | Users, sessions, problems, submissions, verdicts, contests, registrations | API only (including ingest) | API only |
+| Redis Streams | Job queue, results, status events, Run state, rate-limit counters, cache and version counters | API and runners | API and runners |
+| S3 | Test bundles by version, remote Terraform state | API publish step, Terraform | Runners, API |
+
+The database is reached only by the API. A static test (`TestRunnerHasNoDatabaseDependency`) fails the build if the runner module imports a database driver.
+
+### Failure handling
+
+| Failure | What happens |
+|---|---|
+| A runner dies mid-job | Its heartbeat stops. After the idle limit another runner reclaims the job with `XAUTOCLAIM`. The verdict is written once, because writes are idempotent per submission and version. |
+| The API crashes after saving a submission but before queuing it | The reaper finds rows that are queued but were never enqueued (older than a 2 minute grace) and queues them. It sweeps at start-up and then every 15 minutes. The ingest worker resumes from its consumer group, because results are kept in Redis. |
+| Redis is unavailable | The rate limiter fails closed (503) instead of letting requests through, since a submission needs Redis anyway. |
+| A test set is fixed | The version changes. At API start, submissions judged against the old version are re-queued and the new verdict replaces the old one. |
+| User code misbehaves | Fork bombs, memory hogs, infinite loops and output floods hit the cgroup limits. The whole cgroup is killed and the verdict says TLE, MLE or OLE. The adversarial suite covers these. |
+
+### Security boundaries
+
+- **Untrusted code** runs only in the sandbox: new user, pid, mount, network and ipc namespaces (only a private loopback), read-only system directories with a small tmpfs as the working directory, no `/proc` or `/sys`, an unprivileged uid, a seccomp denylist for dangerous system calls, and a private cgroup with memory, process and CPU limits.
+- **Runners** have no database credentials. A runner host holds the Redis URL and an IAM role for the bundle bucket (a compromised runner could therefore forge verdicts, which is an accepted risk recorded as SEC-10 in the security review).
+- **Browser to API** goes through the Next.js proxy. Sessions are HttpOnly, SameSite=Lax cookies. State-changing JSON routes require `Content-Type: application/json`.
+- **Limits** apply per user and per IP on sign-up, login, Run and Submit, and each IP is capped on open SSE streams.
+- **Secrets** come from a git-ignored `.env` locally and from SSM in the cloud. Nothing secret is committed, and Trivy scans the tree before merges.
+
+The full list of findings and their status is in [docs/security-review.md](docs/security-review.md).
+
+### Deployment topology
+
+```mermaid
+flowchart LR
+  subgraph Local["Local development"]
+    L1[Next.js] --> L2[API] --> L3[(Redis in Docker)]
+    L2 --> L4[(Neon)]
+    L5[Runner on a Linux host] --> L3
+  end
+
+  subgraph Cloud["AWS (default VPC, locked-down security groups)"]
+    C1[k3s control host<br/>API pod] --> C2[(Neon)]
+    C1 --> C3[(Upstash Redis)]
+    C4[Runner Auto Scaling group<br/>AMI built with Packer] --> C3
+    C4 --> C5[(S3 bucket)]
+    C1 --> C5
+  end
+```
+
+Infrastructure is Terraform (`infra/bootstrap`, `infra/neon`, `infra/aws`), the runner image is Packer plus Ansible, and the API runs on k3s with CI-driven deploys. Nothing in the cloud is applied without an explicit confirmation, and the status of each piece is in the [launch checklist](docs/launch-checklist.md).
+
+### Scaling and capacity
+
+- The API is stateless apart from Redis, so more API replicas can run behind the same Redis and Postgres.
+- Judging capacity is the number of runners. Adding a runner adds a consumer to the same group with no coordination.
+- The bottlenecks to watch are Redis commands (the Upstash plan limit is unchecked), Neon connections and compute, and runner CPU and memory.
+- `tools/loadtest` drives sign-up, problem list, Run, Submit and SSE (and a contest mode) with a configurable number of users, so these limits can be measured rather than guessed. See [ADR 0024](docs/adr/0024-load-test-tool.md). No throughput figures are claimed here until a run on the real stack is recorded.
+
+### Key decisions
+
+The reasoning behind each choice is in `docs/adr/`: [sandbox design](docs/adr/0004-sandbox-design.md), [verdicts from host facts](docs/adr/0007-verdicts-from-host-facts.md), [queue reclaim and runner privileges](docs/adr/0008-queue-reclaim-and-runner-privileges.md), [idempotent verdict ingest](docs/adr/0009-idempotent-verdict-ingest.md), [problem tests in object storage](docs/adr/0011-problem-tests-in-object-storage.md), [live status over SSE](docs/adr/0012-live-status-sse-and-reaper.md), [nsjail versus gVisor](docs/adr/0013-sandbox-nsjail-vs-gvisor.md), [accounts, sessions and limits](docs/adr/0017-accounts-sessions-and-limits.md), [contest model and scoring](docs/adr/0023-contest-model-and-scoring.md) and [leaderboard ranking and cache](docs/adr/0025-leaderboard-ranking-and-cache.md).
 
 ## Quickstart (local)
 
