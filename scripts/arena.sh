@@ -36,7 +36,7 @@ confirm() { # confirm <phrase> <prompt>
   echo "arena.sh: $STACK not found" >&2
   exit 1
 }
-tf init -input=false >/dev/null
+tf init -input=false -backend-config="$ROOT/infra/backend.hcl" >/dev/null
 
 case "$1" in
 status)

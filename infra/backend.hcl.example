@@ -1,0 +1,2 @@
+# Copy to backend.hcl (git-ignored). Bucket name: `terraform -chdir=infra/bootstrap output bucket`.
+bucket = "leetforce-<account id>-data"

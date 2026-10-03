@@ -53,3 +53,6 @@ observability/logs/*
 
 # Packer build output
 packer/packer-manifest.json
+
+# Bucket name for the S3 backend (ADR 0021)
+infra/backend.hcl
