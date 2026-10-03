@@ -45,9 +45,15 @@ export function ProblemTable({
               key={p.slug}
               className="border-panel-border hover:bg-hover border-b transition-colors last:border-b-0"
             >
-              <td className="text-muted px-4 py-3" aria-label="Not attempted">
-                {"–"}
-              </td>
+              {p.solved ? (
+                <td className="text-success px-4 py-3" aria-label="Solved">
+                  {"✓"}
+                </td>
+              ) : (
+                <td className="text-muted px-4 py-3" aria-label="Not attempted">
+                  {"–"}
+                </td>
+              )}
               <td className="px-4 py-3 font-medium">
                 <Link href={`/problems/${p.slug}`} className="hover:text-link">
                   {offset + i + 1}. {p.title}

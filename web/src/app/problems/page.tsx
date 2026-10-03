@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { Pagination } from "@/components/problems/Pagination";
 import { ProblemFilters } from "@/components/problems/ProblemFilters";
 import { ProblemTable } from "@/components/problems/ProblemTable";
@@ -30,10 +31,18 @@ export default async function ProblemsPage({
   let list: ProblemList | null = null;
   let tags: string[] = [];
   let error = "";
+  const session = (await cookies()).get("lf_session");
+  const cookie = session
+    ? `lf_session=${encodeURIComponent(session.value)}`
+    : undefined;
   try {
     const [result, all] = await Promise.all([
-      listProblems({ q, difficulty, tag, page, page_size: PAGE_SIZE }),
-      listProblems({ page_size: 100 }),
+      listProblems(
+        { q, difficulty, tag, page, page_size: PAGE_SIZE },
+        undefined,
+        { cookie },
+      ),
+      listProblems({ page_size: 100 }, undefined, { cookie }),
     ]);
     list = result;
     tags = [...new Set(all.problems.flatMap((p) => p.tags))].sort();

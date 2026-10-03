@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import type {
   RunResult,
   SubmissionStatus,
@@ -11,7 +13,7 @@ export type ConsoleResult =
   | { kind: "pending"; action: "run" | "submit"; status: SubmissionStatus }
   | { kind: "submit"; verdict: VerdictView }
   | { kind: "run"; result: RunResult }
-  | { kind: "error"; message: string };
+  | { kind: "error"; message: string; signIn?: boolean };
 
 type Label = Verdict | "OK";
 
@@ -134,6 +136,32 @@ function RunOutcome({ r }: { r: RunResult }) {
   );
 }
 
+function ErrorResult({
+  message,
+  signIn,
+}: {
+  message: string;
+  signIn?: boolean;
+}) {
+  const pathname = usePathname();
+  return (
+    <p className="text-danger p-3 text-sm" role="alert">
+      {message}
+      {signIn && (
+        <>
+          {" "}
+          <Link
+            href={`/login?next=${encodeURIComponent(pathname)}`}
+            className="text-link font-semibold underline"
+          >
+            Sign in
+          </Link>
+        </>
+      )}
+    </p>
+  );
+}
+
 export function ResultPanel({ result }: { result: ConsoleResult }) {
   switch (result.kind) {
     case "idle":
@@ -159,11 +187,7 @@ export function ResultPanel({ result }: { result: ConsoleResult }) {
         </div>
       );
     case "error":
-      return (
-        <p className="text-danger p-3 text-sm" role="alert">
-          {result.message}
-        </p>
-      );
+      return <ErrorResult message={result.message} signIn={result.signIn} />;
     case "submit":
       return (
         <div className="p-3" role="status" aria-live="polite">
