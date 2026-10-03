@@ -50,3 +50,6 @@ npm-debug.log*
 # Phase 11: Prometheus/Grafana stack output (logs are copied from the dev host)
 observability/logs/*
 !observability/logs/.gitkeep
+
+# Packer build output
+packer/packer-manifest.json
