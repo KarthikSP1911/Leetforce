@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -72,7 +73,7 @@ func TestSampleQueueFailureClearsSuccessFlag(t *testing.T) {
 func TestHandlerExposesPrefixedMetrics(t *testing.T) {
 	HTTPRequests.WithLabelValues("GET", "/healthz", "200").Inc()
 	rec := httptest.NewRecorder()
-	Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/metrics", nil))
+	Handler().ServeHTTP(rec, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/metrics", nil))
 	body := rec.Body.String()
 	for _, want := range []string{"leetforce_http_requests_total", "leetforce_queue_waiting", "go_goroutines"} {
 		if !strings.Contains(body, want) {
