@@ -1,6 +1,6 @@
 # LeetForce flow, phase by phase
 
-This file shows how a submission flows through the system and which phase builds each part. It is updated at the end of every phase. Phases 0 to 7 are **as built** (section 3); Phase 8 is in progress. Phases 9 to 16 are **planned**, taken from [PLAN.md](PLAN.md); the plan is firm only a phase or two ahead, the rest are outlines that get refined at the start of their session.
+This file shows how a submission flows through the system and which phase builds each part. It is updated at the end of every phase. Phases 0 to 8 are **as built** (section 3). Phases 9 to 16 are **planned**, taken from [PLAN.md](PLAN.md); the plan is firm only a phase or two ahead, the rest are outlines that get refined at the start of their session.
 
 ## 1. The end-to-end flow (the finished system)
 ```
@@ -36,7 +36,7 @@ Rules that shape the flow (from CLAUDE.md): runners never connect to the databas
 | 5 | Live status and storage (M2) `[x]` | Stage 10 and test data: SSE status stream, S3-compatible bucket for tests (RustFS locally, ADR 0011), the Judging state, hidden-test redaction checked end to end, a reaper for rows never queued | `curl submit -> API -> queue -> runner (tests from the bucket) -> sandbox -> verdict -> SSE`, end to end on one machine |
 | 6 | Sandbox hardening `[x]` | Inside stage 6: gVisor vs nsjail decision, seccomp tuning, bigger adversarial suite | same flow, stronger box |
 | 7 | Web: problems and workspace `[x]` | Browser side of stage 1 with real data: problem list, split-pane workspace, Monaco | `browser -> /api rewrite -> API -> catalog + Postgres -> real problems shown` |
-| 8 | Web: run, submit, results `[ ]` in progress (units 2-6 merged; unit 1 and end-to-end check pending) | Stages 1 and 10 in the UI: Run and Submit, console, result panel, SSE client | `browser submit -> ... -> verdict shown in the page` |
+| 8 | Web: run, submit, results `[x]` | Stages 1 and 10 in the UI: Run and Submit, console, result panel, SSE client | `browser submit -> ... -> verdict shown in the page` |
 | 9 | Auth and limits (M3) | Sign-up/login, sessions, rate limits per user and per IP, solved status in front of stage 1 | usable product on one machine |
 | 10 | Problem pipeline | Authoring side: import, validation, reference-solution check, rejudge by test-set version | `fixed test set -> queue -> rejudge` |
 | 11 | Observability | Watching every stage: metrics, dashboards, logs, alerts | dashboards show a live submission |
@@ -243,7 +243,7 @@ The submission flow does not change. The browser can now read real problems; Run
 ```
 Exit check: browsed the list and a problem in dark and light mode in Chrome against the real API and Neon; focus ring, tab order, separator arrow keys and tab roles were checked; 16 reference solutions (4 new problems x 4 languages) judge AC in the sandbox. Not yet: Run and Submit (Phase 8), the narrow-screen layout verified in a browser, auth and solved status (Phase 9).
 
-### Phase 8: Web: run, submit, results (as built so far; in progress)
+### Phase 8: Web: run, submit, results (as built)
 
 Run is new; Submit keeps its Phase 5 path and gains a UI. Decision record: [ADR 0016](adr/0016-run-and-submit-paths.md). Unit 1 (the run endpoint) is committed on `feat/8-api-run-endpoint` and not yet merged or verified on the dev host; the end-to-end browser check is pending (see [phase-8-log.md](phases/phase-8-log.md)).
 ```

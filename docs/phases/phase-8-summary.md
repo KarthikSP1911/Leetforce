@@ -131,7 +131,7 @@ Decisions for the owner:
 - B. Add a rate limit to `POST /runs` now, or leave it to Phase 9 (limits per user and per IP)?
 
 ## Review Q&A
-Filled in after the review.
+The owner skipped the review ("skip"): the five understanding questions and decisions A and B were asked in chat and left unanswered. Nothing was answered on the owner's behalf. Decisions stay on Claude's defaults: A keep the anonymous browser id until Phase 9 (ADR 0016), B no rate limit on `POST /runs` until Phase 9.
 
 ## Open decisions
 - Light-mode difficulty text contrast (Easy is 3.30:1, under AA 4.5:1) because the `--lf-success` token is fixed: keep it, or add a darker light-mode shade.

@@ -61,3 +61,7 @@ Running log (CLAUDE.md "Documenting every step"). Entries: who, command, result,
 - Cleanup: tab closed; API and web dev server stopped (ports 8080 and 3000 freed); the host runner stopped gracefully (`runner stopped` in the log). The dev host is still up and billable.
 - Extra test added: `store.TestTestSetVersion` (`api/internal/store/problems_test.go`), run against the real database with `.env` loaded: PASS, with `TestListSubmissions`.
 - Final checks on the merged tree: `npm run lint`, `tsc --noEmit`, `prettier --check` clean; `go vet` and `go test` in `api/` pass.
+
+### Review and merge
+- Claude explained the phase and asked five understanding questions plus decisions A and B in chat. The owner replied "skip"; nothing was answered for them (recorded in the summary's Review Q&A and in PROGRESS.md).
+- FLOW.md: Phase 8 ticked, intro updated. PROGRESS.md: status done, resume point "start Phase 9".
