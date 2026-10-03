@@ -4,7 +4,7 @@
 
 GO_MODULES := judge queue runner api storage
 
-.PHONY: test-runner-loss build-runner-linux packer-validate build-ami lint-ansible test-destroy-isolation tf-validate test-alerts test-obs-e2e dev-obs down-obs validate-problems test-rejudge-e2e test-auth-e2e test-live-e2e test-api-e2e build-api migrate-up migrate-down migrate-status dev down fmt lint test build-judge build-runner test-crash test-matrix test-sandbox test-adversarial bench-sandbox
+.PHONY: test-runner-loss build-runner-linux packer-validate build-ami lint-ansible test-destroy-isolation tf-validate test-alerts test-obs-e2e dev-obs down-obs validate-problems test-rejudge-e2e test-mock-contest test-auth-e2e test-live-e2e test-api-e2e build-api migrate-up migrate-down migrate-status dev down fmt lint test build-judge build-runner test-crash test-matrix test-sandbox test-adversarial bench-sandbox
 
 # Phase 12: cross-compile the runner for the AMI (static x86_64 Linux binary).
 build-runner-linux:
@@ -150,6 +150,12 @@ test-runner-loss:
 # rows it creates. About two minutes.
 test-rejudge-e2e:
 	scripts/phase10-e2e.sh
+
+# Phase 14 exit test: a full mock contest through the API, runner and Postgres
+# (register, AC/WA/CE, visibility, scoring). Needs migration 00006 applied, psql,
+# sudo and nsjail; deletes the contest and users it creates.
+test-mock-contest:
+	scripts/run-mock-contest.sh
 
 # Builds bin/api (needs DATABASE_URL and LEETFORCE_REDIS_URL to run).
 build-api:
