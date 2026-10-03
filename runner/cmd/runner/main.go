@@ -11,6 +11,7 @@
 //	LEETFORCE_JOB_MIN_IDLE      idle time before a job is reclaimed (default 30s)
 //	LEETFORCE_JOB_MAX_ATTEMPTS  deliveries before IE / dead letter (default 3)
 //
+//	LEETFORCE_METRICS_ADDR      Prometheus /metrics listen address (default "127.0.0.1:9101"; "off" disables it)
 //	LEETFORCE_CGROUP_ROOT       cgroup v2 directory for per-run cgroups (root default /sys/fs/cgroup/leetforce)
 //
 // The runner runs either as root (dev host, sudo) or as an unprivileged user
@@ -34,6 +35,7 @@ import (
 	"leetforce/judge/sandbox"
 	"leetforce/queue"
 	"leetforce/runner/internal/agent"
+	"leetforce/runner/internal/metrics"
 	"leetforce/runner/internal/problems"
 	"leetforce/storage"
 )
@@ -119,7 +121,18 @@ func run() error {
 		MaxAttempts:    int64(attempts),
 		Logger:         log,
 	})
-	return a.Run(ctx)
+	metricsAddr := os.Getenv("LEETFORCE_METRICS_ADDR")
+	if metricsAddr == "" {
+		metricsAddr = "127.0.0.1:9101"
+	}
+	metrics.Started.SetToCurrentTime()
+	metrics.LastPoll.SetToCurrentTime()
+	msrv := metrics.Serve(metricsAddr, log)
+	err = a.Run(ctx)
+	if msrv != nil {
+		_ = msrv.Close()
+	}
+	return err
 }
 
 // cgroupRoot picks the cgroup directory for per-run cgroups. An explicit
