@@ -16,6 +16,7 @@ import (
 	"leetforce/judge/problem"
 	"leetforce/judge/verdict"
 	"leetforce/queue"
+	"leetforce/runner/internal/metrics"
 	"leetforce/runner/internal/problems"
 )
 
@@ -91,6 +92,7 @@ func (a *Agent) Run(ctx context.Context) error {
 			if ctx.Err() != nil {
 				break
 			}
+			metrics.HostFailures.WithLabelValues("receive").Inc()
 			a.log.Error("receive failed", "err", err)
 			select {
 			case <-ctx.Done():
@@ -98,8 +100,12 @@ func (a *Agent) Run(ctx context.Context) error {
 			}
 			continue
 		}
+		metrics.LastPoll.SetToCurrentTime()
 		if d == nil {
 			continue
+		}
+		if d.Reclaimed {
+			metrics.Reclaimed.Inc()
 		}
 		a.Process(context.WithoutCancel(ctx), d)
 	}
@@ -141,11 +147,16 @@ func (a *Agent) Process(ctx context.Context, d *queue.Delivery) {
 		log.Warn("publish judging status failed; continuing", "err", err)
 	}
 	log.Info("judging", "problem", d.Job.Problem, "language", d.Job.Language)
+	metrics.InFlight.Inc()
+	judgeStart := time.Now()
 	res, permanent, err := a.judge(judgeCtx, d.Job)
+	metrics.InFlight.Dec()
+	metrics.JudgeSeconds.WithLabelValues(metrics.LanguageLabel(d.Job.Language)).Observe(time.Since(judgeStart).Seconds())
 	stopHeartbeat()
 	<-hbDone
 
 	if lost.Load() {
+		metrics.Lost.Inc()
 		log.Warn("job was taken over by another runner; discarding result")
 		return
 	}
@@ -158,15 +169,18 @@ func (a *Agent) Process(ctx context.Context, d *queue.Delivery) {
 		log.Error("host failed on the last attempt; reporting IE", "err", err)
 		res = a.internalError(d.Job, err)
 	default:
+		metrics.HostFailures.WithLabelValues("judge").Inc()
 		log.Error("host failure; leaving job pending for redelivery", "err", err)
 		return
 	}
 
 	first, err := a.q.Publish(ctx, res)
 	if err != nil {
+		metrics.HostFailures.WithLabelValues("publish").Inc()
 		log.Error("publish failed; leaving job pending", "err", err)
 		return
 	}
+	metrics.Jobs.WithLabelValues("submission", metrics.VerdictLabel(res.Verdict)).Inc()
 	log.Info("verdict reported", "verdict", res.Verdict, "recorded", first, "runtime_ms", res.RuntimeMS, "memory_kb", res.MemoryKB)
 	a.ack(ctx, log, d.ID)
 }

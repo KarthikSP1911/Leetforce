@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"log/slog"
 	"sync/atomic"
+	"time"
 
 	"leetforce/judge/engine"
 	"leetforce/judge/verdict"
 	"leetforce/queue"
+	"leetforce/runner/internal/metrics"
 	"leetforce/runner/internal/problems"
 )
 
@@ -37,11 +39,16 @@ func (a *Agent) processRun(ctx context.Context, log *slog.Logger, d *queue.Deliv
 		log.Warn("set run judging failed; continuing", "err", err)
 	}
 	log.Info("running", "problem", d.Job.Problem, "language", d.Job.Language, "custom", d.Job.Custom)
+	metrics.InFlight.Inc()
+	judgeStart := time.Now()
 	res, permanent, err := a.run(judgeCtx, d.Job)
+	metrics.InFlight.Dec()
+	metrics.JudgeSeconds.WithLabelValues(metrics.LanguageLabel(d.Job.Language)).Observe(time.Since(judgeStart).Seconds())
 	stopHeartbeat()
 	<-hbDone
 
 	if lost.Load() {
+		metrics.Lost.Inc()
 		log.Warn("run was taken over by another runner; discarding result")
 		return
 	}
@@ -51,6 +58,7 @@ func (a *Agent) processRun(ctx context.Context, log *slog.Logger, d *queue.Deliv
 		log.Error("run failed; reporting IE", "err", err)
 		res = queue.RunResult{Verdict: VerdictInternalError}
 	default:
+		metrics.HostFailures.WithLabelValues("judge").Inc()
 		log.Error("host failure; leaving run pending for redelivery", "err", err)
 		return
 	}
@@ -58,6 +66,7 @@ func (a *Agent) processRun(ctx context.Context, log *slog.Logger, d *queue.Deliv
 		log.Error("store run result failed; leaving run pending", "err", err)
 		return
 	}
+	metrics.Jobs.WithLabelValues("run", metrics.VerdictLabel(res.Verdict)).Inc()
 	log.Info("run finished", "verdict", res.Verdict)
 	a.ack(ctx, log, d.ID)
 }
