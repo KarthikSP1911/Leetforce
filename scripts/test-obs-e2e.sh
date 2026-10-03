@@ -46,7 +46,7 @@ trap cleanup EXIT
 
 # metric <port> <series-regex>: sum of the matching samples (0 when none).
 metric() {
-  curl -fsS "http://127.0.0.1:$1/metrics" | awk -v re="$2" '$0 ~ re && $1 !~ /^#/ { s += $NF } END { printf "%d\n", s }'
+  curl -fsS "http://127.0.0.1:$1/metrics" | { grep -E "$2" || true; } | grep -v '^#' | awk '{ s += $NF } END { printf "%d\n", s }'
 }
 wait_for() { # wait_for <seconds> <description> <command...>
   local t=$1 what=$2; shift 2
