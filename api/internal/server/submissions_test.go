@@ -201,7 +201,7 @@ func TestListSubmissions(t *testing.T) {
 	list := func(client string) *httptest.ResponseRecorder {
 		d.Logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodGet, "/problems/sum/submissions", nil)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/problems/sum/submissions", nil)
 		if client != "" {
 			req.Header.Set(clientHeader, client)
 		}
@@ -235,7 +235,7 @@ func TestCreateSubmissionTagsClient(t *testing.T) {
 	subs, q := &fakeSubs{}, &fakeQueue{}
 	d := Deps{Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), Submissions: subs, Queue: q}
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/submissions", strings.NewReader(`{"problem":"sum","language":"go","source":"x"}`))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/submissions", strings.NewReader(`{"problem":"sum","language":"go","source":"x"}`))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set(clientHeader, "browser-abc12345")
 	New(d).ServeHTTP(w, req)

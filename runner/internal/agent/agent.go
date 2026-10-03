@@ -27,6 +27,7 @@ const VerdictInternalError = "IE"
 // Judger judges one submission. *engine.Engine satisfies it; tests use fakes.
 type Judger interface {
 	Judge(ctx context.Context, p *problem.Problem, language string, source []byte, opts engine.Options) (*engine.Report, error)
+	RunCustom(ctx context.Context, p *problem.Problem, language string, source, input []byte) (*engine.CustomReport, error)
 }
 
 // JobQueue is the part of *queue.Queue the agent uses.
@@ -34,6 +35,7 @@ type JobQueue interface {
 	Receive(ctx context.Context, consumer string, block time.Duration) (*queue.Delivery, error)
 	Ack(ctx context.Context, id string) error
 	Touch(ctx context.Context, consumer, id string) error
+	SetRun(ctx context.Context, id string, st queue.RunState) error
 	Publish(ctx context.Context, r queue.Result) (bool, error)
 	Published(ctx context.Context, submissionID string) (bool, error)
 	PublishStatus(ctx context.Context, e queue.StatusEvent) error
@@ -109,6 +111,10 @@ func (a *Agent) Run(ctx context.Context) error {
 // retry could fix leave the job unacknowledged so the queue redelivers it.
 func (a *Agent) Process(ctx context.Context, d *queue.Delivery) {
 	log := a.log.With("submission", d.Job.SubmissionID, "entry", d.ID, "delivery", d.Deliveries, "reclaimed", d.Reclaimed)
+	if d.Job.Kind == queue.KindRun {
+		a.processRun(ctx, log, d)
+		return
+	}
 
 	if done, err := a.q.Published(ctx, d.Job.SubmissionID); err != nil {
 		log.Error("check existing verdict failed; leaving job pending", "err", err)

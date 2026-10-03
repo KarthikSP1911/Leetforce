@@ -327,3 +327,53 @@ func TestJudgeCleansUp(t *testing.T) {
 		t.Errorf("job dir left behind: %v", entries)
 	}
 }
+
+func TestRunCustomErrors(t *testing.T) {
+	p := loadSample(t)
+	e := &Engine{}
+	ctx := context.Background()
+	if _, err := e.RunCustom(ctx, p, "cobol", []byte("x"), nil); !errors.Is(err, ErrUnknownLanguage) {
+		t.Errorf("unknown language: err = %v", err)
+	}
+	big := []byte(strings.Repeat("x", MaxSourceBytes+1))
+	if _, err := e.RunCustom(ctx, p, "python", big, nil); !errors.Is(err, ErrSourceTooLarge) {
+		t.Errorf("large source: err = %v", err)
+	}
+	bigInput := []byte(strings.Repeat("1", MaxInputBytes+1))
+	if _, err := e.RunCustom(ctx, p, "python", []byte("print(1)"), bigInput); !errors.Is(err, ErrInputTooLarge) {
+		t.Errorf("large input: err = %v", err)
+	}
+}
+
+// RunCustom feeds the user's input to the program in the sandbox and reports
+// what it printed; there is no expected output, so a clean run is Completed.
+func TestRunCustom(t *testing.T) {
+	requireSandbox(t)
+	p := loadSample(t)
+	e := &Engine{}
+	ctx := context.Background()
+
+	tests := []struct {
+		name, lang, src, input string
+		verdict                verdict.Verdict
+		stdout                 string
+	}{
+		{"echo", "python", "import sys\nprint(sys.stdin.read().strip()[::-1])\n", "abc\n", verdict.Completed, "cba\n"},
+		{"crash", "python", "raise SystemExit(3)\n", "", verdict.RE, ""},
+		{"compile error", "cpp", "int main( {", "", verdict.CE, ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			rep, err := e.RunCustom(ctx, p, tc.lang, []byte(tc.src), []byte(tc.input))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if rep.Verdict != tc.verdict || rep.Stdout != tc.stdout {
+				t.Fatalf("verdict = %q stdout = %q, want %q %q (stderr %q)", rep.Verdict, rep.Stdout, tc.verdict, tc.stdout, rep.Stderr)
+			}
+			if tc.verdict == verdict.CE && rep.CompileOutput == "" {
+				t.Error("a compile error must carry the compiler output")
+			}
+		})
+	}
+}

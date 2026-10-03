@@ -79,3 +79,17 @@ func (s *Store) GetProblem(ctx context.Context, slug string) (Problem, error) {
 	}
 	return p, nil
 }
+
+// TestSetVersion returns a problem's current test-set version, or ErrNotFound.
+// Run jobs carry it so the runner fetches the same bundle a submission would.
+func (s *Store) TestSetVersion(ctx context.Context, slug string) (string, error) {
+	var v string
+	err := s.pool.QueryRow(ctx, `SELECT test_set_version FROM problems WHERE slug = $1`, slug).Scan(&v)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	if err != nil {
+		return "", fmt.Errorf("get test set version: %w", err)
+	}
+	return v, nil
+}

@@ -118,6 +118,7 @@ func run() error {
 
 	host, _ := os.Hostname()
 	ing := ingest.New(q, db, log, ingest.Config{Consumer: fmt.Sprintf("api-%s-%d", host, os.Getpid())})
+	ing.SetRuns(q)
 	ingestDone := make(chan struct{})
 	go func() { ing.Run(ctx); close(ingestDone) }()
 	watcher := ingest.NewStatusWatcher(q, db, log, ingest.StatusConfig{})
@@ -138,7 +139,7 @@ func run() error {
 
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           server.New(server.Deps{Logger: log, Ready: ready, Problems: db, Samples: cat, Content: cat, Submissions: db, Queue: q}),
+		Handler:           server.New(server.Deps{Logger: log, Ready: ready, Problems: db, Samples: cat, Content: cat, Submissions: db, Queue: q, Versions: db, Runs: q}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	errc := make(chan error, 1)
