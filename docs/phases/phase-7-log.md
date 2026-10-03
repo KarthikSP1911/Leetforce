@@ -10,8 +10,27 @@ Running log (CLAUDE.md "Documenting every step"). Entries: who, command, result,
 - Claude ran `git checkout -b phase/7-web-workspace` and `git tag phase-7-start`.
 
 ### Units (checklist)
-- [ ] 1 feat/7-api-problem-fields
-- [ ] 2 feat/7-web-api-client
-- [ ] 3 feat/7-problem-list
-- [ ] 4 feat/7-workspace
-- [ ] 5 test/7-web-a11y
+- [x] 1 feat/7-api-problem-fields (subagent in a worktree; merged)
+- [x] 2 feat/7-web-api-client (merged)
+- [x] 3 feat/7-problem-list (merged)
+- [x] 4 feat/7-workspace (merged)
+- [ ] 5 test/7-web-a11y (visual and keyboard check in both themes still to do)
+
+### Unit 1: API problem fields (subagent, Windows worktree)
+- Claude delegated to a subagent; branch `feat/7-api-problem-fields`, 3 commits (loader for `statement.md` and `starters/<lang>.<ext>`; API statement, starters, acceptance, filtered/paged list; 4 new original problems: fizz-count, reverse-words, max-subarray-sum, valid-parentheses-lite).
+- No migration: statement and starters are read from the catalog on disk like samples. Acceptance is `100*AC/count(verdicts excluding IE)` or null. Test-set version does not change with statement or starter edits (test pins it).
+- Verified: `go vet` and `go test ./...` in `api/` pass (re-run by Claude); `judge/problem` tests pass. Reference solutions: all 16 (4 problems x 4 languages) were run OUTSIDE the sandbox (trusted own code, scratch script) and matched every test. NOT verified: the sandbox-based judge on the new problems, `make fmt lint`, the acceptance SQL (needs DATABASE_URL, test skipped).
+- Judge module does not build on Windows (Linux-only syscalls in `judge/sandbox/gvisor.go`); judge tests must run on the dev host. Not yet done.
+- Mistake: the API returns samples as `{name,input,expected}`; the web type used `output`. Fixed in `fix/7-sample-field`.
+
+### Units 2 to 4: web (Claude, Windows)
+- `web/next.config.ts`: rewrite `/api/*` to `LEETFORCE_API_URL` (default http://127.0.0.1:8080), documented in `.env.example`; `web/src/lib/api/client.ts`, `web/src/types/problem.ts`.
+- Problem list: `web/src/app/problems/page.tsx`, `components/problems/{ProblemTable,ProblemFilters,Pagination}.tsx`; filters are a GET form; mock `lib/sample-problems.ts` deleted.
+- Workspace: `web/src/app/problems/[slug]/page.tsx`, `components/workspace/{Workspace,SplitPane,Tabs,CodeEditor}.tsx`; deps `@monaco-editor/react`, `monaco-editor`, `react-markdown`. Monaco loads its runtime from the jsdelivr CDN (library default); bundling it locally is a later option. Run and Submit are disabled until Phase 8.
+- Mistake: the first commit of unit 3 was rejected by the commit-msg hook (body line length), and my retry landed on the phase branch. Fixed by moving the commit to its branch (`git branch`, `git reset --hard` on the unpushed phase branch) and re-merging with `--no-ff`.
+- Checks: `npm run lint`, `typecheck`, `build` pass.
+
+### Local run (Claude, owner-authorised)
+- Ran `go -C api run ./cmd/api` with `.env` loaded, `LEETFORCE_S3_ENDPOINT` blanked and `LEETFORCE_PROBLEMS_DIR` set to the repo's `problems/`. Startup upserted the 5 problems into the real Neon DB. `/readyz` ok, `/problems` returned total 5.
+- Ran `npm run dev` in `web/`: `/problems`, filters, `/problems/fizz-count` returned 200, an unknown slug 404, the `/api` proxy worked. Both processes stopped afterwards.
+- Chrome extension was not connected, so no screenshots, no visual check of light/dark, no keyboard test yet.
