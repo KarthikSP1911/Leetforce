@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -20,7 +21,10 @@ type EventConfig struct {
 	Heartbeat   time.Duration // idle keep-alive comment interval (default 15s)
 	MaxDuration time.Duration // longest a stream stays open (default 10m)
 	MaxStreams  int           // open streams per API instance (default 200)
-	MaxErrors   int           // consecutive read failures before giving up (default 10)
+	// MaxStreamsPerIP bounds open streams per client IP (default 10), so one
+	// client cannot take every slot of the instance.
+	MaxStreamsPerIP int
+	MaxErrors       int // consecutive read failures before giving up (default 10)
 }
 
 func (c EventConfig) withDefaults() EventConfig {
@@ -36,29 +40,55 @@ func (c EventConfig) withDefaults() EventConfig {
 	if c.MaxStreams <= 0 {
 		c.MaxStreams = 200
 	}
+	if c.MaxStreamsPerIP <= 0 {
+		c.MaxStreamsPerIP = 10
+	}
 	if c.MaxErrors <= 0 {
 		c.MaxErrors = 10
 	}
 	return c
 }
 
-// streamSlots bounds concurrent streams. Each one polls the database, so an
-// unbounded number would let a few clients keep the pool busy. Per-user limits
-// come with authentication (Phase 9).
-type streamSlots chan struct{}
+// streamSlots bounds concurrent streams, in total and per client IP. Each
+// stream polls the database, so an unbounded number would let a few clients
+// keep the pool busy, and without the per-IP bound one client could hold every
+// slot and lock everyone else out.
+type streamSlots struct {
+	total chan struct{}
+	perIP int
 
-func newStreamSlots(n int) streamSlots { return make(streamSlots, n) }
+	mu  sync.Mutex
+	ips map[string]int
+}
 
-func (s streamSlots) acquire() bool {
+func newStreamSlots(n, perIP int) *streamSlots {
+	return &streamSlots{total: make(chan struct{}, n), perIP: perIP, ips: map[string]int{}}
+}
+
+// acquire takes a slot for ip; it reports false when the instance or that IP is full.
+func (s *streamSlots) acquire(ip string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.ips[ip] >= s.perIP {
+		return false
+	}
 	select {
-	case s <- struct{}{}:
+	case s.total <- struct{}{}:
+		s.ips[ip]++
 		return true
 	default:
 		return false
 	}
 }
 
-func (s streamSlots) release() { <-s }
+func (s *streamSlots) release(ip string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	<-s.total
+	if s.ips[ip]--; s.ips[ip] <= 0 {
+		delete(s.ips, ip)
+	}
+}
 
 // statusEvent is the payload of "status" and "verdict" events. It carries the
 // state and, once judged, the same verdict view GET /submissions/:id returns:
@@ -87,7 +117,8 @@ func (d Deps) streamEvents(c *gin.Context) {
 		d.fail(c, "stream submission", err)
 		return
 	}
-	if !d.slots.acquire() {
+	ip := c.ClientIP()
+	if !d.slots.acquire(ip) {
 		metrics.StreamsRefused.Inc()
 		c.Header("Retry-After", "5")
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "too many open streams, try again"})
@@ -96,7 +127,7 @@ func (d Deps) streamEvents(c *gin.Context) {
 	metrics.StreamsOpen.Inc()
 	defer func() {
 		metrics.StreamsOpen.Dec()
-		d.slots.release()
+		d.slots.release(ip)
 	}()
 
 	flusher, ok := c.Writer.(http.Flusher)
