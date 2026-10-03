@@ -95,3 +95,52 @@ func TestMarkJudging(t *testing.T) {
 		t.Fatalf("MarkJudging with a malformed id err = %v, want a permanent error", err)
 	}
 }
+
+// ListSubmissions returns only the asking client's submissions to the problem,
+// newest first, with verdicts, and never another client's.
+func TestListSubmissions(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	for _, slug := range []string{"sum", "other"} {
+		if err := s.UpsertProblem(ctx, Problem{Slug: slug, Title: slug, Difficulty: "easy"}, "v1"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	add := func(id, problem, client string) {
+		t.Helper()
+		if _, err := s.InsertSubmission(ctx, id, problem, "python", "x"); err != nil {
+			t.Fatal(err)
+		}
+		if client != "" {
+			if err := s.SetSubmissionClient(ctx, id, client); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	const a, b, c, d = "11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222",
+		"33333333-3333-4333-8333-333333333333", "44444444-4444-4444-8444-444444444444"
+	add(a, "sum", "client-one")
+	add(b, "sum", "client-one")
+	add(c, "sum", "client-two")
+	add(d, "other", "client-one")
+	if _, err := s.RecordVerdict(ctx, VerdictRecord{SubmissionID: a, Verdict: "AC", RuntimeMS: 3, MemoryKB: 100, Passed: 2, Total: 2}); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := s.ListSubmissions(ctx, "sum", "client-one", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0].ID != b || got[1].ID != a {
+		t.Fatalf("list = %+v, want [b a] newest first", got)
+	}
+	if got[0].Verdict != nil || got[1].Verdict == nil || got[1].Verdict.Verdict != "AC" {
+		t.Fatalf("verdicts = %+v / %+v", got[0].Verdict, got[1].Verdict)
+	}
+	if got, _ := s.ListSubmissions(ctx, "sum", "client-one", 1); len(got) != 1 {
+		t.Fatalf("limit not applied: %d rows", len(got))
+	}
+	if got, err := s.ListSubmissions(ctx, "sum", "nobody", 10); err != nil || len(got) != 0 {
+		t.Fatalf("unknown client = %+v, %v", got, err)
+	}
+}
