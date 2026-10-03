@@ -1,4 +1,3 @@
-
 package leaderboard
 
 import (
