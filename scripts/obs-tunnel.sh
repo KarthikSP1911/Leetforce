@@ -10,4 +10,4 @@ set -euo pipefail
 HOST="${1:-leetforce-dev}"
 echo "forwarding 127.0.0.1:9101 (runner) and 127.0.0.1:9102 (API) from $HOST; Ctrl+C stops" >&2
 exec ssh -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 \
-  -L 0.0.0.0:9101:127.0.0.1:9101 -L 0.0.0.0:9102:127.0.0.1:9102 "$HOST"
+  -L 127.0.0.1:9101:127.0.0.1:9101 -L 127.0.0.1:9102:127.0.0.1:9102 "$HOST"
