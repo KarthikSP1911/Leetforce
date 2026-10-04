@@ -85,7 +85,7 @@ export function CodeWindow(): ReactNode {
   return (
     <div
       aria-hidden="true"
-      className="w-full max-w-md overflow-hidden rounded-xl border border-[var(--lf-ink-700)] bg-[var(--lf-ink-950)] shadow-[0_12px_40px_rgb(0_0_0/0.35)]"
+      className="flex h-full w-full max-w-md flex-col overflow-hidden rounded-xl border border-[var(--lf-ink-700)] bg-[var(--lf-ink-950)] shadow-[0_12px_40px_rgb(0_0_0/0.35)]"
     >
       <div className="flex h-10 items-center justify-between border-b border-[var(--lf-ink-700)] bg-[var(--lf-ink-900)] px-4">
         <span className="font-mono text-xs text-[var(--lf-border)]">
@@ -97,7 +97,7 @@ export function CodeWindow(): ReactNode {
           <Dot tone="bg-[var(--lf-success)]" />
         </span>
       </div>
-      <pre className="overflow-hidden px-4 py-5 font-mono text-[13px] leading-6">
+      <pre className="flex-1 overflow-hidden px-4 py-5 font-mono text-[13px] leading-7">
         {lines.map((tokens, i) => (
           <div key={i} className="flex">
             <span className="w-6 shrink-0 pr-4 text-right text-[var(--lf-muted)] select-none">

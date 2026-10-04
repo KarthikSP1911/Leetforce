@@ -12,6 +12,13 @@ const primaryBtn =
   "bg-primary inline-flex h-11 items-center justify-center rounded-lg px-6 text-sm font-semibold text-white transition-opacity hover:opacity-90";
 const secondaryBtn =
   "bg-panel border-panel-border hover:bg-hover inline-flex h-11 items-center justify-center rounded-lg border px-6 text-sm font-semibold transition-colors";
+// The hero uses slightly smaller buttons than the rest of the page.
+const heroPrimaryBtn = primaryBtn
+  .replace("h-11", "h-10")
+  .replace("px-6", "px-5");
+const heroSecondaryBtn = secondaryBtn
+  .replace("h-11", "h-10")
+  .replace("px-6", "px-5");
 
 function Icon({ children }: { children: ReactNode }) {
   return (
@@ -103,37 +110,41 @@ export default function Home() {
     <main className="flex-1">
       <section className="border-panel-border relative overflow-hidden border-b">
         <HeroGrid />
-        <div className="relative mx-auto grid w-full max-w-6xl items-center gap-12 px-4 pt-6 pb-16 lg:grid-cols-2 lg:pt-8 lg:pb-24">
+        <div className="relative mx-auto grid w-full max-w-6xl items-stretch gap-12 px-4 pt-10 pb-16 lg:grid-cols-2 lg:pt-12 lg:pb-24">
           <Enter>
             <p className="text-link mb-4 text-sm font-semibold tracking-wide uppercase">
               Online judge
             </p>
-            <h1 className="text-4xl leading-tight font-bold tracking-tight sm:text-5xl">
+            <h1 className="text-3xl leading-tight font-bold tracking-tight sm:text-4xl lg:text-[2.5rem]">
               Write code.
               <br />
               Get a verdict in seconds.
             </h1>
-            <p className="text-muted mt-5 max-w-xl text-base leading-7">
+            <p className="text-muted mt-4 max-w-lg text-[15px] leading-7">
               LeetForce runs your solutions in isolated sandboxes and tells you
               exactly how they did: Accepted, Wrong Answer, Time Limit and more,
               with runtime and memory.
             </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <ButtonLink href="/problems" className={primaryBtn}>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <ButtonLink href="/problems" className={heroPrimaryBtn}>
                 Start solving
               </ButtonLink>
-              <ButtonLink href="/contest" className={secondaryBtn}>
+              <ButtonLink href="/contest" className={heroSecondaryBtn}>
                 View contests
               </ButtonLink>
             </div>
-            <ul className="text-muted mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+            <ul className="text-muted mt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm">
               <li>Python</li>
               <li>C++</li>
               <li>Java</li>
               <li>Go</li>
             </ul>
           </Enter>
-          <Enter x={24} delay={0.15} className="flex lg:justify-end">
+          <Enter
+            x={24}
+            delay={0.15}
+            className="flex lg:justify-end lg:self-stretch"
+          >
             <CodeWindow />
           </Enter>
         </div>
