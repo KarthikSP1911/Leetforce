@@ -70,7 +70,7 @@ Status: Phases 0 to 16 are built (see [docs/PROGRESS.md](docs/PROGRESS.md)), inc
 
 <table width="100%">
   <thead>
-    <tr><th width="22%" align="left">Area</th><th align="left">Technologies</th></tr>
+    <tr><th width="22%" align="left">Area</th><th align="left">Technologies<br><img src="docs/images/spacer.svg" width="100%" height="1" alt=""></th></tr>
   </thead>
   <tbody>
     <tr><td><b>Judge, runner, API</b></td><td><img alt="Go" src="https://img.shields.io/badge/Go-00ADD8?style=flat-square&logo=go&logoColor=white"> <img alt="Gin" src="https://img.shields.io/badge/Gin-008ECF?style=flat-square&logo=gin&logoColor=white"></td></tr>
