@@ -1,11 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 790" width="1200" height="790" role="img" aria-labelledby="t d">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 722" width="1200" height="722" role="img" aria-labelledby="t d">
 <title id="t">LeetForce high level architecture</title>
-<desc id="d">A user reaches the web and API tier over HTTP. The API calls a problem service backed by Postgres, a submission service that stores submissions in Postgres and queues jobs in Redis Streams for a runner that judges code in a sandbox and reports the verdict back, a contest service backed by Postgres, and a leaderboard service backed by a Redis cache. Runners read test bundles from S3.</desc>
+<desc id="d">A user reaches the web and API tier over HTTP. The API calls a problem service backed by Postgres, a submission service that stores submissions in Postgres and queues jobs in Redis Streams for a runner that judges code in a sandbox and reports the verdict back, a contest service backed by Postgres, and a leaderboard service backed by a Redis cache. Runners read test bundles from S3. Prometheus, Grafana and Loki observe the API and the runner. AWS IAM roles scope access to S3 and secrets.</desc>
 <defs><marker id="a" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M1 1.5 9 5 1 8.5" fill="none" stroke="#1b2540" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
-<rect width="1200" height="790" rx="18" fill="#fcfcfd"/>
-<g font-family="Segoe UI, Inter, Helvetica, Arial, sans-serif" fill="#1b2540" text-anchor="middle">
-<text x="40" y="58" font-size="34" font-weight="700" text-anchor="start">LeetForce – High Level Architecture</text>
-<text x="40" y="92" font-size="20" text-anchor="start" fill="#5b6b86">System design</text>
+<rect width="1200" height="722" rx="18" fill="#fcfcfd"/>
+<g transform="translate(0,-48)" font-family="Segoe UI, Inter, Helvetica, Arial, sans-serif" fill="#1b2540" text-anchor="middle">
 <rect x="40" y="330" width="140" height="110" rx="14" fill="#cde8ff" stroke="#1b2540" stroke-width="2"/>
 <circle cx="110" cy="368" r="11" fill="none" stroke="#1b2540" stroke-width="2.4"/>
 <path d="M88 410 a22 20 0 0 1 44 0" fill="none" stroke="#1b2540" stroke-width="2.4" stroke-linecap="round"/>
@@ -70,5 +68,17 @@
 <text x="1146" y="410" font-size="13" text-anchor="start" fill="#47546f">read</text>
 <path d="M1040 350 V402 H714" fill="none" stroke="#1b2540" stroke-width="2" stroke-dasharray="7 6" stroke-linecap="round" marker-end="url(#a)"/>
 <text x="880" y="392" font-size="14" fill="#47546f">verdict (idempotent ingest)</text>
-<text x="40" y="768" font-size="14" text-anchor="start" fill="#47546f">Solid arrows: requests. Dashed arrows: the verdict coming back, and test bundles being read. Status reaches the browser over SSE.</text>
+<rect x="40" y="470" width="190" height="130" rx="14" fill="#c9f0ef" stroke="#1b2540" stroke-width="2"/>
+<text x="135.0" y="516.0" font-size="20" font-weight="600">Observability</text>
+<text x="135.0" y="542.0" font-size="14" fill="#47546f">Prometheus, Grafana</text>
+<text x="135.0" y="568.0" font-size="14" fill="#47546f">Loki + alerts</text>
+<path d="M232 535 H260" fill="none" stroke="#1b2540" stroke-width="2" stroke-dasharray="7 6" stroke-linecap="round" marker-end="url(#a)"/>
+<text x="136" y="628" font-size="13" fill="#47546f">scrapes API and runner</text>
+<text x="136" y="646" font-size="13" fill="#47546f">metrics, tails their logs</text>
+<rect x="1020" y="620" width="160" height="120" rx="14" fill="#ffe9a8" stroke="#1b2540" stroke-width="2"/>
+<text x="1100.0" y="661.0" font-size="20" font-weight="600">AWS IAM</text>
+<text x="1100.0" y="687.0" font-size="14" fill="#47546f">runner, control,</text>
+<text x="1100.0" y="713.0" font-size="14" fill="#47546f">deploy roles</text>
+<path d="M1100 618 V556" fill="none" stroke="#1b2540" stroke-width="2" stroke-dasharray="7 6" stroke-linecap="round" marker-end="url(#a)"/>
+<text x="1108" y="592" font-size="13" text-anchor="start" fill="#47546f">scoped access</text>
 </g></svg>
