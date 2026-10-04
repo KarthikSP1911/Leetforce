@@ -47,15 +47,14 @@ export function UserMenu() {
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className="text-foreground hover:bg-hover flex items-center gap-2 rounded-md py-1 pr-3 pl-1.5 text-sm font-semibold transition-colors"
+        className="hover:ring-panel-border rounded-full transition-shadow hover:ring-2"
       >
         <span
           aria-hidden="true"
-          className="bg-primary flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold text-white uppercase"
+          className="bg-primary flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold text-white uppercase"
         >
           {user.username.charAt(0)}
         </span>
-        <span className="hidden sm:inline">{user.username}</span>
       </button>
       <AnimatePresence>
         {open && (
@@ -65,8 +64,19 @@ export function UserMenu() {
             exit={{ opacity: 0, y: -4, scale: 0.98 }}
             transition={{ duration: 0.12 }}
             role="menu"
-            className="bg-panel border-panel-border absolute right-0 mt-1 min-w-36 rounded-lg border py-1"
+            className="bg-panel border-panel-border absolute right-0 mt-2 w-56 rounded-lg border py-1 shadow-lg"
           >
+            <div className="border-panel-border flex items-center gap-3 border-b px-3 py-3">
+              <span
+                aria-hidden="true"
+                className="bg-primary flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white uppercase"
+              >
+                {user.username.charAt(0)}
+              </span>
+              <span className="truncate text-sm font-semibold">
+                {user.username}
+              </span>
+            </div>
             <button
               type="button"
               role="menuitem"
