@@ -41,7 +41,7 @@ Phase 16 integrated the untested Phases 14 (contests) and 15 (leaderboard), ran 
 | `fix/16-backup-perms` | dump mode 0600 (SEC-17) | see `git log --merges` |
 | `fix/16-standings-prestart` | no problem slugs in standings before the start (SEC-16) | see `git log --merges` |
 
-21 merge commits in the range, 45 non-merge commits (33 of them unique to Phase 16; the rest came with Phases 14 and 15).
+21 merge commits in the range, 46 non-merge commits (34 of them unique to Phase 16; the rest came with Phases 14 and 15).
 
 ## File-by-file changes
 Generated from `git diff --name-status phase-16-start` (the final run of this list is after the last commit).
@@ -204,6 +204,6 @@ Generated from `git diff --name-status phase-16-start` (the final run of this li
 - The load test used one runner on a 1 vCPU host: it shows the pipeline works, not how it scales.
 
 ## Stats
-- Commits: 45 non-merge in the range (33 unique to Phase 16), 21 merges
+- Commits: 46 non-merge in the range (34 unique to Phase 16), 21 merges
 - Files: 66 added, 39 modified, 0 deleted (net diff, including files that arrived with Phases 14 and 15)
-- Lines: 105 files changed, 7864 insertions(+), 225 deletions(-)
+- Lines: 104 files changed, 7655 insertions(+), 225 deletions(-) (this report excluded from the line counts)
