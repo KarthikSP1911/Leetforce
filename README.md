@@ -24,12 +24,17 @@
   <img alt="Kubernetes" src="https://img.shields.io/badge/Kubernetes-326CE5?style=for-the-badge&logo=kubernetes&logoColor=white">
   <img alt="Terraform" src="https://img.shields.io/badge/Terraform-844FBA?style=for-the-badge&logo=terraform&logoColor=white">
   <img alt="AWS S3" src="https://img.shields.io/badge/AWS%20S3-569A31?style=for-the-badge&logo=amazons3&logoColor=white">
+  <img alt="AWS IAM" src="https://img.shields.io/badge/AWS%20IAM-DD344C?style=for-the-badge&logo=amazonaws&logoColor=white">
+  <img alt="Prometheus" src="https://img.shields.io/badge/Prometheus-E6522C?style=for-the-badge&logo=prometheus&logoColor=white">
+  <img alt="Grafana" src="https://img.shields.io/badge/Grafana-F46800?style=for-the-badge&logo=grafana&logoColor=white">
 </p>
 
 <p align="center">
   <a href="#what-it-is">Overview</a> &middot;
   <a href="#architecture">Architecture</a> &middot;
   <a href="#system-design-high-level">System design</a> &middot;
+  <a href="#observability">Observability</a> &middot;
+  <a href="#aws-identity-and-access-iam">IAM</a> &middot;
   <a href="#quickstart-local">Quickstart</a> &middot;
   <a href="#commands">Commands</a> &middot;
   <a href="#cost-table">Costs</a> &middot;
@@ -40,7 +45,7 @@
   <img src="docs/images/hld.svg" alt="LeetForce high level architecture: user, web and API, problem, submission, contest and leaderboard services, Postgres, Redis, the runner sandbox and S3" width="900">
 </p>
 
-<p align="center"><sub>The service boxes are modules inside one Go API process, not separate deployments. Source of the picture: <a href="docs/images/hld.svg">docs/images/hld.svg</a>.</sub></p>
+<p align="center"><sub>The service boxes are modules inside one Go API process, not separate deployments. The database is Neon Postgres, not Amazon RDS. Source of the picture: <a href="docs/images/hld.svg">docs/images/hld.svg</a>.</sub></p>
 
 ## What it is
 
@@ -70,7 +75,8 @@ Status: Phases 0 to 16 are built (see [docs/PROGRESS.md](docs/PROGRESS.md)), inc
 | Data | <img alt="Neon Postgres" src="https://img.shields.io/badge/Neon%20Postgres-4169E1?style=flat-square&logo=postgresql&logoColor=white"> <img alt="Redis Streams" src="https://img.shields.io/badge/Redis%20Streams-DC382D?style=flat-square&logo=redis&logoColor=white"> <img alt="AWS S3" src="https://img.shields.io/badge/AWS%20S3-569A31?style=flat-square&logo=amazons3&logoColor=white"> |
 | Sandbox | nsjail, cgroup v2, gVisor (opt-in) |
 | Infrastructure | <img alt="Terraform" src="https://img.shields.io/badge/Terraform-844FBA?style=flat-square&logo=terraform&logoColor=white"> <img alt="Packer" src="https://img.shields.io/badge/Packer-02A8EF?style=flat-square&logo=packer&logoColor=white"> <img alt="Ansible" src="https://img.shields.io/badge/Ansible-EE0000?style=flat-square&logo=ansible&logoColor=white"> <img alt="k3s and Kubernetes" src="https://img.shields.io/badge/k3s%20and%20Kubernetes-326CE5?style=flat-square&logo=kubernetes&logoColor=white"> <img alt="Docker" src="https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white"> |
-| Observability | <img alt="Prometheus" src="https://img.shields.io/badge/Prometheus-E6522C?style=flat-square&logo=prometheus&logoColor=white"> <img alt="Grafana" src="https://img.shields.io/badge/Grafana-F46800?style=flat-square&logo=grafana&logoColor=white"> |
+| Observability | <img alt="Prometheus" src="https://img.shields.io/badge/Prometheus-E6522C?style=flat-square&logo=prometheus&logoColor=white"> <img alt="Grafana" src="https://img.shields.io/badge/Grafana-F46800?style=flat-square&logo=grafana&logoColor=white"> <img alt="Loki" src="https://img.shields.io/badge/Loki-F5A800?style=flat-square&logo=grafana&logoColor=white"> <img alt="Alloy" src="https://img.shields.io/badge/Alloy-F46800?style=flat-square&logo=grafana&logoColor=white"> |
+| Identity and secrets | <img alt="AWS IAM" src="https://img.shields.io/badge/AWS%20IAM-DD344C?style=flat-square&logo=amazonaws&logoColor=white"> <img alt="SSM Parameter Store" src="https://img.shields.io/badge/SSM%20Parameter%20Store-E7157B?style=flat-square&logo=amazonaws&logoColor=white"> <img alt="GitHub OIDC" src="https://img.shields.io/badge/GitHub%20OIDC-181717?style=flat-square&logo=github&logoColor=white"> |
 | CI and security | <img alt="GitHub Actions" src="https://img.shields.io/badge/GitHub%20Actions-2088FF?style=flat-square&logo=githubactions&logoColor=white"> <img alt="Trivy" src="https://img.shields.io/badge/Trivy-1904DA?style=flat-square&logo=aquasecurity&logoColor=white"> |
 
 ## Architecture
@@ -177,6 +183,11 @@ flowchart TB
     SB2[Sandbox<br/>nsjail + cgroup v2]
   end
 
+  subgraph IAMG["Identity and secrets"]
+    IAM[AWS IAM roles<br/>runner: read bundles and SSM<br/>control: SSM, bundles read and write<br/>GitHub OIDC: deploy through SSM]
+    SSM[SSM Parameter Store<br/>database and Redis URLs]
+  end
+
   subgraph Obs["Observability"]
     PR[Prometheus]
     GR[Grafana]
@@ -201,6 +212,11 @@ flowchart TB
   RJ --> PG
   RJ --> RD
   A -. SSE: queued, judging, verdict .-> B
+  IAM -.-> R1
+  IAM -.-> A
+  IAM -.-> S3
+  SSM -.-> A
+  SSM -.-> R1
   A --> PR
   R1 --> PR
   PR --> GR
@@ -214,6 +230,7 @@ flowchart TB
   classDef store fill:#d6f3e2,stroke:#1b2540,color:#1b2540
   classDef work fill:#fff1b8,stroke:#1b2540,color:#1b2540
   classDef obs fill:#ffe1c2,stroke:#1b2540,color:#1b2540
+  classDef iam fill:#ffe9a8,stroke:#1b2540,color:#1b2540
   class B,W web
   class A api
   class I,RP,RJ work
@@ -223,6 +240,8 @@ flowchart TB
   class R1,R2 run
   class SB1,SB2 sandbox
   class PR,GR,LK obs
+  class IAM iam
+  class SSM store
 ```
 
 | Component | Responsibility | Where it lives |
@@ -329,6 +348,83 @@ Infrastructure is Terraform (`infra/bootstrap`, `infra/neon`, `infra/aws`), the 
 
 The reasoning behind each choice is in `docs/adr/`: [sandbox design](docs/adr/0004-sandbox-design.md), [verdicts from host facts](docs/adr/0007-verdicts-from-host-facts.md), [queue reclaim and runner privileges](docs/adr/0008-queue-reclaim-and-runner-privileges.md), [idempotent verdict ingest](docs/adr/0009-idempotent-verdict-ingest.md), [problem tests in object storage](docs/adr/0011-problem-tests-in-object-storage.md), [live status over SSE](docs/adr/0012-live-status-sse-and-reaper.md), [nsjail versus gVisor](docs/adr/0013-sandbox-nsjail-vs-gvisor.md), [accounts, sessions and limits](docs/adr/0017-accounts-sessions-and-limits.md), [contest model and scoring](docs/adr/0023-contest-model-and-scoring.md) and [leaderboard ranking and cache](docs/adr/0025-leaderboard-ranking-and-cache.md).
 
+## Observability
+
+The stack is Prometheus (metrics and alert rules), Grafana (a dashboard of the submission flow), Loki (logs) and Alloy (ships the JSON logs to Loki). It runs in Docker Compose on the owner's machine, not in the cloud, and costs nothing extra. [ADR 0019](docs/adr/0019-observability.md) has the reasoning.
+
+```mermaid
+flowchart LR
+  A[API<br/>/metrics on 127.0.0.1:9102] -->|scrape every 15 s| P[Prometheus<br/>rules + alerts]
+  R[Runner<br/>/metrics on 127.0.0.1:9101] -->|scrape every 15 s| P
+  A -. JSON logs .-> AL[Alloy]
+  R -. JSON logs .-> AL
+  AL --> L[Loki]
+  P --> G[Grafana<br/>submission-flow dashboard]
+  L --> G
+  classDef svc fill:#c8f0d4,stroke:#1b2540,color:#1b2540
+  classDef obs fill:#c9f0ef,stroke:#1b2540,color:#1b2540
+  classDef dash fill:#ffe1c2,stroke:#1b2540,color:#1b2540
+  class A,R svc
+  class P,AL,L obs
+  class G dash
+```
+
+| Question | Answered by |
+|---|---|
+| Is the API or a runner up? | Prometheus `up` and the runner's last poll time. Alerts `APIDown`, `RunnerDown`, `RunnerSilent`, and `RunnerHostFailures` when runners fail for host reasons (receive, judge or publish) |
+| Is work piling up? | The API samples the queue (waiting, pending, oldest age, dead letters) every 60 s. Alerts `QueueBacklog`, `QueueStuck`, `DeadLetters`, `QueueSampleFailing` |
+| Are requests failing? | HTTP counts and latency by route template and status. Alert `API5xxRate` |
+| Are verdicts healthy? | Verdict counts by language. Alert `InternalErrorVerdicts` fires when a submission ends with IE, which is the platform's fault, not the user's |
+| What happened to one submission? | Loki, by `service` and `level`. Submission, user and problem ids are never metric labels; they stay in the logs |
+
+Every metric starts with `leetforce_`, and label values come from small fixed sets, so the metric count stays bounded. The alert rules have unit tests (`make test-alerts`).
+
+```bash
+make dev-obs                 # start Prometheus, Grafana, Loki and Alloy (needs Docker)
+scripts/obs-tunnel.sh        # SSH tunnel to the metrics ports on the dev host
+scripts/obs-logs.sh          # copy the host's logs for Alloy to ship
+# Grafana is on http://localhost:3001, Prometheus on http://localhost:9090
+make down-obs
+```
+
+Limits: the alerts have no notifier (they show on the Prometheus Alerts page and on the dashboard), and the stack is not deployed alongside the cloud runners yet.
+
+## AWS identity and access (IAM)
+
+Access to AWS is by roles, not long-lived keys. The roles are defined in Terraform ([infra/aws/main.tf](infra/aws/main.tf), [infra/aws/ci.tf](infra/aws/ci.tf)); nothing is applied until the owner confirms it.
+
+```mermaid
+flowchart LR
+  GH[GitHub Actions<br/>environment: production] -->|OIDC, no stored keys| D[IAM role<br/>github-deploy]
+  D -->|ssm:SendCommand, only the<br/>AWS-RunShellScript document| C[Control host<br/>k3s, API]
+  C -.->|instance profile| CR[IAM role control]
+  RN[Runner hosts] -.->|instance profile| RR[IAM role runner]
+  CR -->|read secrets| SSM[SSM Parameter Store]
+  RR -->|read runner secrets| SSM
+  CR -->|read and write bundles| S3[(S3 data bucket)]
+  RR -->|read bundles| S3
+  classDef iam fill:#ffe9a8,stroke:#1b2540,color:#1b2540
+  classDef host fill:#c8f0d4,stroke:#1b2540,color:#1b2540
+  classDef store fill:#d6f3e2,stroke:#1b2540,color:#1b2540
+  classDef ci fill:#cde8ff,stroke:#1b2540,color:#1b2540
+  class D,CR,RR iam
+  class C,RN host
+  class SSM,S3 store
+  class GH ci
+```
+
+| Role | Who assumes it | What it may do |
+|---|---|---|
+| `leetforce-runner-*` | Runner EC2 instances, through an instance profile | Read the runner's SSM parameters; list and read test bundles in the data bucket. Reading the Terraform state objects in the same bucket is denied |
+| `leetforce-control-*` | The k3s control host | Read the API's SSM parameters; read and write test bundles. Also `AmazonSSMManagedInstanceCore`, so Run Command can reach it |
+| `leetforce-github-deploy-*` | The CI deploy job, through GitHub OIDC | `ssm:SendCommand` with the `AWS-RunShellScript` document, only to the instance tagged `leetforce-control`, plus read the command result. The trust policy accepts only this repository's `production` environment |
+
+Secrets (database URL, Redis URL) come from SSM Parameter Store in the cloud and from a git-ignored `.env` locally. Open items from the [security review](docs/security-review.md): the API has no TLS in front of it yet (SEC-06), and protecting `main` and requiring reviewers on the `production` environment (SEC-11) is a repository setting the owner must make. The deploy role is effectively root on the control host for anything that reaches `main`, which is why SEC-11 matters.
+
+### Database: Neon, not Amazon RDS
+
+LeetForce uses Neon (serverless Postgres, reached over TLS with `pgx`), not Amazon RDS, so there is no database instance, subnet group or RDS-specific IAM in the Terraform. The only Neon-related Terraform is the project in `infra/neon`. The API speaks standard Postgres, so RDS could replace Neon later, but that has not been tried and would add a recurring instance cost and a VPC to manage (see [docs/cost-review.md](docs/cost-review.md) for the current costs).
+
 ## Quickstart (local)
 
 The sandbox needs a real Linux host with cgroup v2, nsjail and passwordless sudo; the project develops on an Ubuntu 24.04 x86 EC2 host ([ADR 0003](docs/adr/0003-dev-environment-ec2-x86.md), `scripts/setup-dev-host.sh`). The web app and API can run anywhere Go and Node run.
@@ -417,6 +513,8 @@ Not billable: SSM Parameter Store standard parameters, SSM Run Command, GitHub A
 | How a submission flows, phase by phase | [docs/FLOW.md](docs/FLOW.md) |
 | Decisions and their trade-offs | [docs/adr/](docs/adr/) |
 | Per-phase reports and plain-language summaries | [docs/phases/](docs/phases/) |
+| Observability design | [docs/adr/0019-observability.md](docs/adr/0019-observability.md), [observability/](observability/) |
+| Infrastructure and IAM | [docs/adr/0020-infrastructure-as-code.md](docs/adr/0020-infrastructure-as-code.md), [infra/](infra/) |
 | Security review and findings | [docs/security-review.md](docs/security-review.md) |
 | Backup and restore runbook | [docs/runbook-backup-restore.md](docs/runbook-backup-restore.md) |
 | Cost review | [docs/cost-review.md](docs/cost-review.md) |
