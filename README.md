@@ -8,11 +8,70 @@
   A distributed, sandboxed code execution platform. Submit Python, C++, Java, or Go and get a verdict with runtime and memory.
 </p>
 
+<p align="center">
+  <img alt="Phases 0 to 16 built" src="https://img.shields.io/badge/phases-0%E2%80%9316%20built-0050FF?style=for-the-badge">
+  <img alt="Launch readiness" src="https://img.shields.io/badge/milestone-M5%20launch--ready-16A34A?style=for-the-badge">
+  <img alt="Cloud" src="https://img.shields.io/badge/cloud-code%20only-F59E0B?style=for-the-badge">
+</p>
+
+<p align="center">
+  <img alt="Go" src="https://img.shields.io/badge/Go-00ADD8?style=for-the-badge&logo=go&logoColor=white">
+  <img alt="Next.js" src="https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=nextdotjs&logoColor=white">
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white">
+  <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white">
+  <img alt="Redis" src="https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&logo=redis&logoColor=white">
+  <img alt="Docker" src="https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white">
+  <img alt="Kubernetes" src="https://img.shields.io/badge/Kubernetes-326CE5?style=for-the-badge&logo=kubernetes&logoColor=white">
+  <img alt="Terraform" src="https://img.shields.io/badge/Terraform-844FBA?style=for-the-badge&logo=terraform&logoColor=white">
+  <img alt="AWS S3" src="https://img.shields.io/badge/AWS%20S3-569A31?style=for-the-badge&logo=amazons3&logoColor=white">
+</p>
+
+<p align="center">
+  <a href="#what-it-is">Overview</a> &middot;
+  <a href="#architecture">Architecture</a> &middot;
+  <a href="#system-design-high-level">System design</a> &middot;
+  <a href="#quickstart-local">Quickstart</a> &middot;
+  <a href="#commands">Commands</a> &middot;
+  <a href="#cost-table">Costs</a> &middot;
+  <a href="#documentation">Docs</a>
+</p>
+
+<p align="center">
+  <img src="docs/images/hld.svg" alt="LeetForce high level architecture: user, web and API, problem, submission, contest and leaderboard services, Postgres, Redis, the runner sandbox and S3" width="900">
+</p>
+
+<p align="center"><sub>The service boxes are modules inside one Go API process, not separate deployments. Source of the picture: <a href="docs/images/hld.svg">docs/images/hld.svg</a>.</sub></p>
+
 ## What it is
 
 LeetForce is a LeetCode-style judge: you write a solution in Python, C++, Java or Go in a browser editor, and a fleet of runners compiles and runs it in isolated sandboxes against hidden tests. The result is one verdict (AC, WA, TLE, MLE, RE, CE, OLE) with runtime and memory. Untrusted code only ever runs inside the sandbox (nsjail plus cgroup v2, with gVisor as an opt-in backend), runners never touch the database, and hidden tests, expected outputs and raw stderr are never returned for Submit.
 
 Status: Phases 0 to 16 are built (see [docs/PROGRESS.md](docs/PROGRESS.md)), including contests, the leaderboard and launch readiness (security review, load test, backup and restore runbook). The cloud deployment is code only: the S3 bucket is the one cloud resource created for it so far, and the runner AMI, the k3s control host and the runner fleet have not been applied or built ([docs/phases/phase-13.md](docs/phases/phase-13.md), [docs/launch-checklist.md](docs/launch-checklist.md)).
+
+## Highlights
+
+| | |
+|---|---|
+| **Safe by design** | Untrusted code runs only in a sandbox (nsjail and cgroup v2). The whole cgroup is killed on a timeout or limit breach. Hidden tests, expected outputs and raw stderr never leave the server on Submit. |
+| **Live verdicts** | Queued, judging and the final verdict stream to the browser over SSE. |
+| **Crash tolerant** | Redis Streams consumer groups with `XAUTOCLAIM` re-deliver a lost runner's job, and verdict writes are idempotent. |
+| **Rejudge on demand** | Every submission records its test-set version, so a fixed test set re-queues old submissions. |
+| **Contests and rankings** | Timed contests with contest-only problems, ICPC-style scoring and a cached global leaderboard. |
+| **Four languages** | Python, C++, Java and Go, each with its own driver and starter code. |
+| **Observable** | Prometheus, Grafana and Loki with alert rules. |
+| **Launch checked** | A security review, a load tester and a restore drill, all written up in `docs/`. |
+
+## Tech stack
+
+| Area | Technologies |
+|---|---|
+| Judge, runner, API | <img alt="Go" src="https://img.shields.io/badge/Go-00ADD8?style=flat-square&logo=go&logoColor=white"> <img alt="Gin" src="https://img.shields.io/badge/Gin-008ECF?style=flat-square&logo=gin&logoColor=white"> |
+| Web | <img alt="Next.js" src="https://img.shields.io/badge/Next.js-000000?style=flat-square&logo=nextdotjs&logoColor=white"> <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white"> <img alt="Tailwind CSS" src="https://img.shields.io/badge/Tailwind%20CSS-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white"> <img alt="Framer Motion" src="https://img.shields.io/badge/Framer%20Motion-0055FF?style=flat-square&logo=framer&logoColor=white"> <img alt="Monaco Editor" src="https://img.shields.io/badge/Monaco%20Editor-007ACC?style=flat-square&logo=visualstudiocode&logoColor=white"> |
+| Data | <img alt="Neon Postgres" src="https://img.shields.io/badge/Neon%20Postgres-4169E1?style=flat-square&logo=postgresql&logoColor=white"> <img alt="Redis Streams" src="https://img.shields.io/badge/Redis%20Streams-DC382D?style=flat-square&logo=redis&logoColor=white"> <img alt="AWS S3" src="https://img.shields.io/badge/AWS%20S3-569A31?style=flat-square&logo=amazons3&logoColor=white"> |
+| Sandbox | nsjail, cgroup v2, gVisor (opt-in) |
+| Infrastructure | <img alt="Terraform" src="https://img.shields.io/badge/Terraform-844FBA?style=flat-square&logo=terraform&logoColor=white"> <img alt="Packer" src="https://img.shields.io/badge/Packer-02A8EF?style=flat-square&logo=packer&logoColor=white"> <img alt="Ansible" src="https://img.shields.io/badge/Ansible-EE0000?style=flat-square&logo=ansible&logoColor=white"> <img alt="k3s and Kubernetes" src="https://img.shields.io/badge/k3s%20and%20Kubernetes-326CE5?style=flat-square&logo=kubernetes&logoColor=white"> <img alt="Docker" src="https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white"> |
+| Observability | <img alt="Prometheus" src="https://img.shields.io/badge/Prometheus-E6522C?style=flat-square&logo=prometheus&logoColor=white"> <img alt="Grafana" src="https://img.shields.io/badge/Grafana-F46800?style=flat-square&logo=grafana&logoColor=white"> |
+| CI and security | <img alt="GitHub Actions" src="https://img.shields.io/badge/GitHub%20Actions-2088FF?style=flat-square&logo=githubactions&logoColor=white"> <img alt="Trivy" src="https://img.shields.io/badge/Trivy-1904DA?style=flat-square&logo=aquasecurity&logoColor=white"> |
 
 ## Architecture
 
@@ -28,6 +87,22 @@ flowchart LR
   R -->|ingest, idempotent| A
   A -->|catalog publish at start| S
   A -.->|queued, judging, verdict| B
+  classDef web fill:#cde8ff,stroke:#1b2540,color:#1b2540
+  classDef api fill:#c8f0d4,stroke:#1b2540,color:#1b2540
+  classDef db fill:#e2d4fb,stroke:#1b2540,color:#1b2540
+  classDef queue fill:#dcdcff,stroke:#1b2540,color:#1b2540
+  classDef run fill:#c8f0d4,stroke:#1b2540,color:#1b2540
+  classDef sandbox fill:#ffd3d3,stroke:#1b2540,color:#1b2540
+  classDef store fill:#d6f3e2,stroke:#1b2540,color:#1b2540
+  classDef work fill:#fff1b8,stroke:#1b2540,color:#1b2540
+  classDef obs fill:#ffe1c2,stroke:#1b2540,color:#1b2540
+  class B web
+  class A api
+  class N db
+  class R queue
+  class W run
+  class X sandbox
+  class S store
 ```
 
 The same flow as text, with the code that implements each step:
@@ -130,6 +205,24 @@ flowchart TB
   R1 --> PR
   PR --> GR
   LK --> GR
+  classDef web fill:#cde8ff,stroke:#1b2540,color:#1b2540
+  classDef api fill:#c8f0d4,stroke:#1b2540,color:#1b2540
+  classDef db fill:#e2d4fb,stroke:#1b2540,color:#1b2540
+  classDef queue fill:#dcdcff,stroke:#1b2540,color:#1b2540
+  classDef run fill:#c8f0d4,stroke:#1b2540,color:#1b2540
+  classDef sandbox fill:#ffd3d3,stroke:#1b2540,color:#1b2540
+  classDef store fill:#d6f3e2,stroke:#1b2540,color:#1b2540
+  classDef work fill:#fff1b8,stroke:#1b2540,color:#1b2540
+  classDef obs fill:#ffe1c2,stroke:#1b2540,color:#1b2540
+  class B,W web
+  class A api
+  class I,RP,RJ work
+  class PG db
+  class RD queue
+  class S3 store
+  class R1,R2 run
+  class SB1,SB2 sandbox
+  class PR,GR,LK obs
 ```
 
 | Component | Responsibility | Where it lives |
@@ -206,6 +299,21 @@ flowchart LR
     C4 --> C5[(S3 bucket)]
     C1 --> C5
   end
+  classDef web fill:#cde8ff,stroke:#1b2540,color:#1b2540
+  classDef api fill:#c8f0d4,stroke:#1b2540,color:#1b2540
+  classDef db fill:#e2d4fb,stroke:#1b2540,color:#1b2540
+  classDef queue fill:#dcdcff,stroke:#1b2540,color:#1b2540
+  classDef run fill:#c8f0d4,stroke:#1b2540,color:#1b2540
+  classDef sandbox fill:#ffd3d3,stroke:#1b2540,color:#1b2540
+  classDef store fill:#d6f3e2,stroke:#1b2540,color:#1b2540
+  classDef work fill:#fff1b8,stroke:#1b2540,color:#1b2540
+  classDef obs fill:#ffe1c2,stroke:#1b2540,color:#1b2540
+  class L1 web
+  class L2,C1 api
+  class L3,C3 queue
+  class L4,C2 db
+  class L5,C4 run
+  class C5 store
 ```
 
 Infrastructure is Terraform (`infra/bootstrap`, `infra/neon`, `infra/aws`), the runner image is Packer plus Ansible, and the API runs on k3s with CI-driven deploys. Nothing in the cloud is applied without an explicit confirmation, and the status of each piece is in the [launch checklist](docs/launch-checklist.md).
@@ -300,3 +408,16 @@ Recurring costs that are billed while the resource exists or runs. Dollar figure
 | Container images in GHCR (private) | Phase 13 | Free within GitHub's package allowance | UNVERIFIED allowance | Nothing pushed yet. The API image holds the hidden tests, so it must stay private. |
 
 Not billable: SSM Parameter Store standard parameters, SSM Run Command, GitHub Actions OIDC, IAM roles and security groups, and the Terraform state lock (the S3 lock file, no DynamoDB table). No VPC endpoints, NAT gateway or Elastic IPs are used. Data transfer out of AWS is billed per GB after the free allowance and is not estimated here (UNVERIFIED; expected near zero at current traffic). As of the last recorded state, the S3 bucket and the dev host exist; nothing in `infra/aws` has been applied and no AMI has been built, so the control and runner rows apply from the first `arena.sh up` or successful `make build-ami`.
+
+## Documentation
+
+| Topic | Where |
+|---|---|
+| Phase plan and progress | [docs/PLAN.md](docs/PLAN.md), [docs/PROGRESS.md](docs/PROGRESS.md) |
+| How a submission flows, phase by phase | [docs/FLOW.md](docs/FLOW.md) |
+| Decisions and their trade-offs | [docs/adr/](docs/adr/) |
+| Per-phase reports and plain-language summaries | [docs/phases/](docs/phases/) |
+| Security review and findings | [docs/security-review.md](docs/security-review.md) |
+| Backup and restore runbook | [docs/runbook-backup-restore.md](docs/runbook-backup-restore.md) |
+| Cost review | [docs/cost-review.md](docs/cost-review.md) |
+| What is left before a public launch | [docs/launch-checklist.md](docs/launch-checklist.md) |
