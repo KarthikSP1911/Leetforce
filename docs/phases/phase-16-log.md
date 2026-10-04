@@ -232,3 +232,10 @@ Trivy: `scripts/scan-staged.sh full` (Trivy 0.75.0) on the merged tree: clean, e
 Restore drill (`docs/runbook-backup-restore.md` has the table): scratch database PASS; S3 PASS but vacuous; Neon branch mode not run.
 
 Not run: `terraform apply`, the AMI build, the runner-loss test, anything in the cloud (the owner did not ask for them; see `docs/launch-checklist.md`).
+
+## Later web changes on `main` (after the merge)
+
+After the Phase 16 merge the owner asked for further web polish, each done on a branch and merged with a merge commit, then pushed: hero spacing (`4661d6b`), the dark editor window in the hero (`b6ffe1e`), hero scale and alignment (`3cd9ca7`), and the placeholder text on the sign-in and sign-up forms (`cb84952`).
+
+Mistake: `cb84952` was committed directly on `main`, not on a branch, and pushed. The first attempt to commit it stalled in the pre-commit hook; the command chain had already switched to `main` and removed the branch, and the retry committed there. The change is small and correct (placeholders only, lint and typecheck pass, checked in the browser), and `main` history is not rewritten, so it stays and is recorded here. Lesson: when a chained git command stalls, check `git branch --show-current` before retrying.
+
