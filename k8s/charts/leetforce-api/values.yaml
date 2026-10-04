@@ -1,0 +1,41 @@
+# Defaults for the API release. CI/deploy.sh sets image.tag to the commit sha (--set image.tag=<sha>).
+replicaCount: 1
+
+image:
+  repository: ghcr.io/karthiksp1911/leetforce-api
+  tag: latest
+
+# Names of Secrets that scripts/k3s/sync-secrets.sh builds from SSM. Never created by the chart.
+envSecretName: api-env
+pullSecretName: ghcr-pull
+
+# Numeric ids: the kubelet cannot verify a user given by name (distroless "nonroot" = 65532).
+runAsUser: 65532
+
+ports:
+  http: 8080
+  metrics: 9102
+
+# Non-secret API settings (the ConfigMap). Secrets come from the api-env Secret.
+config:
+  LEETFORCE_API_ADDR: ":8080"
+  LEETFORCE_PROBLEMS_DIR: /app/problems
+  LEETFORCE_QUEUE_PREFIX: leetforce
+  # Real S3 in ap-south-1 with the host's IAM role: no access keys (ADR 0021).
+  LEETFORCE_S3_ENDPOINT: s3.ap-south-1.amazonaws.com
+  LEETFORCE_S3_USE_TLS: "true"
+  # /metrics on the pod address so Prometheus can scrape it; the Service does not expose it.
+  LEETFORCE_METRICS_ADDR: 0.0.0.0:9102
+  # Believe X-Forwarded-For only from inside the cluster (Traefik), for per-IP rate limits.
+  LEETFORCE_TRUSTED_PROXIES: 10.42.0.0/16
+
+resources:
+  requests: {cpu: 50m, memory: 64Mi}
+  limits: {memory: 256Mi}
+
+ingress:
+  enabled: true
+  className: traefik
+  # Empty host matches any name. Set a host and tls when the API gets a public name.
+  host: ""
+  tlsSecretName: ""

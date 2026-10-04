@@ -1,0 +1,10 @@
+# Non-secret API settings. Secrets (DATABASE_URL, LEETFORCE_REDIS_URL, the bucket name) come
+# from the api-env Secret, which scripts/k3s/sync-secrets.sh builds from SSM (never from git).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-config
+data:
+  {{- range $k, $v := .Values.config }}
+  {{ $k }}: {{ $v | quote }}
+  {{- end }}

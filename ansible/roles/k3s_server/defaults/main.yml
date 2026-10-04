@@ -1,2 +1,7 @@
 # Pinned so every control host runs the same k3s (latest stable when this was written).
 k3s_server_version: "v1.37.1+k3s1"
+
+# Helm CLI for scripts/k3s/deploy.sh. The tarball is checked against the sha256 published
+# next to the release; fill k3s_server_helm_sha256 from get.helm.sh when bumping the version.
+k3s_server_helm_version: "v3.16.2"
+k3s_server_helm_sha256: "sha256:https://get.helm.sh/helm-{{ k3s_server_helm_version }}-linux-amd64.tar.gz.sha256sum"

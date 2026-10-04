@@ -1,0 +1,15 @@
+# ClusterIP only: the API is reached through the Ingress. The metrics port is
+# deliberately left out so /metrics is not reachable through the Service.
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  labels:
+    {{- include "leetforce-api.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "leetforce-api.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.ports.http }}
+      targetPort: http

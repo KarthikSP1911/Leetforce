@@ -239,3 +239,14 @@ After the Phase 16 merge the owner asked for further web polish, each done on a 
 
 Mistake: `cb84952` was committed directly on `main`, not on a branch, and pushed. The first attempt to commit it stalled in the pre-commit hook; the command chain had already switched to `main` and removed the branch, and the retry committed there. The change is small and correct (placeholders only, lint and typecheck pass, checked in the browser), and `main` history is not rewritten, so it stays and is recorded here. Lesson: when a chained git command stalls, check `git branch --show-current` before retrying.
 
+
+## Helm chart for the API (after the merge, branch `feat/16-helm-chart`)
+
+The owner asked for Helm charts wherever needed. Claude did this on the PC; nothing ran in the cloud.
+
+- Replaced the Kustomize base `k8s/base/*` with the chart `k8s/charts/leetforce-api/` (Chart.yaml, values.yaml, templates/{_helpers.tpl,configmap,deployment,service,ingress}.yaml). `git mv k8s/base/namespace.yaml k8s/namespace.yaml` (kept outside the chart, ADR 0026).
+- `scripts/k3s/deploy.sh`: now `kubectl apply -f k8s/namespace.yaml`, then `helm upgrade --install api ... --set image.repository/--set image.tag=<sha> --wait=false`; on a failed rollout `helm rollback api`. Sets `KUBECONFIG=/etc/rancher/k3s/k3s.yaml` by default. `bash -n` passes.
+- Ansible `k3s_server`: new tasks download the pinned Helm 3.16.2 tarball (checksum from get.helm.sh) and install `/usr/local/bin/helm`; vars in `defaults/main.yml`. Not run on a host.
+- Verified with Docker (no Helm on the PC): `docker run alpine/helm:3.16.2 lint` (0 failed) and `template` with `ingress.host`/`tlsSecretName` set (renders host and tls). Rendered default output was not diffed against the old Kustomize output beyond reading it.
+- Docs: ADR 0026, `k8s/README.md`, `docs/FLOW.md` (Phase 13 row text). Not done: Trivy `config` scan of the chart (dev host not used this session).
+- Paths: `k8s/charts/leetforce-api/**`, `k8s/namespace.yaml`, `scripts/k3s/deploy.sh`, `ansible/roles/k3s_server/{tasks,defaults}/main.yml`, `docs/adr/0026-helm-chart-for-the-api.md`.

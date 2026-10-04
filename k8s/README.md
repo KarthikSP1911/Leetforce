@@ -1,11 +1,11 @@
 # k8s
 
-Manifests for the control host (k3s). `base/` is a Kustomize base: `kubectl apply -k k8s/base`.
+Helm chart for the control host (k3s): `helm upgrade --install api k8s/charts/leetforce-api -n leetforce` (`scripts/k3s/deploy.sh` does this in CI). Check with `helm lint` and `helm template`.
 
 | File | What |
 |---|---|
-| `base/namespace.yaml` | `leetforce` namespace, Pod Security `restricted` |
-| `base/api-*.yaml` | API Deployment, ConfigMap, Service, Traefik Ingress |
+| `namespace.yaml` | `leetforce` namespace, Pod Security `restricted` (applied with kubectl, outside the chart) |
+| `charts/leetforce-api/` | Helm chart: API Deployment, ConfigMap, Service, Traefik Ingress; `values.yaml` holds image, config, resources, ingress host/TLS |
 
 Not in the cluster: runners (separate EC2 hosts from the AMI, ADR 0021 follow-up), the web app
 (planned for Vercel), Redis (Upstash) and Postgres (Neon).
