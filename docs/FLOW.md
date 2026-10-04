@@ -1,6 +1,6 @@
 # LeetForce flow, phase by phase
 
-This file shows how a submission flows through the system and which phase builds each part. It is updated at the end of every phase. Phases 0 to 8 are **as built** (section 3). Phases 9 to 16 are **planned**, taken from [PLAN.md](PLAN.md); the plan is firm only a phase or two ahead, the rest are outlines that get refined at the start of their session.
+This file shows how a submission flows through the system and which phase builds each part. It is updated at the end of every phase. Phases 0 to 16 are **as built** (section 3). Phase 13 is code-complete but only partly applied in the cloud. Phases 14 and 15 were built in parallel and first tested together in Phase 16, whose gate passed. This file was checked against the code and git in the Phase 16 docs pass ([phase-16-log.md](phases/phase-16-log.md)).
 
 ## 1. The end-to-end flow (the finished system)
 ```
@@ -40,13 +40,13 @@ Rules that shape the flow (from CLAUDE.md): runners never connect to the databas
 | 9 | Auth and limits (M3) `[x]` | Sign-up/login, sessions, rate limits per user and per IP, solved status in front of stage 1 | `browser (signed in) -> API (session, limits in Redis) -> ... -> verdict`; usable product on one machine |
 | 10 | Problem pipeline `[x]` | Authoring side: import, validation, reference-solution check, rejudge by test-set version | `fixed test set -> API start detects the new version -> queue -> runner -> new verdict replaces the old one` |
 | 11 | Observability `[x]` | Watching every stage: metrics, dashboards, logs, alerts | dashboards show a live submission |
-| 12 | Infrastructure as code `[x]` (code only; plan and AMI build pending) | Terraform, Packer, Ansible for the places the stages run (nothing applied without confirmation) | the system can be described and rebuilt as code |
-| 13 | Cloud deployment (M4) (in progress: code merged, not applied; AMI not built) | The same flow running in the cloud (k3s for the API, runners as ASG hosts), secrets via SSM, CI deploy | the flow survives losing a runner |
-| 14 | Contests | Contest model, timed windows, contest-only problems, scoring in stages 2 and 9 | a mock contest runs end to end |
-| 15 | Leaderboard | Rankings fed by verdicts, caching, penalty rules | rankings correct under concurrent submissions |
-| 16 | Launch readiness (M5) | Load test, security review, backup and restore drill | findings resolved or accepted in writing |
+| 12 | Infrastructure as code `[x]` (code only; the AMI build did not succeed) | Terraform, Packer, Ansible for the places the stages run (nothing applied without confirmation) | the system can be described and rebuilt as code |
+| 13 | Cloud deployment (M4) `[x]` partial: code merged, only the S3 bucket applied; AMI not built; loss test not run; M4 not tagged | The same flow running in the cloud (k3s for the API, runners as ASG hosts), secrets via SSM, CI deploy | the flow survives losing a runner (not demonstrated) |
+| 14 | Contests `[x]` (tested in the Phase 16 gate: mock contest passes) | Contest model, timed windows, contest-only problems, scoring in stages 2 and 9 | a mock contest runs end to end |
+| 15 | Leaderboard `[x]` (tested in the Phase 16 gate: concurrency test passes) | Rankings fed by verdicts, caching, penalty rules | rankings correct under concurrent submissions |
+| 16 | Launch readiness (M5) `[x]` | Load test, security review, backup and restore drill, integration of phases 14 and 15 | findings resolved or accepted in writing |
 
-Notes: the phase names, builds and exits come from `docs/PLAN.md`. In the "Flow after" column, Phases 6 to 16 are my reading of the plan's build lists, not a promise, and will be corrected when each phase is planned.
+Notes: the phase names, builds and exits come from `docs/PLAN.md`. In the "Flow after" column, Phases 14 to 16 are my reading of the plan's build lists, not a promise, and will be corrected when each phase is planned (Phases 14 and 15 are built by others or later, so they are not ticked here).
 
 ## 3. As built
 
@@ -137,7 +137,7 @@ What happens to a job today. There is no API yet, so `lfq` plays the API's part 
  1. Receive(consumer, 5 s)  first XAUTOCLAIM jobs idle > MinIdle (a dead runner's job), else XREADGROUP ">"
       delivered more than MaxDeliveries times, or undecodable -> <prefix>:jobs:dead, never judged      queue.Receive
  2. Published(id)?          a verdict already exists -> Ack and stop (no second judging)                agent.Process
- 3. heartbeat goroutine     Touch every MinIdle/3 (Lua: only the current owner may reset the idle time)
+ 3. heartbeat goroutine     Touch every HeartbeatEvery (default 10 s, well under MinIdle, default 30 s) (Lua: only the current owner may reset the idle time)
       Touch says ErrLost (someone else owns the job) -> cancel the judging and discard the result
  4. judge: slug must match ^[a-z0-9]+(-[a-z0-9]+)*$, problem.Load(problems/<slug>),
       engine.Judge(..., Options{})  (Detail off: this is Submit)                                       agent.judge
@@ -245,7 +245,7 @@ Exit check: browsed the list and a problem in dark and light mode in Chrome agai
 
 ### Phase 8: Web: run, submit, results (as built)
 
-Run is new; Submit keeps its Phase 5 path and gains a UI. Decision record: [ADR 0016](adr/0016-run-and-submit-paths.md). Unit 1 (the run endpoint) is committed on `feat/8-api-run-endpoint` and not yet merged or verified on the dev host; the end-to-end browser check is pending (see [phase-8-log.md](phases/phase-8-log.md)).
+Run is new; Submit keeps its Phase 5 path and gains a UI. Decision record: [ADR 0016](adr/0016-run-and-submit-paths.md). All units are merged (the run endpoint unit was merged and verified on the dev host); the end-to-end browser check was done in Chrome (see [phase-8-log.md](phases/phase-8-log.md)).
 ```
  Run on samples (Run button or Ctrl+Enter, Testcase tab on "Samples")
  1. client      web/src/hooks/useJudge.ts -> createRun (web/src/lib/api/client.ts): POST /api/runs {problem, language, source}
@@ -279,7 +279,7 @@ Run is new; Submit keeps its Phase 5 path and gains a UI. Decision record: [ADR 
  2. browser     SubmissionsTab.tsx refreshes when useJudge reports a created or judged submission and re-reads every 2 s while
                 a row is queued or judging; Workspace.tsx hosts the tab and the console
 ```
-Not yet: unit 1 merged and verified on the dev host, migration 00004 applied to Neon, a real-browser end-to-end check in both themes, authentication and rate limits (Phase 9; the client id is not a credential).
+Verified: migration 00004 applied to Neon, and a Chrome check of Run, Submit and the Submissions tab in dark and light mode. Not checked in a browser: a failing Run in the UI, Ctrl+Shift+Enter, narrow screens, the SSE-to-polling fallback. Authentication and rate limits came in Phase 9 (the client id is not a credential).
 
 ### Phase 9: Auth and limits (as built)
 
@@ -324,7 +324,7 @@ Decision record: [ADR 0018](adr/0018-problem-pipeline.md). Log: [phase-10-log.md
  3. requeue     Rejudger.RunChanged -> store.BeginRejudge: per batch of 100, FOR UPDATE SKIP LOCKED over judged rows whose verdict is for an
                 older version (and queued/judging rows on an older version): set test_set_version = current, status = queued,
                 enqueued_at = NULL; then Enqueue(Job{TestSetVersion: new}) and MarkEnqueued; a failed enqueue leaves enqueued_at NULL and
-                the reaper retries it. On demand: bin/rejudge [-dry-run] <slug> (api/cmd/rejudge/main.go)
+                the reaper retries it. On demand: `go run ./cmd/rejudge [-dry-run] <slug>` from api/ (api/cmd/rejudge/main.go; no Makefile target builds a bin/rejudge)
  4. runner      judges against the bundle for the job's version; the results marker is <prefix>:verdict:<id>:<version> (queue/queue.go
                 Publish/Published), so the rejudge is not mistaken for a duplicate
  5. store       store.RecordVerdict (api/internal/store/verdicts.go): replaces the stored verdict only if the incoming version equals the
@@ -362,22 +362,23 @@ Exit check: `make test-obs-e2e` on the dev host, `make test-alerts` and the dash
 
 ### Phase 12: Infrastructure as code (as built; code only, nothing applied)
 
-Decision record: [ADR 0020](adr/0020-infrastructure-as-code.md). Log: [phase-12-log.md](phases/phase-12-log.md). Nothing here is applied or built yet; the flow itself does not change, this phase describes the hosts it will run on.
+Decision record: [ADR 0020](adr/0020-infrastructure-as-code.md). Log: [phase-12-log.md](phases/phase-12-log.md). Nothing here was applied by Phase 12 itself; the flow does not change, this phase describes the hosts it will run on. (Phase 13 later moved the Terraform state to S3 and replaced the fixed runner instances with an Auto Scaling group.)
 ```
  Describing the places the stages run
- 1. infra/neon    Terraform imports the existing Neon project (import block, prevent_destroy); state is infra/neon/terraform.tfstate;
-                  output database_url is sensitive and goes to SSM in Phase 13
- 2. infra/aws     default VPC only: control host + runner_count runner hosts, security groups open to owner_cidr (22, k3s 6443),
-                  per-port egress, IMDSv2, encrypted gp3; IAM: runners read /leetforce/runner/* only, the control host /leetforce/*
+ 1. infra/neon    Terraform imports the existing Neon project (import block, prevent_destroy); state key tfstate/neon.tfstate in the
+                  S3 bucket since Phase 13 (it was a local file in Phase 12); output database_url is sensitive and goes to SSM
+ 2. infra/aws     default VPC only: control host + runner_count runner hosts (Auto Scaling group since Phase 13), security groups open
+                  to owner_cidr (22, k3s 6443; port 80 added in Phase 13), per-port egress, IMDSv2, encrypted gp3;
+                  IAM: runners read /leetforce/runner/* only, the control host /leetforce/*
  3. arena.sh      scripts/arena.sh up|down|status acts on infra/aws only; up and down each need a typed phrase
  4. Ansible       ansible/site.yml: hardening (SSH, sysctl, ufw, unattended upgrades, auditd) on every host; runner_host (toolchains,
                   nsjail at the pinned commit, lfrunner user) on runners
  5. Packer        packer/runner.pkr.hcl: Ubuntu 24.04 + Ansible + runner binary and unit (disabled) + Trivy gate -> encrypted, IMDSv2 AMI;
                   infra/aws takes it through runner_ami_id
 ```
-Exit checks: `make test-destroy-isolation` (offline), `make tf-validate`, `make packer-validate`, `make lint-ansible`; `terraform plan` and `make build-ami` need credentials and the owner's confirmation.
+Exit checks: `make test-destroy-isolation` (offline), `make tf-validate`, `make packer-validate`, `make lint-ansible`. `terraform plan` for `infra/aws` was run in Phase 13 (34 to add, nothing applied); the `infra/neon` plan and `make build-ami` have not succeeded (the AMI build failed three times).
 
-### Phase 13: Cloud deployment (in progress; code merged, only the S3 bucket exists)
+### Phase 13: Cloud deployment (code merged; only the S3 bucket exists; done, partial)
 
 Decision records: [ADR 0021](adr/0021-single-s3-bucket.md), [ADR 0022](adr/0022-k3s-control-and-standalone-runners.md). Log: [phase-13-log.md](phases/phase-13-log.md). The flow itself is unchanged; this is where its stages will run.
 ```
@@ -395,6 +396,49 @@ Decision records: [ADR 0021](adr/0021-single-s3-bucket.md), [ADR 0022](adr/0022-
  6. Exit test     make test-runner-loss (scripts/test-runner-loss.sh): terminate one runner mid-job; every submission still gets one verdict
 ```
 Done: bucket applied; manifests validated (kubeconform, Trivy config, a throwaway kind cluster); `infra/aws` plan 34 to add. Not done: AMI (three failed builds), `apply` of `infra/aws`, SSM push, image push, the loss test, the `infra/neon` plan.
+
+### Phase 14: Contests (as built; gate passed in Phase 16)
+
+1. A contest is a row in `contests` (slug, `starts_at`, `ends_at`) with problems in `contest_problems` (label A, B, ...) and registrations in `contest_participants` (`api/migrations/00006_contests.sql`). Status is derived from the clock (`api/internal/contest/model.go`).
+2. Browser: `/contest` lists contests; `/contest/[slug]` shows a countdown, Register, problem tabs and the standings slot (`web/src/app/contest/`, `web/src/components/contest/`).
+3. `POST /contests/:slug/register` records the user (`api/internal/contest/handlers.go`).
+4. Contest problems are 404 on the list, detail, history, Run and Submit endpoints until the start, and during the contest for unregistered users (`HiddenProblems` in `api/internal/contest/store.go`, applied in `api/internal/server/`).
+5. `POST /submissions` with `contest_id` is checked (window, registration, problem in contest: 409 or 422), tagged with `submissions.contest_id` before it is queued (`api/internal/server/submissions.go`). The runner, sandbox and verdict path are unchanged.
+6. `Store.Events` returns judged in-window contest verdicts; `contest.Score` ranks them ICPC style (`api/internal/contest/scoring.go`). Phase 15 turns this into the leaderboard.
+7. Mock contest: `make test-mock-contest` (`scripts/run-mock-contest.sh`).
+
+### Phase 15: Leaderboard (as built; gate passed in Phase 16)
+
+Decision record: [ADR 0025](adr/0025-leaderboard-ranking-and-cache.md). Log: [phase-15-log.md](phases/phase-15-log.md). Contest scoring uses the Phase 14 contract, stubbed on this branch.
+```
+ Ranking flow (added to stage 9, after the verdict is stored)
+ 1. Ingest      api/internal/ingest: RecordVerdict -> true only for a stored/replaced verdict -> Invalidator.OnVerdict
+ 2. Invalidate  api/internal/leaderboard/service.go: INCR lb:v:global and lb:v:contest:<id> in Redis (queue/kv.go), after the commit
+ 3. Read        GET /contests/:slug/standings, GET /leaderboard (api/internal/server/leaderboard.go)
+ 4. Cache       snapshot valid only if its version tag equals the counter read first; otherwise recompute, tag, store (TTL 15 s / 60 s)
+ 5. Compute     api/internal/store/leaderboard.go (SQL) -> leaderboard.scoreEvents (window, contest.Score, last-AC tie-break) / RankGlobal (weights 1/3/5)
+ 6. Web         web/src/app/leaderboard/page.tsx; web/src/components/contest/standings-slot.tsx (polls every 10 s)
+ 7. Exit test   make test-leaderboard-concurrent (api/internal/store/leaderboard_concurrent_test.go, -race): passed, 3 runs, in Phase 16
+```
+
+### Phase 16: Launch readiness (as built)
+
+Decision record: [ADR 0024](adr/0024-load-test-tool.md). Log: [phase-16-log.md](phases/phase-16-log.md).
+
+```
+ Launch readiness (checks around the existing flow, plus the merge of phases 14 and 15)
+ 1. Integrate   phase/14-contests and phase/15-leaderboard merged; the Phase 15 stub of the Phase 14 contract deleted;
+                leaderboard.ContractScorer maps its rebased time to contest.Event.Elapsed (api/internal/leaderboard/score_contract.go)
+ 2. Review      docs/security-review.md: 18 findings (7 fixed with tests, 11 accepted in writing); Trivy full scan clean
+ 3. Load        tools/loadtest signs up users, lists problems, Runs, Submits and follows SSE (mixed and contest modes);
+                scripts/test-loadtest-local.sh runs it against an API and a runner on a free port, then removes its users
+ 4. Backup      scripts/backup-neon.sh -> scripts/restore-drill-neon.sh (scratch database or Neon branch),
+                scripts/backup-s3-bundles.sh; docs/runbook-backup-restore.md
+ 5. Gate        one combined run on the dev host: fmt, lint, unit tests, sandbox, adversarial, four e2e suites,
+                problem validation, mock contest, leaderboard concurrency, local load test
+```
+
+The submission flow itself is unchanged from Phases 14 and 15; the new pieces check it and protect it (per-IP cap on SSE streams, JSON-only POSTs, no problem list in standings before the start).
 
 ## 4. Keeping this file true
 At the end of each phase: tick the phase in section 2, add its "as built" flow to section 3 (the detailed step list with file paths), and correct the "planned" rows if the plan changed.

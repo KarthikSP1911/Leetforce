@@ -50,7 +50,7 @@ export function Tabs({
         role="tablist"
         aria-label={label}
         onKeyDown={onKeyDown}
-        className="border-panel-border flex shrink-0 gap-1 border-b px-2"
+        className="border-panel-border flex h-11 shrink-0 items-stretch gap-1 border-b px-2"
       >
         {tabs.map((t) => {
           const selected = t.id === active;
@@ -66,7 +66,7 @@ export function Tabs({
               aria-controls={`${base}-panel-${t.id}`}
               tabIndex={selected ? 0 : -1}
               onClick={() => setActive(t.id)}
-              className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
+              className={`-mb-px flex items-center border-b-2 px-3 text-sm font-medium transition-colors ${
                 selected
                   ? "border-link text-link"
                   : "text-muted hover:text-foreground border-transparent"

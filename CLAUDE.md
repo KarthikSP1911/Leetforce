@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working in this
 
 ## Current state
 
-Phases 0 to 10 are done (the latest are 9 auth and limits and 10 problem pipeline); see `docs/PROGRESS.md`. Parts below describe the planned system and may not exist yet. `docs/PLAN.md` (the 0–16 phase plan) and `docs/PROGRESS.md` (phase tracker and resume point) are the sources of truth. Do not invent build or test commands that no Makefile defines.
+Phases 0 to 16 are done (the latest are 14 contests, 15 leaderboard and 16 launch readiness); see `docs/PROGRESS.md`. The Phase 13 cloud exit criteria are still unproven and `docs/launch-checklist.md` lists what the owner must decide before a public launch. Parts below describe the planned system and may not exist yet. `docs/PLAN.md` (the 0–16 phase plan) and `docs/PROGRESS.md` (phase tracker and resume point) are the sources of truth. Do not invent build or test commands that no Makefile defines.
 
 ## Project
 
@@ -37,11 +37,18 @@ make migrate-up          # apply goose migrations in api/migrations to Neon (als
 make test-api-e2e        # Phase 4 exit test: API, Redis, runner, ingest, Postgres; a duplicate verdict changes nothing (writes 2 rows to the real DB)
 make test-live-e2e       # Phase 5 exit test: queued, judging, verdict over SSE with tests from the S3 bucket; no hidden data in any response; the reaper re-queues an orphan (needs psql and LEETFORCE_S3_*; deletes the rows it creates)
 make test-auth-e2e       # Phase 9 exit test: sign-up/login, 401 without a session, per-user and per-IP limits (429), solved status, Run/Submit as a signed-in user (needs psql; deletes its test account)
+make test-mock-contest   # Phase 14 exit test: a full mock contest through the API, runner and Postgres (needs migration 00006, psql; deletes its contest and users)
 make validate-problems   # Phase 10: judge validate for every problem, structure plus reference solutions in the sandbox (sudo -n); DIR=problems/<slug> for one
 make test-rejudge-e2e    # Phase 10 exit test: a fixed test set re-queues a judged submission and the new verdict replaces the old one once (needs psql, LEETFORCE_* in .env)
 go run ./api/cmd/rejudge [-dry-run] <slug>   # from api/: sync one problem from LEETFORCE_PROBLEMS_DIR and rejudge its stale submissions
 scripts/scan-staged.sh [full]   # Trivy on the staged tree via the dev host: secrets (every commit) or vuln+secret+misconfig (before merges)
-make dev | make down     # local Redis and S3 (RustFS; MinIO no longer ships images, ADR 0011) via docker-compose.yml (needs Docker and LEETFORCE_S3_SECRET_KEY in .env)
+make dev | make down     # local Redis via docker-compose.yml (S3 is real AWS S3 since Phase 13; the RustFS service is commented out)
+make check-scripts       # fails when a scripts/*.sh file is not executable in git (part of make lint)
+make test-mock-contest   # Phase 14 exit test: a full mock contest through the API, runner and Postgres (deletes what it creates)
+make test-leaderboard-concurrent  # Phase 15 exit test: rankings stay correct under concurrent verdicts (race detector, real schema)
+make test-loadtest-local # Phase 16 exit test: modest mixed and contest load against a local API and runner on a free port
+make loadtest ARGS="-users 20 -duration 2m"   # tools/loadtest against a running API (LEETFORCE_LOADTEST_BASE_URL)
+scripts/backup-neon.sh | scripts/restore-drill-neon.sh | scripts/backup-s3-bundles.sh   # backup and restore drill, see docs/runbook-backup-restore.md
 
 # Trivy security scans (see "Security scanning with Trivy"; no make target yet)
 trivy fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --exit-code 1 .
@@ -122,7 +129,7 @@ The IA follows LeetCode (problem list, split-pane workspace, console, verdict pa
 - **Logo:** three files, all used as-is (`logo-mark-light.svg` is `logo-mark.svg` with only the centre bar fill changed to dark grey (`--lf-ink-700`); the navbar shows it in light theme and `logo-mark.svg` in dark theme): `web/public/brand/logo-mark.svg` (no background; used in the navbar and as the favicon, drawn directly on the page with no tile) and `web/public/brand/logo.svg` (black background, used for README and OG image, shown as a rounded tile). Never redraw, recolor, crop, trace, or create further variants, and do not edit its contents or metadata. Show it as a rounded-square tile (`border-radius: 8px`) in light and dark mode, with "LeetForce" as plain text beside it (system UI font, bold). If the file is missing, ask the user; do not substitute anything.
 - **Color tokens** (CSS variables only, never raw hex in components): `--lf-blue-600 #0050FF` primary; `--lf-sky-400 #00B4FF` accent/focus ring/"Judging"; `--lf-navy-900 #071A3D` text and dark bg; `--lf-navy-800 #0D2247` dark panels; `--lf-navy-700 #163463` dark borders; `--lf-surface #F4F7FC`; `--lf-border #DCE4F2`; `--lf-muted #5B6B86`; `--lf-success #16A34A` (AC, Easy); `--lf-warning #F59E0B` (TLE/MLE/OLE, Medium); `--lf-danger #E5484D` (WA/RE/CE, Hard). The logo's orange and red are not UI colors.
 - White text on sky fails contrast; use navy text on sky. Never show a verdict by color alone; always include the label.
-- **Fonts:** LeetCode's system UI stack for UI (no web fonts); `Menlo, Monaco, Consolas, Courier New` for code, editor, console, and test I/O.
+- **Fonts (changed at the owner's request in Phase 16):** Inter for UI and JetBrains Mono for code, editor, console and test I/O, both self-hosted through `next/font`, with system fonts as the fallback. The navbar wordmark is Inter bold, all caps.
 - **Layout:** top nav (logo, Problems, Contest, Leaderboard, theme toggle, user menu); resizable split-pane workspace (left: Description/Submissions tabs; right: language selector + Monaco, Run secondary and Submit primary blue; bottom: console with Testcase/Result tabs). Result panel shows the verdict largest, then runtime and memory, with failing-case details only for Run. Light/dark follow the system by default.
 
 ### Professional design standard (applies to every UI change)
@@ -131,10 +138,10 @@ Target the polish of the official LeetCode site: dense, calm, utilitarian, no de
 
 - **Palette discipline:** no raw hex, no Tailwind default palette colors (`bg-blue-500`, `text-gray-600`, ...) in components. Use the theme aliases defined in `web/src/app/globals.css` (`bg-panel`, `border-panel-border`, `text-muted`, `bg-primary`, `text-success|warning|danger`, `bg-hover`). Hex values exist only in the token block of `globals.css`. White is the one non-token neutral and is exposed as `--lf-white`.
 - **Surfaces:** page = `--background`, cards/tables/panels = `--panel` with a 1px `--panel-border`, radius 8px (`rounded-lg`), no heavy shadows or gradients. Hover state = `--hover`. Dark mode surfaces are neutral black/grey (`--lf-ink-950/900/800/700`: page, panel, hover, border), like LeetCode's dark theme; navy tokens are for text and brand accents, not dark backgrounds.
-- **Type:** 14px base, LeetCode's system font stack (`-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Arial`); page titles 24px bold; table headers 12px uppercase muted; numbers and code in `Menlo, Monaco, Consolas, Courier New`.
+- **Type:** 14px base, Inter (system fonts as fallback); page titles 24px bold; table headers 12px uppercase muted; numbers and code in JetBrains Mono.
 - **Difficulty and verdict color:** Easy = success, Medium = warning, Hard = danger (text color, semibold). Verdicts always carry their text label.
 - **Primary actions** (Submit, Sign in) use `bg-primary` with white text; secondary actions (Run) are bordered panels. Sky is for focus rings and "Judging" only, with navy text if used as a background.
-- **Layout:** content max width 1152px (`max-w-6xl`), 56px sticky top nav, 16px page gutters, tables that collapse secondary columns on small screens.
+- **Layout:** content max width 1152px (`max-w-6xl`), 56px sticky top nav that sits in the same column (full width only on the problem workspace), 16px page gutters, tables that collapse secondary columns on small screens. Dropdowns use the custom `components/ui/Select`, not the native `<select>`; scrollbars are themed; animations use Framer Motion and honour reduced motion; pane headers are 44px; auth pages must fit the window without a page scrollbar.
 - **Theme:** follows the system by default; the nav toggle sets `data-theme` on `<html>` and persists to `localStorage` (`lf-theme`). Every new component must be checked in both themes.
 - **Accessibility:** visible sky focus ring, `aria-label` on icon-only buttons, AA contrast.
 - Before finishing UI work: `npm run lint`, `npm run typecheck`, `npm run build` in `web/`, and look at the page in light and dark mode.

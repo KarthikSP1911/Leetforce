@@ -1,10 +1,12 @@
 import Link from "next/link";
+import { Select } from "@/components/ui/Select";
 import type { Difficulty } from "@/types/problem";
 
 const fieldClass =
   "bg-panel border-panel-border text-foreground h-9 rounded-lg border px-3 text-sm";
 
-// A plain GET form: works without JavaScript and is fully keyboard accessible.
+// A plain GET form: the custom dropdowns keep a hidden input, so the filters
+// are still submitted as query parameters.
 export function ProblemFilters({
   q,
   difficulty,
@@ -33,30 +35,34 @@ export function ProblemFilters({
           className={`${fieldClass} w-56`}
         />
       </label>
-      <label className="flex flex-col gap-1 text-xs">
+      <div className="flex flex-col gap-1 text-xs">
         <span className="text-muted">Difficulty</span>
-        <select
+        <Select
           name="difficulty"
+          label="Difficulty"
           defaultValue={difficulty ?? ""}
-          className={fieldClass}
-        >
-          <option value="">All</option>
-          <option value="easy">Easy</option>
-          <option value="medium">Medium</option>
-          <option value="hard">Hard</option>
-        </select>
-      </label>
-      <label className="flex flex-col gap-1 text-xs">
+          className="w-36"
+          options={[
+            { value: "", label: "All" },
+            { value: "easy", label: "Easy" },
+            { value: "medium", label: "Medium" },
+            { value: "hard", label: "Hard" },
+          ]}
+        />
+      </div>
+      <div className="flex flex-col gap-1 text-xs">
         <span className="text-muted">Tag</span>
-        <select name="tag" defaultValue={tag ?? ""} className={fieldClass}>
-          <option value="">All</option>
-          {tags.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
-      </label>
+        <Select
+          name="tag"
+          label="Tag"
+          defaultValue={tag ?? ""}
+          className="w-40"
+          options={[
+            { value: "", label: "All" },
+            ...tags.map((t) => ({ value: t, label: t })),
+          ]}
+        />
+      </div>
       <button
         type="submit"
         className="bg-primary h-9 rounded-lg px-4 text-sm font-semibold text-white"

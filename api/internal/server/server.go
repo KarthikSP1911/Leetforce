@@ -4,6 +4,7 @@ package server
 import (
 	"context"
 	"log/slog"
+	"mime"
 	"net/http"
 	"strconv"
 	"time"
@@ -29,11 +30,13 @@ type Deps struct {
 	Content     ContentSource // statement and starters; may be nil
 	Submissions SubmissionStore
 	Queue       Enqueuer
-	Versions    VersionSource // current test-set version, for Run jobs
-	Runs        RunStore      // state of Run jobs (Redis, never Postgres)
-	Accounts    AccountStore  // users and sessions
-	Limiter     Limiter       // rate-limit counters; nil turns limits off
-	Limits      Limits        // zero fields take defaults
+	Versions    VersionSource  // current test-set version, for Run jobs
+	Runs        RunStore       // state of Run jobs (Redis, never Postgres)
+	Accounts    AccountStore   // users and sessions
+	Limiter     Limiter        // rate-limit counters; nil turns limits off
+	Limits      Limits         // zero fields take defaults
+	Contests    ContestService // contests and contest-only problems; nil turns them off
+	Ranking     RankingService // contest standings and global ranking; may be nil
 
 	// TrustedProxies are the addresses whose X-Forwarded-For header is believed
 	// when finding the client IP (for example the Next.js proxy). Empty means
@@ -43,13 +46,14 @@ type Deps struct {
 	// Events tunes the SSE status stream; the zero value takes the defaults.
 	Events EventConfig
 
-	slots streamSlots
+	slots *streamSlots
 }
 
 // New returns the router. /healthz says the process is up and does no I/O;
 // /readyz says it can serve requests, which needs its dependencies.
 func New(d Deps) *gin.Engine {
-	d.slots = newStreamSlots(d.Events.withDefaults().MaxStreams)
+	ev := d.Events.withDefaults()
+	d.slots = newStreamSlots(ev.MaxStreams, ev.MaxStreamsPerIP)
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	// Cannot fail for an empty list; a bad entry is reported when the API starts.
@@ -75,20 +79,36 @@ func New(d Deps) *gin.Engine {
 		c.JSON(code, gin.H{"checks": checks})
 	})
 
-	r.POST("/auth/signup", d.signup)
-	r.POST("/auth/login", d.login)
+	r.POST("/auth/signup", requireJSON, d.signup)
+	r.POST("/auth/login", requireJSON, d.login)
 	r.POST("/auth/logout", d.logout)
 	r.GET("/me", d.me)
+
+	d.contestRoutes(r)
 
 	r.GET("/problems", d.listProblems)
 	r.GET("/problems/:slug", d.getProblem)
 	r.GET("/problems/:slug/submissions", d.listSubmissions)
-	r.POST("/submissions", d.createSubmission)
+	r.POST("/submissions", requireJSON, d.createSubmission)
 	r.GET("/submissions/:id", d.getSubmission)
 	r.GET("/submissions/:id/events", d.streamEvents)
-	r.POST("/runs", d.createRun)
+	r.GET("/leaderboard", d.getLeaderboard)
+	r.GET("/contests/:slug/standings", d.getStandings)
+	r.POST("/runs", requireJSON, d.createRun)
 	r.GET("/runs/:id", d.getRun)
 	return r
+}
+
+// requireJSON refuses a request whose body is not declared as JSON. A browser
+// cannot send application/json cross-site without a CORS preflight (which this
+// API never grants), so a form on another site cannot post to these routes even
+// if the session cookie were sent: defence in depth next to SameSite=Lax.
+func requireJSON(c *gin.Context) {
+	if mt, _, err := mime.ParseMediaType(c.GetHeader("Content-Type")); err != nil || mt != "application/json" {
+		c.AbortWithStatusJSON(http.StatusUnsupportedMediaType, gin.H{"error": "Content-Type must be application/json"})
+		return
+	}
+	c.Next()
 }
 
 func requestLog(log *slog.Logger) gin.HandlerFunc {

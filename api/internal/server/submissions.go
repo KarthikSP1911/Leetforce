@@ -45,6 +45,8 @@ type submitRequest struct {
 	Problem  string `json:"problem"`
 	Language string `json:"language"`
 	Source   string `json:"source"`
+	// ContestID names the contest (its slug) this submission is part of.
+	ContestID string `json:"contest_id"`
 }
 
 func (d Deps) createSubmission(c *gin.Context) {
@@ -82,6 +84,16 @@ func (d Deps) createSubmission(c *gin.Context) {
 		return
 	}
 
+	contestID := ""
+	if req.ContestID != "" {
+		var ok bool
+		if contestID, ok = d.contestSubmit(c, req.ContestID, user.ID, req.Problem); !ok {
+			return
+		}
+	} else if d.problemHidden(c, req.Problem) {
+		return
+	}
+
 	ctx := c.Request.Context()
 	id := uuid.NewString()
 	version, err := d.Submissions.InsertSubmission(ctx, id, req.Problem, req.Language, req.Source)
@@ -92,6 +104,16 @@ func (d Deps) createSubmission(c *gin.Context) {
 		}
 		d.fail(c, "insert submission", err)
 		return
+	}
+	if contestID != "" {
+		// Not best effort: a contest submission without its tag would never count.
+		if err := d.Contests.SetSubmissionContest(ctx, id, contestID); err != nil {
+			if delErr := d.Submissions.DeleteSubmission(context.WithoutCancel(ctx), id); delErr != nil {
+				d.Logger.Error("remove untagged submission", "id", id, "err", delErr)
+			}
+			d.fail(c, "tag submission with contest", err)
+			return
+		}
 	}
 	job := queue.Job{SubmissionID: id, Problem: req.Problem, Language: req.Language, Source: req.Source, TestSetVersion: version}
 	if _, err := d.Queue.Enqueue(ctx, job); err != nil {
@@ -137,6 +159,9 @@ func (d Deps) listSubmissions(c *gin.Context) {
 	user, ok := d.currentUser(c)
 	if !ok {
 		c.JSON(http.StatusOK, gin.H{"submissions": []store.Submission{}})
+		return
+	}
+	if d.problemHidden(c, c.Param("slug")) {
 		return
 	}
 	subs, err := d.Submissions.ListUserSubmissions(c.Request.Context(), c.Param("slug"), user.ID, maxListSubmissions)

@@ -5,6 +5,12 @@ import type {
   ProblemQuery,
 } from "@/types/problem";
 import type { User } from "@/types/auth";
+import type { Leaderboard, Standings } from "@/types/leaderboard";
+import type {
+  ContestDetail,
+  ContestProblem,
+  ContestSummary,
+} from "@/types/contest";
 import type {
   RunCreated,
   RunState,
@@ -141,7 +147,13 @@ export async function getMe(signal?: AbortSignal): Promise<User | null> {
 }
 
 export function createSubmission(
-  req: { problem: string; language: Language; source: string },
+  req: {
+    problem: string;
+    language: Language;
+    source: string;
+    /** Contest slug; the API answers 409 when the window is closed. */
+    contest_id?: string;
+  },
   signal?: AbortSignal,
 ): Promise<SubmissionCreated> {
   return postJSON<SubmissionCreated>("/submissions", req, signal);
@@ -175,4 +187,72 @@ export function createRun(
 
 export function getRun(id: string, signal?: AbortSignal): Promise<RunState> {
   return getJSON<RunState>(`/runs/${encodeURIComponent(id)}`, signal);
+}
+
+export async function listContests(
+  signal?: AbortSignal,
+  opts: { cookie?: string } = {},
+): Promise<ContestSummary[]> {
+  const body = await getJSON<{ contests: ContestSummary[] }>(
+    "/contests",
+    signal,
+    opts.cookie,
+  );
+  return body.contests;
+}
+
+export function getContest(
+  slug: string,
+  signal?: AbortSignal,
+  opts: { cookie?: string } = {},
+): Promise<ContestDetail> {
+  return getJSON<ContestDetail>(
+    `/contests/${encodeURIComponent(slug)}`,
+    signal,
+    opts.cookie,
+  );
+}
+
+export function registerContest(
+  slug: string,
+  signal?: AbortSignal,
+): Promise<{ registered: boolean }> {
+  return postJSON<{ registered: boolean }>(
+    `/contests/${encodeURIComponent(slug)}/register`,
+    undefined,
+    signal,
+  );
+}
+
+/** Problems of a contest; the API answers 404 until the user may see them. */
+export async function listContestProblems(
+  slug: string,
+  signal?: AbortSignal,
+): Promise<ContestProblem[]> {
+  const body = await getJSON<{ problems: ContestProblem[] }>(
+    `/contests/${encodeURIComponent(slug)}/problems`,
+    signal,
+  );
+  return body.problems;
+}
+
+export function getLeaderboard(
+  page: number,
+  perPage: number,
+  signal?: AbortSignal,
+): Promise<Leaderboard> {
+  return getJSON<Leaderboard>(
+    `/leaderboard?page=${page}&per_page=${perPage}`,
+    signal,
+  );
+}
+
+export function getStandings(
+  slug: string,
+  signal?: AbortSignal,
+): Promise<Standings> {
+  return getJSON<Standings>(
+    `/contests/${encodeURIComponent(slug)}/standings`,
+    signal,
+  );
 }

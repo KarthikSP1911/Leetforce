@@ -56,3 +56,7 @@ func (s *Store) Ping(ctx context.Context) error {
 
 // Close releases the pool.
 func (s *Store) Close() { s.pool.Close() }
+
+// Pool returns the connection pool for packages that own their own queries
+// (the contest package); handlers still never build SQL.
+func (s *Store) Pool() *pgxpool.Pool { return s.pool }
