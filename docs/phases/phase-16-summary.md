@@ -106,7 +106,7 @@ Skipped by owner. No questions were answered; none are recorded as answered.
 - Delete the stale test stack still running on the dev host (an API and a runner from before this session).
 
 ## Handoff
-- **State:** merged into `main` with tags `phase-14-done`, `phase-15-done`, `phase-16-done` and `M5`; the branches `phase/14-contests`, `phase/15-leaderboard` and `phase/16-launch-readiness` are kept. The website is served from this PC on port 3101 and the API on 18090 until you stop them. The demo contest and the `tester1` account are in the real database until removed.
+- **State:** merged into `main` with tags `phase-14-done`, `phase-15-done`, `phase-16-done` and `M5`; the branches `phase/14-contests`, `phase/15-leaderboard` and `phase/16-launch-readiness` are kept. The website is served from this PC on port 3101 and the API on 18090 until you stop them. The demo contest was removed for the gate and was not recreated (the dev host stopped answering at the very end); the `tester1` test account is still in the real database and should be deleted. To make a contest to look at, run `scripts/seed-mock-contest.sh` on the dev host.
 - **Next phase:** none in the plan. The next work is the launch checklist (`docs/launch-checklist.md`).
 - **Next session prompt:**
   ```
