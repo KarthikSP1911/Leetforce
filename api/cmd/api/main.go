@@ -45,6 +45,7 @@ import (
 	"leetforce/api/internal/store"
 	"leetforce/queue"
 	"leetforce/storage"
+	"leetforce/telemetry"
 )
 
 func main() {
@@ -69,6 +70,16 @@ func run() error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	flushTraces, err := telemetry.Init(ctx, "api")
+	if err != nil {
+		return err
+	}
+	defer func() {
+		flush, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = flushTraces(flush)
+	}()
 
 	db, err := store.Open(ctx, dbURL)
 	if err != nil {

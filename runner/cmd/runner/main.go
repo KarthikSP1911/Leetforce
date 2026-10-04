@@ -38,6 +38,7 @@ import (
 	"leetforce/runner/internal/metrics"
 	"leetforce/runner/internal/problems"
 	"leetforce/storage"
+	"leetforce/telemetry"
 )
 
 func main() {
@@ -84,6 +85,15 @@ func run() error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	flushTraces, err := telemetry.Init(ctx, "runner")
+	if err != nil {
+		return err
+	}
+	defer func() {
+		flush, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = flushTraces(flush)
+	}()
 	if err := q.Ping(ctx); err != nil {
 		return fmt.Errorf("connect to redis: %w", err)
 	}

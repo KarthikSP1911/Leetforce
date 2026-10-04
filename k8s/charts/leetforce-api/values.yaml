@@ -28,6 +28,8 @@ config:
   LEETFORCE_METRICS_ADDR: 0.0.0.0:9102
   # Believe X-Forwarded-For only from inside the cluster (Traefik), for per-IP rate limits.
   LEETFORCE_TRUSTED_PROXIES: 10.42.0.0/16
+  # Traces (ADR 0027): set to an OTLP/HTTP Tempo URL to enable; empty keeps tracing off.
+  # LEETFORCE_OTLP_ENDPOINT: http://tempo.observability:4318
 
 resources:
   requests: {cpu: 50m, memory: 64Mi}

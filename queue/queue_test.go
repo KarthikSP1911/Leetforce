@@ -9,6 +9,9 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // newTestQueue returns a Queue on a unique key prefix against a real Redis
@@ -234,3 +237,18 @@ func TestPublishValidates(t *testing.T) {
 		t.Fatal("expected error")
 	}
 }
+
+func TestTraceparentRoundTrip(t *testing.T) {
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+	t.Cleanup(func() { otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator()) })
+	const tp = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+	ctx := job("s1").withTP(tp).TraceContext(context.Background())
+	if got := trace.SpanContextFromContext(ctx).TraceID().String(); got != "4bf92f3577b34da6a3ce929d0e0e4736" {
+		t.Fatalf("trace id = %q", got)
+	}
+	if trace.SpanContextFromContext(job("s1").TraceContext(context.Background())).IsValid() {
+		t.Fatal("job without traceparent must not produce a span context")
+	}
+}
+
+func (j Job) withTP(tp string) Job { j.Traceparent = tp; return j }

@@ -8,11 +8,7 @@
   A distributed, sandboxed code execution platform. Submit Python, C++, Java, or Go and get a verdict with runtime and memory.
 </p>
 
-<p align="center">
-  <img alt="Phases 0 to 16 built" src="https://img.shields.io/badge/phases-0%E2%80%9316%20built-0050FF?style=for-the-badge">
-  <img alt="Launch readiness" src="https://img.shields.io/badge/milestone-M5%20launch--ready-16A34A?style=for-the-badge">
-  <img alt="Cloud" src="https://img.shields.io/badge/cloud-code%20only-F59E0B?style=for-the-badge">
-</p>
+
 
 <p align="center">
   <img alt="Go" src="https://img.shields.io/badge/Go-00ADD8?style=for-the-badge&logo=go&logoColor=white">
@@ -63,7 +59,7 @@ Status: Phases 0 to 16 are built (see [docs/PROGRESS.md](docs/PROGRESS.md)), inc
 | **Rejudge on demand** | Every submission records its test-set version, so a fixed test set re-queues old submissions. |
 | **Contests and rankings** | Timed contests with contest-only problems, ICPC-style scoring and a cached global leaderboard. |
 | **Four languages** | Python, C++, Java and Go, each with its own driver and starter code. |
-| **Observable** | Prometheus, Grafana and Loki with alert rules. |
+| **Observable** | Prometheus, Grafana and Loki with alert rules, and Tempo traces that follow one submission from the API through the queue to the runner. |
 | **Launch checked** | A security review, a load tester and a restore drill, all written up in `docs/`. |
 
 ## Tech stack
@@ -77,8 +73,8 @@ Status: Phases 0 to 16 are built (see [docs/PROGRESS.md](docs/PROGRESS.md)), inc
     <tr><td><b>Web</b></td><td><img alt="Next.js" src="https://img.shields.io/badge/Next.js-000000?style=flat-square&logo=nextdotjs&logoColor=white"> <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white"> <img alt="Tailwind CSS" src="https://img.shields.io/badge/Tailwind%20CSS-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white"> <img alt="Framer Motion" src="https://img.shields.io/badge/Framer%20Motion-0055FF?style=flat-square&logo=framer&logoColor=white"> <img alt="Monaco Editor" src="https://img.shields.io/badge/Monaco%20Editor-007ACC?style=flat-square&logo=visualstudiocode&logoColor=white"></td></tr>
     <tr><td><b>Data</b></td><td><img alt="Neon Postgres" src="https://img.shields.io/badge/Neon%20Postgres-4169E1?style=flat-square&logo=postgresql&logoColor=white"> <img alt="Redis Streams" src="https://img.shields.io/badge/Redis%20Streams-DC382D?style=flat-square&logo=redis&logoColor=white"> <img alt="AWS S3" src="https://img.shields.io/badge/AWS%20S3-569A31?style=flat-square&logo=amazons3&logoColor=white"></td></tr>
     <tr><td><b>Sandbox</b></td><td>nsjail, cgroup v2, gVisor (opt-in)</td></tr>
-    <tr><td><b>Infrastructure</b></td><td><img alt="Terraform" src="https://img.shields.io/badge/Terraform-844FBA?style=flat-square&logo=terraform&logoColor=white"> <img alt="Packer" src="https://img.shields.io/badge/Packer-02A8EF?style=flat-square&logo=packer&logoColor=white"> <img alt="Ansible" src="https://img.shields.io/badge/Ansible-EE0000?style=flat-square&logo=ansible&logoColor=white"> <img alt="k3s and Kubernetes" src="https://img.shields.io/badge/k3s%20and%20Kubernetes-326CE5?style=flat-square&logo=kubernetes&logoColor=white"> <img alt="Docker" src="https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white"></td></tr>
-    <tr><td><b>Observability</b></td><td><img alt="Prometheus" src="https://img.shields.io/badge/Prometheus-E6522C?style=flat-square&logo=prometheus&logoColor=white"> <img alt="Grafana" src="https://img.shields.io/badge/Grafana-F46800?style=flat-square&logo=grafana&logoColor=white"> <img alt="Loki" src="https://img.shields.io/badge/Loki-F5A800?style=flat-square&logo=grafana&logoColor=white"> <img alt="Alloy" src="https://img.shields.io/badge/Alloy-F46800?style=flat-square&logo=grafana&logoColor=white"></td></tr>
+    <tr><td><b>Infrastructure</b></td><td><img alt="Terraform" src="https://img.shields.io/badge/Terraform-844FBA?style=flat-square&logo=terraform&logoColor=white"> <img alt="Packer" src="https://img.shields.io/badge/Packer-02A8EF?style=flat-square&logo=packer&logoColor=white"> <img alt="Ansible" src="https://img.shields.io/badge/Ansible-EE0000?style=flat-square&logo=ansible&logoColor=white"> <img alt="k3s and Kubernetes" src="https://img.shields.io/badge/k3s%20and%20Kubernetes-326CE5?style=flat-square&logo=kubernetes&logoColor=white"> <img alt="Helm" src="https://img.shields.io/badge/Helm-0F1689?style=flat-square&logo=helm&logoColor=white"> <img alt="Docker" src="https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white"></td></tr>
+    <tr><td><b>Observability</b></td><td><img alt="Prometheus" src="https://img.shields.io/badge/Prometheus-E6522C?style=flat-square&logo=prometheus&logoColor=white"> <img alt="Grafana" src="https://img.shields.io/badge/Grafana-F46800?style=flat-square&logo=grafana&logoColor=white"> <img alt="Loki" src="https://img.shields.io/badge/Loki-F5A800?style=flat-square&logo=grafana&logoColor=white"> <img alt="Tempo" src="https://img.shields.io/badge/Tempo-F46800?style=flat-square&logo=grafana&logoColor=white"> <img alt="OpenTelemetry" src="https://img.shields.io/badge/OpenTelemetry-425CC7?style=flat-square&logo=opentelemetry&logoColor=white"> <img alt="Alloy" src="https://img.shields.io/badge/Alloy-F46800?style=flat-square&logo=grafana&logoColor=white"></td></tr>
     <tr><td><b>Identity and secrets</b></td><td><img alt="AWS IAM" src="https://img.shields.io/badge/AWS%20IAM-DD344C?style=flat-square&logo=amazonaws&logoColor=white"> <img alt="SSM Parameter Store" src="https://img.shields.io/badge/SSM%20Parameter%20Store-E7157B?style=flat-square&logo=amazonaws&logoColor=white"> <img alt="GitHub OIDC" src="https://img.shields.io/badge/GitHub%20OIDC-181717?style=flat-square&logo=github&logoColor=white"></td></tr>
     <tr><td><b>CI and security</b></td><td><img alt="GitHub Actions" src="https://img.shields.io/badge/GitHub%20Actions-2088FF?style=flat-square&logo=githubactions&logoColor=white"> <img alt="Trivy" src="https://img.shields.io/badge/Trivy-1904DA?style=flat-square&logo=aquasecurity&logoColor=white"></td></tr>
   </tbody>
@@ -141,7 +137,8 @@ Run (samples or custom input) uses the same queue but keeps its state in a short
 | `web/` | Next.js frontend with Monaco |
 | `problems/` | Problem definitions (`problem.yaml`, tests, statements, starters, reference solutions) |
 | `infra/` | Terraform: `bootstrap` (S3), `neon` (database project), `aws` (hosts) |
-| `packer/`, `ansible/`, `k8s/`, `observability/` | Runner AMI, host provisioning, API manifests, Prometheus/Grafana/Loki |
+| `packer/`, `ansible/`, `k8s/`, `observability/` | Runner AMI, host provisioning, the API Helm chart (`k8s/charts/leetforce-api`), Prometheus/Grafana/Loki/Tempo |
+| `telemetry/` | OpenTelemetry setup shared by the API and the runner (traces to Tempo) |
 
 ## System design (high-level)
 
@@ -340,7 +337,7 @@ flowchart LR
   class C5 store
 ```
 
-Infrastructure is Terraform (`infra/bootstrap`, `infra/neon`, `infra/aws`), the runner image is Packer plus Ansible, and the API runs on k3s with CI-driven deploys. Nothing in the cloud is applied without an explicit confirmation, and the status of each piece is in the [launch checklist](docs/launch-checklist.md).
+Infrastructure is Terraform (`infra/bootstrap`, `infra/neon`, `infra/aws`), the runner image is Packer plus Ansible, and the API runs on k3s as a Helm chart (`helm upgrade --install`, [ADR 0026](docs/adr/0026-helm-chart-for-the-api.md)) with CI-driven deploys. Nothing in the cloud is applied without an explicit confirmation, and the status of each piece is in the [launch checklist](docs/launch-checklist.md).
 
 ### Scaling and capacity
 
@@ -355,7 +352,7 @@ The reasoning behind each choice is in `docs/adr/`: [sandbox design](docs/adr/00
 
 ## Observability
 
-The stack is Prometheus (metrics and alert rules), Grafana (a dashboard of the submission flow), Loki (logs) and Alloy (ships the JSON logs to Loki). It runs in Docker Compose on the owner's machine, not in the cloud, and costs nothing extra. [ADR 0019](docs/adr/0019-observability.md) has the reasoning.
+The stack is Prometheus (metrics and alert rules), Grafana (a dashboard of the submission flow), Loki (logs), Tempo (traces) and Alloy (ships the JSON logs to Loki). It runs in Docker Compose on the owner's machine, not in the cloud, and costs nothing extra. [ADR 0019](docs/adr/0019-observability.md) has the reasoning, and [ADR 0027](docs/adr/0027-tracing-with-tempo.md) covers traces.
 
 ```mermaid
 flowchart LR
@@ -364,13 +361,16 @@ flowchart LR
   A -. JSON logs .-> AL[Alloy]
   R -. JSON logs .-> AL
   AL --> L[Loki]
+  A -. OTLP spans .-> T[Tempo]
+  R -. OTLP spans .-> T
   P --> G[Grafana<br/>submission-flow dashboard]
   L --> G
+  T --> G
   classDef svc fill:#c8f0d4,stroke:#1b2540,color:#1b2540
   classDef obs fill:#c9f0ef,stroke:#1b2540,color:#1b2540
   classDef dash fill:#ffe1c2,stroke:#1b2540,color:#1b2540
   class A,R svc
-  class P,AL,L obs
+  class P,AL,L,T obs
   class G dash
 ```
 
@@ -381,12 +381,14 @@ flowchart LR
 | Are requests failing? | HTTP counts and latency by route template and status. Alert `API5xxRate` |
 | Are verdicts healthy? | Verdict counts by language. Alert `InternalErrorVerdicts` fires when a submission ends with IE, which is the platform's fault, not the user's |
 | What happened to one submission? | Loki, by `service` and `level`. Submission, user and problem ids are never metric labels; they stay in the logs |
+| Where did the time go for one submission? | Tempo. One trace covers the API request, the queue wait and the runner's judging; search by `submission_id`, then jump to its Loki lines |
 
 Every metric starts with `leetforce_`, and label values come from small fixed sets, so the metric count stays bounded. The alert rules have unit tests (`make test-alerts`).
 
 ```bash
-make dev-obs                 # start Prometheus, Grafana, Loki and Alloy (needs Docker)
-scripts/obs-tunnel.sh        # SSH tunnel to the metrics ports on the dev host
+make dev-obs                 # start Prometheus, Grafana, Loki, Tempo and Alloy (needs Docker)
+scripts/obs-tunnel.sh        # SSH tunnel: metrics ports out, trace port (4318) back
+# set LEETFORCE_OTLP_ENDPOINT=http://127.0.0.1:4318 for the API and runner to send traces; empty = tracing off
 scripts/obs-logs.sh          # copy the host's logs for Alloy to ship
 # Grafana is on http://localhost:3001, Prometheus on http://localhost:9090
 make down-obs
@@ -477,7 +479,7 @@ Go targets run per module in `GO_MODULES` (`judge queue runner api storage`) on 
 | `make test-crash` | Kill a runner mid-job; another reclaims it; one verdict (needs `LEETFORCE_REDIS_URL`) |
 | `make test-api-e2e`, `test-live-e2e`, `test-auth-e2e`, `test-rejudge-e2e` | End-to-end gates for Phases 4, 5, 9, 10 (real DB and Redis; they delete the rows they create) |
 | `make test-obs-e2e` | Phase 11: metrics follow a live flow (dev host) |
-| `make dev-obs` / `make down-obs` / `make test-alerts` | Prometheus, Grafana, Loki, Alloy stack; promtool alert tests (Docker) |
+| `make dev-obs` / `make down-obs` / `make test-alerts` | Prometheus, Grafana, Loki, Tempo, Alloy stack; promtool alert tests (Docker) |
 | `make tf-validate` | `fmt` and `validate` for the three Terraform stacks (no credentials) |
 | `make test-destroy-isolation` | Offline check that destroying `infra/aws` cannot reach `infra/neon` |
 | `make packer-validate` / `make lint-ansible` | Validate the AMI template / lint the playbook (Docker, free) |
@@ -518,7 +520,7 @@ Not billable: SSM Parameter Store standard parameters, SSM Run Command, GitHub A
 | How a submission flows, phase by phase | [docs/FLOW.md](docs/FLOW.md) |
 | Decisions and their trade-offs | [docs/adr/](docs/adr/) |
 | Per-phase reports and plain-language summaries | [docs/phases/](docs/phases/) |
-| Observability design | [docs/adr/0019-observability.md](docs/adr/0019-observability.md), [observability/](observability/) |
+| Observability design | [docs/adr/0019-observability.md](docs/adr/0019-observability.md), [docs/adr/0027-tracing-with-tempo.md](docs/adr/0027-tracing-with-tempo.md), [observability/](observability/) |
 | Infrastructure and IAM | [docs/adr/0020-infrastructure-as-code.md](docs/adr/0020-infrastructure-as-code.md), [infra/](infra/) |
 | Security review and findings | [docs/security-review.md](docs/security-review.md) |
 | Backup and restore runbook | [docs/runbook-backup-restore.md](docs/runbook-backup-restore.md) |

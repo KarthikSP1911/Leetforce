@@ -18,7 +18,39 @@ import (
 	"leetforce/queue"
 	"leetforce/runner/internal/metrics"
 	"leetforce/runner/internal/problems"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
+
+var tracer = otel.Tracer("leetforce/runner")
+
+// startJobSpan opens the consumer span for a delivered job as a child of the
+// request that enqueued it (the job carries the trace context), so Tempo shows
+// API, queue wait and judging as one trace.
+func startJobSpan(ctx context.Context, d *queue.Delivery) (context.Context, trace.Span) {
+	return tracer.Start(d.Job.TraceContext(ctx), "runner.process", trace.WithSpanKind(trace.SpanKindConsumer),
+		trace.WithAttributes(
+			attribute.String("submission_id", d.Job.SubmissionID),
+			attribute.String("problem", d.Job.Problem),
+			attribute.String("language", d.Job.Language),
+			attribute.String("kind", d.Job.Kind),
+			attribute.Int64("delivery", d.Deliveries),
+			attribute.Bool("reclaimed", d.Reclaimed),
+		))
+}
+
+// endJudgeSpan closes a "judge" span, marking it failed when the host (not the
+// program) failed.
+func endJudgeSpan(span trace.Span, err error) {
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "host failure")
+	}
+	span.End()
+}
 
 // VerdictInternalError is reported when a job can never be judged (unknown
 // problem or language, oversized source) or the host kept failing on it. It is
@@ -116,6 +148,8 @@ func (a *Agent) Run(ctx context.Context) error {
 // Process judges one delivered job and reports the outcome. Failures that a
 // retry could fix leave the job unacknowledged so the queue redelivers it.
 func (a *Agent) Process(ctx context.Context, d *queue.Delivery) {
+	ctx, span := startJobSpan(ctx, d)
+	defer span.End()
 	log := a.log.With("submission", d.Job.SubmissionID, "entry", d.ID, "delivery", d.Deliveries, "reclaimed", d.Reclaimed)
 	if d.Job.Kind == queue.KindRun {
 		a.processRun(ctx, log, d)
@@ -149,7 +183,9 @@ func (a *Agent) Process(ctx context.Context, d *queue.Delivery) {
 	log.Info("judging", "problem", d.Job.Problem, "language", d.Job.Language)
 	metrics.InFlight.Inc()
 	judgeStart := time.Now()
-	res, permanent, err := a.judge(judgeCtx, d.Job)
+	jctx, jspan := tracer.Start(judgeCtx, "judge")
+	res, permanent, err := a.judge(jctx, d.Job)
+	endJudgeSpan(jspan, err)
 	metrics.InFlight.Dec()
 	metrics.JudgeSeconds.WithLabelValues(metrics.LanguageLabel(d.Job.Language)).Observe(time.Since(judgeStart).Seconds())
 	stopHeartbeat()
@@ -181,6 +217,7 @@ func (a *Agent) Process(ctx context.Context, d *queue.Delivery) {
 		return
 	}
 	metrics.Jobs.WithLabelValues("submission", metrics.VerdictLabel(res.Verdict)).Inc()
+	span.SetAttributes(attribute.String("verdict", metrics.VerdictLabel(res.Verdict)))
 	log.Info("verdict reported", "verdict", res.Verdict, "recorded", first, "runtime_ms", res.RuntimeMS, "memory_kb", res.MemoryKB)
 	a.ack(ctx, log, d.ID)
 }
