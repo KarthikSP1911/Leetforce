@@ -2,44 +2,43 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: api
-  namespace: leetforce
   labels:
-    app.kubernetes.io/name: api
-    app.kubernetes.io/part-of: leetforce
+    {{- include "leetforce-api.labels" . | nindent 4 }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      app.kubernetes.io/name: api
+      {{- include "leetforce-api.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: api
-        app.kubernetes.io/part-of: leetforce
+        {{- include "leetforce-api.labels" . | nindent 8 }}
+      annotations:
+        # A config change rolls the pods (env from a ConfigMap is only read at start).
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
     spec:
       automountServiceAccountToken: false
       imagePullSecrets:
-        - name: ghcr-pull
+        - name: {{ .Values.pullSecretName }}
       securityContext:
         runAsNonRoot: true
-        # Numeric ids: the kubelet cannot verify a user given by name (distroless "nonroot" = 65532).
-        runAsUser: 65532
-        runAsGroup: 65532
+        runAsUser: {{ .Values.runAsUser }}
+        runAsGroup: {{ .Values.runAsUser }}
         seccompProfile:
           type: RuntimeDefault
       containers:
         - name: api
-          image: ghcr.io/karthiksp1911/leetforce-api:latest
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           ports:
             - name: http
-              containerPort: 8080
+              containerPort: {{ .Values.ports.http }}
             - name: metrics
-              containerPort: 9102
+              containerPort: {{ .Values.ports.metrics }}
           envFrom:
             - configMapRef:
                 name: api-config
             - secretRef:
-                name: api-env
+                name: {{ .Values.envSecretName }}
           # healthz does no I/O (process is up); readyz needs Redis, Postgres and S3.
           livenessProbe:
             httpGet: {path: /healthz, port: http}
@@ -55,8 +54,7 @@ spec:
             periodSeconds: 5
             failureThreshold: 36
           resources:
-            requests: {cpu: 50m, memory: 64Mi}
-            limits: {memory: 256Mi}
+            {{- toYaml .Values.resources | nindent 12 }}
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

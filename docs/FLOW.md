@@ -388,7 +388,7 @@ Decision records: [ADR 0021](adr/0021-single-s3-bucket.md), [ADR 0022](adr/0022-
  2. Secrets       scripts/k3s/push-ssm.sh (dry run unless --apply) -> SSM /leetforce/api/*, /leetforce/runner/*, /leetforce/deploy/*
                   scripts/k3s/sync-secrets.sh on the control host -> k3s Secrets api-env, ghcr-pull
  3. Control host  infra/aws control instance + ansible k3s_server (pinned k3s, AWS CLI) -> k3s with Traefik on port 80
-                  k8s/base (Kustomize): namespace, ConfigMap, API Deployment, Service, Ingress; image api/Dockerfile (private GHCR)
+                  k8s/charts/leetforce-api (Helm; k8s/namespace.yaml via kubectl): ConfigMap, API Deployment, Service, Ingress; image api/Dockerfile (private GHCR)
  4. Runners       infra/aws/runner-asg.tf: launch template + Auto Scaling group from the AMI (desired = runner_count); first boot reads
                   /leetforce/runner/* from SSM into /etc/leetforce/runner.env and starts leetforce-runner
  5. CI deploy     .github/workflows/deploy.yml: build, Trivy, push to GHCR, then SSM Run Command -> scripts/k3s/deploy.sh <sha>
