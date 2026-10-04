@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 790" width="1200" height="790" role="img" aria-labelledby="t d">
+<title id="t">LeetForce high level architecture</title>
+<desc id="d">A user reaches the web and API tier over HTTP. The API calls a problem service backed by Postgres, a submission service that stores submissions in Postgres and queues jobs in Redis Streams for a runner that judges code in a sandbox and reports the verdict back, a contest service backed by Postgres, and a leaderboard service backed by a Redis cache. Runners read test bundles from S3.</desc>
+<defs><marker id="a" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M1 1.5 9 5 1 8.5" fill="none" stroke="#1b2540" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<rect width="1200" height="790" rx="18" fill="#fcfcfd"/>
+<g font-family="Segoe UI, Inter, Helvetica, Arial, sans-serif" fill="#1b2540" text-anchor="middle">
+<text x="40" y="58" font-size="34" font-weight="700" text-anchor="start">LeetForce – High Level Architecture</text>
+<text x="40" y="92" font-size="20" text-anchor="start" fill="#5b6b86">System design</text>
+<rect x="40" y="330" width="140" height="110" rx="14" fill="#cde8ff" stroke="#1b2540" stroke-width="2"/>
+<circle cx="110" cy="368" r="11" fill="none" stroke="#1b2540" stroke-width="2.4"/>
+<path d="M88 410 a22 20 0 0 1 44 0" fill="none" stroke="#1b2540" stroke-width="2.4" stroke-linecap="round"/>
+<text x="110" y="428" font-size="20" font-weight="600">User</text>
+<text x="215" y="372" font-size="17">HTTP</text>
+<path d="M182 385 H262" fill="none" stroke="#1b2540" stroke-width="2" stroke-linecap="round" marker-end="url(#a)"/>
+<rect x="264" y="180" width="150" height="460" rx="14" fill="#c8f0d4" stroke="#1b2540" stroke-width="2"/>
+<text x="339.0" y="378.0" font-size="20" font-weight="600">Web + API</text>
+<text x="339.0" y="404.0" font-size="14" fill="#47546f">Next.js</text>
+<text x="339.0" y="430.0" font-size="14" fill="#47546f">proxy to Gin</text>
+<text x="339.0" y="456.0" font-size="14" fill="#47546f">auth, limits, SSE</text>
+<rect x="520" y="100" width="200" height="84" rx="14" fill="#ffd3d3" stroke="#1b2540" stroke-width="2"/>
+<text x="620.0" y="136.0" font-size="20" font-weight="600">Problem</text>
+<text x="620.0" y="162.0" font-size="20" font-weight="600">Service</text>
+<rect x="520" y="250" width="200" height="84" rx="14" fill="#fff1b8" stroke="#1b2540" stroke-width="2"/>
+<text x="620.0" y="286.0" font-size="20" font-weight="600">Submission</text>
+<text x="620.0" y="312.0" font-size="20" font-weight="600">Service</text>
+<rect x="520" y="510" width="200" height="84" rx="14" fill="#cde8ff" stroke="#1b2540" stroke-width="2"/>
+<text x="620.0" y="546.0" font-size="20" font-weight="600">Contest</text>
+<text x="620.0" y="572.0" font-size="20" font-weight="600">Service</text>
+<rect x="520" y="650" width="200" height="84" rx="14" fill="#ffe1c2" stroke="#1b2540" stroke-width="2"/>
+<text x="620.0" y="686.0" font-size="20" font-weight="600">Leaderboard</text>
+<text x="620.0" y="712.0" font-size="20" font-weight="600">Service</text>
+<path d="M416 210 C 470 210 470 142 516 142" fill="none" stroke="#1b2540" stroke-width="2" stroke-linecap="round" marker-end="url(#a)"/>
+<path d="M416 250 C 470 250 470 292 516 292" fill="none" stroke="#1b2540" stroke-width="2" stroke-linecap="round" marker-end="url(#a)"/>
+<path d="M416 540 C 470 540 470 552 516 552" fill="none" stroke="#1b2540" stroke-width="2" stroke-linecap="round" marker-end="url(#a)"/>
+<path d="M416 590 C 470 590 470 692 516 692" fill="none" stroke="#1b2540" stroke-width="2" stroke-linecap="round" marker-end="url(#a)"/>
+<path d="M820 102 v80 a75.0 14 0 0 0 150 0 v-80" fill="#e2d4fb" stroke="#1b2540" stroke-width="2"/>
+<ellipse cx="895.0" cy="102" rx="75.0" ry="14" fill="#e2d4fb" stroke="#1b2540" stroke-width="2"/>
+<text x="895.0" y="138.0" font-size="18" font-weight="600">Problems</text>
+<text x="895.0" y="162.0" font-size="14" font-weight="400">Neon Postgres</text>
+<path d="M722 142 H816" fill="none" stroke="#1b2540" stroke-width="2" stroke-linecap="round" marker-end="url(#a)"/>
+<rect x="790" y="248" width="170" height="88" rx="14" fill="#dcdcff" stroke="#1b2540" stroke-width="2"/>
+<text x="875.0" y="286.0" font-size="20" font-weight="600">Job Queue</text>
+<text x="875.0" y="312.0" font-size="14" fill="#47546f">Redis Streams</text>
+<path d="M722 292 H786" fill="none" stroke="#1b2540" stroke-width="2" stroke-linecap="round" marker-end="url(#a)"/>
+<rect x="1010" y="236" width="160" height="112" rx="14" fill="#c8f0d4" stroke="#1b2540" stroke-width="2"/>
+<text x="1090.0" y="273.0" font-size="20" font-weight="600">Runner</text>
+<text x="1090.0" y="299.0" font-size="14" fill="#47546f">sandbox: nsjail</text>
+<text x="1090.0" y="325.0" font-size="14" fill="#47546f">cgroup v2</text>
+<path d="M962 292 H1006" fill="none" stroke="#1b2540" stroke-width="2" stroke-linecap="round" marker-end="url(#a)"/>
+<path d="M560 384 v72 a75.0 14 0 0 0 150 0 v-72" fill="#ffcfcf" stroke="#1b2540" stroke-width="2"/>
+<ellipse cx="635.0" cy="384" rx="75.0" ry="14" fill="#ffcfcf" stroke="#1b2540" stroke-width="2"/>
+<text x="635.0" y="416.0" font-size="18" font-weight="600">Submissions</text>
+<text x="635.0" y="440.0" font-size="14" font-weight="400">Neon Postgres</text>
+<path d="M620 336 V366" fill="none" stroke="#1b2540" stroke-width="2" stroke-linecap="round" marker-end="url(#a)"/>
+<path d="M820 514 v80 a75.0 14 0 0 0 150 0 v-80" fill="#e2d4fb" stroke="#1b2540" stroke-width="2"/>
+<ellipse cx="895.0" cy="514" rx="75.0" ry="14" fill="#e2d4fb" stroke="#1b2540" stroke-width="2"/>
+<text x="895.0" y="550.0" font-size="18" font-weight="600">Contests</text>
+<text x="895.0" y="574.0" font-size="14" font-weight="400">Neon Postgres</text>
+<path d="M722 552 H816" fill="none" stroke="#1b2540" stroke-width="2" stroke-linecap="round" marker-end="url(#a)"/>
+<path d="M820 654 v80 a75.0 14 0 0 0 150 0 v-80" fill="#dcdcff" stroke="#1b2540" stroke-width="2"/>
+<ellipse cx="895.0" cy="654" rx="75.0" ry="14" fill="#dcdcff" stroke="#1b2540" stroke-width="2"/>
+<text x="895.0" y="690.0" font-size="18" font-weight="600">Cache</text>
+<text x="895.0" y="714.0" font-size="14" font-weight="400">Redis, versioned</text>
+<path d="M722 692 H816" fill="none" stroke="#1b2540" stroke-width="2" stroke-linecap="round" marker-end="url(#a)"/>
+<path d="M1050 464 v72 a65.0 14 0 0 0 130 0 v-72" fill="#d6f3e2" stroke="#1b2540" stroke-width="2"/>
+<ellipse cx="1115.0" cy="464" rx="65.0" ry="14" fill="#d6f3e2" stroke="#1b2540" stroke-width="2"/>
+<text x="1115.0" y="496.0" font-size="18" font-weight="600">Test bundles</text>
+<text x="1115.0" y="520.0" font-size="14" font-weight="400">S3, by version</text>
+<path d="M1135 350 V446" fill="none" stroke="#1b2540" stroke-width="2" stroke-dasharray="7 6" stroke-linecap="round" marker-end="url(#a)"/>
+<text x="1146" y="410" font-size="13" text-anchor="start" fill="#47546f">read</text>
+<path d="M1040 350 V402 H714" fill="none" stroke="#1b2540" stroke-width="2" stroke-dasharray="7 6" stroke-linecap="round" marker-end="url(#a)"/>
+<text x="880" y="392" font-size="14" fill="#47546f">verdict (idempotent ingest)</text>
+<text x="40" y="768" font-size="14" text-anchor="start" fill="#47546f">Solid arrows: requests. Dashed arrows: the verdict coming back, and test bundles being read. Status reaches the browser over SSE.</text>
+</g></svg>
