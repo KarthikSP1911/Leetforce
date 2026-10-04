@@ -15,12 +15,16 @@ function Field({
   label,
   type = "text",
   autoComplete,
+  placeholder,
   hint,
 }: {
   id: string;
   label: string;
   type?: string;
   autoComplete: string;
+  /** Short example shown inside the empty field. */
+  placeholder: string;
+  /** Longer rule, read out by screen readers and shown as a tooltip. */
   hint?: string;
 }) {
   const [shown, setShown] = useState(false);
@@ -37,8 +41,9 @@ function Field({
           type={isPassword && shown ? "text" : type}
           required
           autoComplete={autoComplete}
-          placeholder={hint}
-          aria-label={hint ? `${label} (${hint})` : undefined}
+          placeholder={placeholder}
+          title={hint}
+          aria-describedby={hint ? `${id}-hint` : undefined}
           className={`${inputClass} ${isPassword ? "pr-16" : ""}`}
         />
         {isPassword && (
@@ -53,6 +58,11 @@ function Field({
           </button>
         )}
       </div>
+      {hint && (
+        <span id={`${id}-hint`} className="sr-only">
+          {hint}
+        </span>
+      )}
     </div>
   );
 }
@@ -150,6 +160,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
               id="login"
               label="Email or username"
               autoComplete="username"
+              placeholder="you@example.com or your username"
             />
           ) : (
             <>
@@ -158,11 +169,13 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
                 label="Email"
                 type="email"
                 autoComplete="email"
+                placeholder="you@example.com"
               />
               <Field
                 id="username"
                 label="Username"
                 autoComplete="username"
+                placeholder="Choose a username"
                 hint="3-32 characters: letters, digits, _ and -."
               />
             </>
@@ -172,6 +185,9 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
             label="Password"
             type="password"
             autoComplete={isLogin ? "current-password" : "new-password"}
+            placeholder={
+              isLogin ? "Enter your password" : "At least 8 characters"
+            }
             hint={isLogin ? undefined : "At least 8 characters."}
           />
           {error && (
