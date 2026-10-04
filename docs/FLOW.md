@@ -1,6 +1,6 @@
 # LeetForce flow, phase by phase
 
-This file shows how a submission flows through the system and which phase builds each part. It is updated at the end of every phase. Phases 0 to 13 are **as built** (section 3; Phase 13 is code-complete but only partly applied in the cloud). Phases 14 to 16 are **planned**, taken from [PLAN.md](PLAN.md); the plan is firm only a phase or two ahead, the rest are outlines that get refined at the start of their session. The Phase 16 docs pass (this file checked against the code and git) is recorded in [phase-16-log.md](phases/phase-16-log.md).
+This file shows how a submission flows through the system and which phase builds each part. It is updated at the end of every phase. Phases 0 to 16 are **as built** (section 3). Phase 13 is code-complete but only partly applied in the cloud. Phases 14 and 15 were built in parallel and first tested together in Phase 16, whose gate passed. This file was checked against the code and git in the Phase 16 docs pass ([phase-16-log.md](phases/phase-16-log.md)).
 
 ## 1. The end-to-end flow (the finished system)
 ```
@@ -42,9 +42,9 @@ Rules that shape the flow (from CLAUDE.md): runners never connect to the databas
 | 11 | Observability `[x]` | Watching every stage: metrics, dashboards, logs, alerts | dashboards show a live submission |
 | 12 | Infrastructure as code `[x]` (code only; the AMI build did not succeed) | Terraform, Packer, Ansible for the places the stages run (nothing applied without confirmation) | the system can be described and rebuilt as code |
 | 13 | Cloud deployment (M4) `[x]` partial: code merged, only the S3 bucket applied; AMI not built; loss test not run; M4 not tagged | The same flow running in the cloud (k3s for the API, runners as ASG hosts), secrets via SSM, CI deploy | the flow survives losing a runner (not demonstrated) |
-| 14 | Contests `[x]` (code only; untested, gate in Phase 16) | Contest model, timed windows, contest-only problems, scoring in stages 2 and 9 | a mock contest runs end to end |
-| 15 | Leaderboard `[x]` (code only; untested, gate in Phase 16) | Rankings fed by verdicts, caching, penalty rules | rankings correct under concurrent submissions |
-| 16 | Launch readiness (M5) | Load test, security review, backup and restore drill | findings resolved or accepted in writing |
+| 14 | Contests `[x]` (tested in the Phase 16 gate: mock contest passes) | Contest model, timed windows, contest-only problems, scoring in stages 2 and 9 | a mock contest runs end to end |
+| 15 | Leaderboard `[x]` (tested in the Phase 16 gate: concurrency test passes) | Rankings fed by verdicts, caching, penalty rules | rankings correct under concurrent submissions |
+| 16 | Launch readiness (M5) `[x]` | Load test, security review, backup and restore drill, integration of phases 14 and 15 | findings resolved or accepted in writing |
 
 Notes: the phase names, builds and exits come from `docs/PLAN.md`. In the "Flow after" column, Phases 14 to 16 are my reading of the plan's build lists, not a promise, and will be corrected when each phase is planned (Phases 14 and 15 are built by others or later, so they are not ticked here).
 
@@ -397,7 +397,7 @@ Decision records: [ADR 0021](adr/0021-single-s3-bucket.md), [ADR 0022](adr/0022-
 ```
 Done: bucket applied; manifests validated (kubeconform, Trivy config, a throwaway kind cluster); `infra/aws` plan 34 to add. Not done: AMI (three failed builds), `apply` of `infra/aws`, SSM push, image push, the loss test, the `infra/neon` plan.
 
-### Phase 14: Contests (as built; untested, gate in Phase 16)
+### Phase 14: Contests (as built; gate passed in Phase 16)
 
 1. A contest is a row in `contests` (slug, `starts_at`, `ends_at`) with problems in `contest_problems` (label A, B, ...) and registrations in `contest_participants` (`api/migrations/00006_contests.sql`). Status is derived from the clock (`api/internal/contest/model.go`).
 2. Browser: `/contest` lists contests; `/contest/[slug]` shows a countdown, Register, problem tabs and the standings slot (`web/src/app/contest/`, `web/src/components/contest/`).
@@ -407,7 +407,7 @@ Done: bucket applied; manifests validated (kubeconform, Trivy config, a throwawa
 6. `Store.Events` returns judged in-window contest verdicts; `contest.Score` ranks them ICPC style (`api/internal/contest/scoring.go`). Phase 15 turns this into the leaderboard.
 7. Mock contest: `make test-mock-contest` (`scripts/run-mock-contest.sh`).
 
-### Phase 15: Leaderboard (as built; untested, gate in Phase 16)
+### Phase 15: Leaderboard (as built; gate passed in Phase 16)
 
 Decision record: [ADR 0025](adr/0025-leaderboard-ranking-and-cache.md). Log: [phase-15-log.md](phases/phase-15-log.md). Contest scoring uses the Phase 14 contract, stubbed on this branch.
 ```
@@ -418,11 +418,27 @@ Decision record: [ADR 0025](adr/0025-leaderboard-ranking-and-cache.md). Log: [ph
  4. Cache       snapshot valid only if its version tag equals the counter read first; otherwise recompute, tag, store (TTL 15 s / 60 s)
  5. Compute     api/internal/store/leaderboard.go (SQL) -> leaderboard.scoreEvents (window, contest.Score, last-AC tie-break) / RankGlobal (weights 1/3/5)
  6. Web         web/src/app/leaderboard/page.tsx; web/src/components/contest/standings-slot.tsx (polls every 10 s)
- 7. Exit test   make test-leaderboard-concurrent (api/internal/store/leaderboard_concurrent_test.go, -race): not yet run
+ 7. Exit test   make test-leaderboard-concurrent (api/internal/store/leaderboard_concurrent_test.go, -race): passed, 3 runs, in Phase 16
 ```
 
-### Phase 16: Launch readiness (in progress)
-Placeholder for the flow checks (load test, security review, backup and restore drill). The docs and cost pass is in [phase-16-log.md](phases/phase-16-log.md) and [cost-review.md](cost-review.md); do not tick the phase until its exit criteria are met.
+### Phase 16: Launch readiness (as built)
+
+Decision record: [ADR 0024](adr/0024-load-test-tool.md). Log: [phase-16-log.md](phases/phase-16-log.md).
+
+```
+ Launch readiness (checks around the existing flow, plus the merge of phases 14 and 15)
+ 1. Integrate   phase/14-contests and phase/15-leaderboard merged; the Phase 15 stub of the Phase 14 contract deleted;
+                leaderboard.ContractScorer maps its rebased time to contest.Event.Elapsed (api/internal/leaderboard/score_contract.go)
+ 2. Review      docs/security-review.md: 18 findings (7 fixed with tests, 11 accepted in writing); Trivy full scan clean
+ 3. Load        tools/loadtest signs up users, lists problems, Runs, Submits and follows SSE (mixed and contest modes);
+                scripts/test-loadtest-local.sh runs it against an API and a runner on a free port, then removes its users
+ 4. Backup      scripts/backup-neon.sh -> scripts/restore-drill-neon.sh (scratch database or Neon branch),
+                scripts/backup-s3-bundles.sh; docs/runbook-backup-restore.md
+ 5. Gate        one combined run on the dev host: fmt, lint, unit tests, sandbox, adversarial, four e2e suites,
+                problem validation, mock contest, leaderboard concurrency, local load test
+```
+
+The submission flow itself is unchanged from Phases 14 and 15; the new pieces check it and protect it (per-IP cap on SSE streams, JSON-only POSTs, no problem list in standings before the start).
 
 ## 4. Keeping this file true
 At the end of each phase: tick the phase in section 2, add its "as built" flow to section 3 (the detailed step list with file paths), and correct the "planned" rows if the plan changed.

@@ -66,7 +66,7 @@ Skipped by owner (session override: Phases 14 to 16 run in parallel, tested once
 - Whether `Event.Elapsed` (the one contract change) is acceptable to Phase 15.
 
 ## Handoff
-- **State:** branch `phase/14-contests`, tag `phase-14-start`, worktree `Leetforce-p14`; not merged to `main`, no `phase-14-done` tag. Migration 00006 not applied.
+- **State (updated in Phase 16):** merged into `main` with Phase 16, tags `phase-14-start` and `phase-14-done`; gate passed. Earlier state: branch `phase/14-contests`, tag `phase-14-start`, worktree `Leetforce-p14`; not merged to `main`, no `phase-14-done` tag. Migration 00006 not applied.
 - **Next phase:** 15 (Leaderboard, parallel) then 16 (Launch readiness), which merges 14 and 15.
 - **What Phase 16 must run to verify Phase 14** (dev host, `.env` with `DATABASE_URL`, `LEETFORCE_REDIS_URL`):
   1. `make migrate-up` (applies `00006_contests.sql`; also `migrate-down` then `migrate-up` to check the Down).

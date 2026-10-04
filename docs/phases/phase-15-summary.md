@@ -67,6 +67,6 @@ Skipped by owner.
 - Global weights 1/3/5 and counting contest solves in the global ranking are Claude defaults; the owner may change them (Phase 16 or later).
 
 ## Handoff
-- **State:** branch `phase/15-leaderboard` (worktree `../Leetforce-p15`), tag `phase-15-start`; not merged; status in review, untested, gate in Phase 16.
+- **State (updated in Phase 16):** merged into `main` with Phase 16, tags `phase-15-start` and `phase-15-done`; the concurrency gate passed. Earlier state: branch `phase/15-leaderboard`, in review, untested.
 - **Next phase:** 16 Launch readiness. See the handoff in the chat and `docs/PROGRESS.md`.
 - **Next session prompt:** Continue LeetForce. Read CLAUDE.md, docs/PROGRESS.md and docs/phases/phase-15-summary.md, then start Phase 16 (Launch readiness). Merge phases 14 and 15, replace the Phase 15 stub, and run every deferred gate.
