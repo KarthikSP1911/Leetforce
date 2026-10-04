@@ -14,8 +14,8 @@ COPY api/go.mod api/go.sum api/
 COPY judge/go.mod judge/go.sum judge/
 COPY queue/go.mod queue/go.sum queue/
 COPY storage/go.mod storage/go.sum storage/
-# The runner module is not part of the API's dependency graph.
-RUN go work edit -dropuse=./runner && cd api && go mod download
+# The runner and the load tester are not part of the API's dependency graph.
+RUN go work edit -dropuse=./runner -dropuse=./tools/loadtest && cd api && go mod download
 
 COPY api api
 COPY judge judge

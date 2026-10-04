@@ -50,6 +50,9 @@ jobs:
 
   deploy:
     needs: image
+    # Skipped until the cloud exists: the deploy role comes from `terraform apply` of infra/aws,
+    # which has not been run. Set the repository variable AWS_DEPLOY_ROLE_ARN to switch it on.
+    if: ${{ vars.AWS_DEPLOY_ROLE_ARN != '' }}
     runs-on: ubuntu-latest
     environment: production
     permissions:
