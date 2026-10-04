@@ -43,7 +43,7 @@ export function ProblemTable({
           {problems.map((p, i) => (
             <tr
               key={p.slug}
-              className="border-panel-border hover:bg-hover border-b transition-colors last:border-b-0"
+              className="border-panel-border even:bg-hover hover:bg-panel-border/40 border-b transition-colors last:border-b-0"
             >
               <td className="text-muted px-4 py-3 font-mono">
                 {offset + i + 1}

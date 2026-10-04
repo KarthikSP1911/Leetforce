@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { NavSearch } from "./NavSearch";
 import { ThemeToggle } from "./ThemeToggle";
 import { UserMenu } from "./UserMenu";
 
@@ -59,6 +60,7 @@ export function Navbar() {
           ))}
         </ul>
         <div className="ml-auto flex items-center gap-2">
+          <NavSearch />
           <ThemeToggle />
           <UserMenu />
         </div>
