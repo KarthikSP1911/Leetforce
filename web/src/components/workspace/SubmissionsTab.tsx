@@ -57,7 +57,7 @@ function Status({ s }: { s: Submission }) {
   }
   return (
     <span className="text-muted font-semibold">
-      {s.status === "judging" ? "Judging…" : "Queued…"}
+      {s.status === "judging" ? "Judging" : "In queue"}
     </span>
   );
 }

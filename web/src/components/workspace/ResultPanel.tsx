@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import type {
   RunResult,
   SubmissionStatus,
@@ -162,6 +163,55 @@ function ErrorResult({
   );
 }
 
+// How long a job may sit in the queue before the panel says no judge has picked it up.
+const QUEUE_PATIENCE_MS = 15000;
+
+function Pending({
+  status,
+  action,
+}: {
+  status: string;
+  action: "run" | "submit";
+}) {
+  const [waitedLong, setWaitedLong] = useState(false);
+  useEffect(() => {
+    if (status !== "queued") return;
+    const t = setTimeout(() => setWaitedLong(true), QUEUE_PATIENCE_MS);
+    return () => {
+      clearTimeout(t);
+      setWaitedLong(false);
+    };
+  }, [status]);
+
+  const active = status !== "queued";
+  const headline = active
+    ? action === "run"
+      ? "Running"
+      : "Judging"
+    : "In queue";
+  const detail = active
+    ? "Compiling and running your code in a sandbox."
+    : waitedLong
+      ? "Still waiting for a judge. The judging service may be busy or offline."
+      : "Waiting for a judge to pick this up.";
+  return (
+    <div className="p-3" role="status" aria-live="polite">
+      <p className="flex items-center gap-2 text-lg font-semibold">
+        <span
+          aria-hidden
+          className="bg-accent inline-block h-2.5 w-2.5 animate-pulse rounded-full"
+        />
+        {headline}
+      </p>
+      <p
+        className={`mt-1 text-sm ${waitedLong && !active ? "text-warning" : "text-muted"}`}
+      >
+        {detail}
+      </p>
+    </div>
+  );
+}
+
 export function ResultPanel({ result }: { result: ConsoleResult }) {
   switch (result.kind) {
     case "idle":
@@ -171,21 +221,7 @@ export function ResultPanel({ result }: { result: ConsoleResult }) {
         </p>
       );
     case "pending":
-      return (
-        <div className="p-3" role="status" aria-live="polite">
-          <p className="flex items-center gap-2 text-lg font-semibold">
-            <span
-              aria-hidden
-              className="bg-accent inline-block h-2.5 w-2.5 animate-pulse rounded-full"
-            />
-            {result.status === "judging"
-              ? "Judging…"
-              : result.action === "run"
-                ? "Queued, running soon…"
-                : "Queued…"}
-          </p>
-        </div>
-      );
+      return <Pending status={result.status} action={result.action} />;
     case "error":
       return <ErrorResult message={result.message} signIn={result.signIn} />;
     case "submit":
