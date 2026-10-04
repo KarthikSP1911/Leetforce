@@ -2,7 +2,7 @@
 # Go components are separate modules joined by go.work (ADR 0002); add each new
 # module (runner, api) to GO_MODULES when it is created.
 
-GO_MODULES := judge queue runner api storage tools/loadtest
+GO_MODULES := judge queue runner api storage telemetry tools/loadtest
 
 .PHONY: check-scripts loadtest test-loadtest-local test-leaderboard-concurrent test-runner-loss build-runner-linux packer-validate build-ami lint-ansible test-destroy-isolation tf-validate test-alerts test-obs-e2e dev-obs down-obs validate-problems test-rejudge-e2e test-mock-contest test-auth-e2e test-live-e2e test-api-e2e build-api migrate-up migrate-down migrate-status dev down fmt lint test build-judge build-runner test-crash test-matrix test-sandbox test-adversarial bench-sandbox
 

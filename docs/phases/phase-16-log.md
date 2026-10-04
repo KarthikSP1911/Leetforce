@@ -250,3 +250,13 @@ The owner asked for Helm charts wherever needed. Claude did this on the PC; noth
 - Verified with Docker (no Helm on the PC): `docker run alpine/helm:3.16.2 lint` (0 failed) and `template` with `ingress.host`/`tlsSecretName` set (renders host and tls). Rendered default output was not diffed against the old Kustomize output beyond reading it.
 - Docs: ADR 0026, `k8s/README.md`, `docs/FLOW.md` (Phase 13 row text). Not done: Trivy `config` scan of the chart (dev host not used this session).
 - Paths: `k8s/charts/leetforce-api/**`, `k8s/namespace.yaml`, `scripts/k3s/deploy.sh`, `ansible/roles/k3s_server/{tasks,defaults}/main.yml`, `docs/adr/0026-helm-chart-for-the-api.md`.
+
+## Tempo tracing (after the merge, branch `feat/16-tempo-tracing`)
+
+The owner asked to use Tempo. Claude did this on the PC; nothing ran against a live Tempo or the dev host.
+
+- New module `telemetry/` (added to `go.work`, `Makefile` GO_MODULES, `api/go.mod` require+replace, `api/Dockerfile` COPY lines). `queue/queue.go`: `Job.Traceparent`, `Enqueue` producer span, `Job.TraceContext`; test `TestTraceparentRoundTrip` passes. Runner: `runner/internal/agent/{agent,run}.go` `runner.process` and `judge` spans; `runner/cmd/runner/main.go` and `api/cmd/api/main.go` call `telemetry.Init` and flush on exit. API: `api/internal/server/trace.go` middleware (skips health probes).
+- Stack: `observability/tempo/tempo.yml`, Tempo service and `tempo-data` volume in `observability/docker-compose.yml`, Tempo data source with trace-to-logs in `observability/grafana/provisioning/datasources/datasources.yml`, `scripts/obs-tunnel.sh` adds `-R 127.0.0.1:4318`. `.env.example` and the Helm `values.yaml` document `LEETFORCE_OTLP_ENDPOINT`.
+- Checks: `GOOS=linux CGO_ENABLED=0 go build` and `go vet` for api, runner, queue, telemetry pass; native `go test` passes for `queue` and `api/internal/server`. Runner tests could not run (the runner builds only for Linux; run `make test` on the dev host). `docker compose config` is valid and `tempo -config.verify=true` on the config printed no error; a live trace was not run.
+- Mistakes: my first `Job.Trace` map field made `Job` non-comparable and broke an existing test, so it became a string. Python on Windows rewrote edited files with CRLF; they were converted back to LF before committing.
+- Docs: ADR 0027, README (observability, tech badges, layout, commands), FLOW.md Phase 11 heading.

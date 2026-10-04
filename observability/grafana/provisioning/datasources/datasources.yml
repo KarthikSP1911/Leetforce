@@ -11,3 +11,14 @@ datasources:
     type: loki
     access: proxy
     url: http://loki:3100
+  - name: Tempo
+    uid: lf-tempo
+    type: tempo
+    access: proxy
+    url: http://tempo:3200
+    jsonData:
+      # From a span, jump to the Loki lines of the same service and submission.
+      tracesToLogsV2:
+        datasourceUid: lf-loki
+        customQuery: true
+        query: '{service="$${__span.tags.service.name}"} |= "$${__span.tags.submission_id}"'

@@ -334,7 +334,7 @@ Decision record: [ADR 0018](adr/0018-problem-pipeline.md). Log: [phase-10-log.md
 ```
 Exit check: `make test-rejudge-e2e` on the dev host (a changed test file turned AC into WA at the new version, once; a repeat changed nothing), `make validate-problems` (5 of 5 valid), `make test` and the other gates. Not yet: a rejudge of a large backlog in the background (it runs before the API listens), pruning old bundles.
 
-### Phase 11: Observability (as built)
+### Phase 11: Observability (as built; Tempo tracing added after Phase 16, ADR 0027)
 
 Decision record: [ADR 0019](adr/0019-observability.md). Log: [phase-11-log.md](phases/phase-11-log.md).
 ```

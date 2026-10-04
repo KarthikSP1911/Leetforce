@@ -58,7 +58,7 @@ func New(d Deps) *gin.Engine {
 	r := gin.New()
 	// Cannot fail for an empty list; a bad entry is reported when the API starts.
 	_ = r.SetTrustedProxies(d.TrustedProxies)
-	r.Use(gin.Recovery(), requestLog(d.Logger))
+	r.Use(gin.Recovery(), requestTrace(), requestLog(d.Logger))
 
 	r.GET("/healthz", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"status": "ok"}) })
 	r.GET("/readyz", func(c *gin.Context) {

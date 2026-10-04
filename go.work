@@ -6,5 +6,6 @@ use (
 	./queue
 	./runner
 	./storage
+	./telemetry
 	./tools/loadtest
 )

@@ -13,6 +13,10 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Group is the consumer group every runner joins.
@@ -44,6 +48,11 @@ type Job struct {
 	// Kind is "" for a submission and KindRun for a Run job. A Run job is never
 	// stored as a submission: its outcome goes to RunState, not the results stream.
 	Kind string `json:"kind,omitempty"`
+
+	// Traceparent is the W3C trace context of the enqueuing request so the runner's
+	// spans join the same trace (Tempo). A string keeps Job comparable. Empty when
+	// tracing is off.
+	Traceparent string `json:"traceparent,omitempty"`
 	// Custom and Input apply to Run jobs: when Custom is set the program runs
 	// once on Input; otherwise it runs on the problem's sample tests.
 	Custom bool   `json:"custom,omitempty"`
@@ -138,6 +147,12 @@ func (q *Queue) Enqueue(ctx context.Context, j Job) (string, error) {
 	if j.SubmissionID == "" || j.Problem == "" || j.Language == "" {
 		return "", errors.New("enqueue: submission_id, problem and language are required")
 	}
+	ctx, span := otel.Tracer("leetforce/queue").Start(ctx, "queue.enqueue", trace.WithSpanKind(trace.SpanKindProducer),
+		trace.WithAttributes(attribute.String("submission_id", j.SubmissionID), attribute.String("language", j.Language)))
+	defer span.End()
+	carrier := propagation.MapCarrier{}
+	otel.GetTextMapPropagator().Inject(ctx, carrier)
+	j.Traceparent = carrier.Get("traceparent")
 	b, err := json.Marshal(j)
 	if err != nil {
 		return "", fmt.Errorf("enqueue: %w", err)
@@ -147,6 +162,15 @@ func (q *Queue) Enqueue(ctx context.Context, j Job) (string, error) {
 		return "", fmt.Errorf("enqueue: %w", err)
 	}
 	return id, nil
+}
+
+// TraceContext returns ctx carrying the trace the job was enqueued under, so spans
+// started from it are children of the enqueuing request. With no trace it is ctx.
+func (j Job) TraceContext(ctx context.Context) context.Context {
+	if j.Traceparent == "" {
+		return ctx
+	}
+	return otel.GetTextMapPropagator().Extract(ctx, propagation.MapCarrier{"traceparent": j.Traceparent})
 }
 
 // Receive returns the next job for consumer, or nil if none arrived within

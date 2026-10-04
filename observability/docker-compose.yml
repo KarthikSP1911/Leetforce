@@ -1,4 +1,4 @@
-# Observability stack (ADR 0019): Prometheus, Grafana, Loki and Alloy. It runs
+# Observability stack (ADR 0019, ADR 0027): Prometheus, Grafana, Loki, Tempo and Alloy. It runs
 # on the machine that has Docker (the owner's Windows PC), not on the 1 GB dev
 # host. Prometheus reads the dev host's /metrics through the SSH tunnel from
 # scripts/obs-tunnel.sh; Alloy reads log files that scripts/obs-logs.sh tails
@@ -29,6 +29,16 @@ services:
       - ./loki/loki.yml:/etc/loki/loki.yml:ro
       - loki-data:/loki
 
+  tempo:
+    image: grafana/tempo:2.8.1
+    command: ["-config.file=/etc/tempo/tempo.yml"]
+    ports:
+      - "127.0.0.1:4318:4318"   # OTLP/HTTP from the dev host (obs-tunnel.sh -R)
+      - "127.0.0.1:3200:3200"
+    volumes:
+      - ./tempo/tempo.yml:/etc/tempo/tempo.yml:ro
+      - tempo-data:/var/tempo
+
   alloy:
     image: grafana/alloy:v1.10.0
     command: ["run", "--storage.path=/var/lib/alloy/data", "/etc/alloy/config.alloy"]
@@ -44,6 +54,7 @@ services:
     depends_on:
       - prometheus
       - loki
+      - tempo
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: ${LEETFORCE_GRAFANA_PASSWORD:?set LEETFORCE_GRAFANA_PASSWORD in .env}
@@ -60,5 +71,6 @@ services:
 volumes:
   prometheus-data:
   loki-data:
+  tempo-data:
   alloy-data:
   grafana-data:

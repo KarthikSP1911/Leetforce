@@ -1,0 +1,22 @@
+# Single-binary Tempo with local storage and 7-day retention (ADR 0027). Spans arrive over
+# OTLP/HTTP on 4318 from the API and the runner (through scripts/obs-tunnel.sh).
+server:
+  http_listen_port: 3200
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        http:
+          endpoint: 0.0.0.0:4318
+compactor:
+  compaction:
+    block_retention: 168h
+storage:
+  trace:
+    backend: local
+    wal:
+      path: /var/tempo/wal
+    local:
+      path: /var/tempo/blocks
+usage_report:
+  reporting_enabled: false

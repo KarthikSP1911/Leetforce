@@ -13,6 +13,9 @@ import (
 	"leetforce/queue"
 	"leetforce/runner/internal/metrics"
 	"leetforce/runner/internal/problems"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // verdictOK is reported for a custom-input run that ended cleanly: there is no
@@ -41,7 +44,9 @@ func (a *Agent) processRun(ctx context.Context, log *slog.Logger, d *queue.Deliv
 	log.Info("running", "problem", d.Job.Problem, "language", d.Job.Language, "custom", d.Job.Custom)
 	metrics.InFlight.Inc()
 	judgeStart := time.Now()
-	res, permanent, err := a.run(judgeCtx, d.Job)
+	jctx, jspan := tracer.Start(judgeCtx, "judge")
+	res, permanent, err := a.run(jctx, d.Job)
+	endJudgeSpan(jspan, err)
 	metrics.InFlight.Dec()
 	metrics.JudgeSeconds.WithLabelValues(metrics.LanguageLabel(d.Job.Language)).Observe(time.Since(judgeStart).Seconds())
 	stopHeartbeat()
@@ -67,6 +72,7 @@ func (a *Agent) processRun(ctx context.Context, log *slog.Logger, d *queue.Deliv
 		return
 	}
 	metrics.Jobs.WithLabelValues("run", metrics.VerdictLabel(res.Verdict)).Inc()
+	trace.SpanFromContext(ctx).SetAttributes(attribute.String("verdict", metrics.VerdictLabel(res.Verdict)))
 	log.Info("run finished", "verdict", res.Verdict)
 	a.ack(ctx, log, d.ID)
 }
