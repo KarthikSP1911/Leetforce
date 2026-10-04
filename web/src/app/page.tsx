@@ -110,7 +110,7 @@ export default function Home() {
     <main className="flex-1">
       <section className="border-panel-border relative overflow-hidden border-b">
         <HeroGrid />
-        <div className="relative mx-auto grid w-full max-w-6xl items-stretch gap-12 px-4 pt-10 pb-16 lg:grid-cols-2 lg:pt-12 lg:pb-24">
+        <div className="relative mx-auto grid w-full max-w-6xl items-stretch gap-12 px-4 pt-14 pb-16 lg:grid-cols-2 lg:pt-20 lg:pb-24">
           <Enter>
             <p className="text-link mb-4 text-sm font-semibold tracking-wide uppercase">
               Online judge
