@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { CodeWindow } from "@/components/home/CodeWindow";
 import { HeroGrid, PipelineDiagram } from "@/components/home/HomeArt";
 import { ButtonLink, Enter, Reveal } from "@/components/motion/Motion";
 
@@ -97,36 +98,6 @@ const steps = [
   },
 ];
 
-function VerdictPreview() {
-  return (
-    <div
-      className="bg-panel border-panel-border w-full max-w-md overflow-hidden rounded-lg border"
-      aria-hidden="true"
-    >
-      <div className="border-panel-border flex h-10 items-center justify-between border-b px-4 text-xs">
-        <span className="text-muted">Python</span>
-        <span className="text-muted">Example</span>
-      </div>
-      <pre className="px-4 py-4 font-mono text-[13px] leading-6">
-        <span className="text-muted">1</span>
-        {"  "}n = int(input())
-        {"\n"}
-        <span className="text-muted">2</span>
-        {"  "}nums = list(map(int, input().split()))
-        {"\n"}
-        <span className="text-muted">3</span>
-        {"  "}print(sum(nums))
-      </pre>
-      <div className="border-panel-border border-t px-4 py-4">
-        <p className="text-success text-2xl font-bold">Accepted</p>
-        <p className="text-muted mt-1 font-mono text-xs">
-          Runtime and memory are shown here
-        </p>
-      </div>
-    </div>
-  );
-}
-
 export default function Home() {
   return (
     <main className="flex-1">
@@ -163,7 +134,7 @@ export default function Home() {
             </ul>
           </Enter>
           <Enter x={24} delay={0.15} className="flex lg:justify-end">
-            <VerdictPreview />
+            <CodeWindow />
           </Enter>
         </div>
       </section>
