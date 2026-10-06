@@ -40,6 +40,10 @@ func newTestQueue(t *testing.T, cfg Config) *Queue {
 		_ = rdb.Ping(ctx).Err()
 		cfg.MinIdle = max(cfg.MinIdle, 10*time.Since(start))
 	}
+	// Tests call Receive back to back and expect a reclaim check every time.
+	if cfg.ReclaimEvery == 0 {
+		cfg.ReclaimEvery = time.Millisecond
+	}
 	cfg.Prefix = fmt.Sprintf("lftest-%s-%d", t.Name(), time.Now().UnixNano())
 	q := New(rdb, cfg)
 	if err := q.Setup(ctx); err != nil {

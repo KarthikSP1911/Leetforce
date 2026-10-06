@@ -16,8 +16,10 @@
 //	LEETFORCE_LIMIT_SUBMIT_USER, _SUBMIT_IP, _RUN_USER, _RUN_IP  per-minute limits (defaults 10, 30, 20, 60;
 //	                        a negative value turns that limit off)
 //	LEETFORCE_METRICS_ADDR  Prometheus /metrics listen address (default "127.0.0.1:9102"; "off" disables it)
-//	LEETFORCE_METRICS_QUEUE_EVERY  how often queue depth is sampled from Redis (default 60s; each sample is
+//	LEETFORCE_METRICS_QUEUE_EVERY  how often queue depth is sampled from Redis (default 5m; each sample is
 //	                        5 Redis commands, so mind the hosted plan's monthly budget)
+//	LEETFORCE_JOB_RECLAIM_EVERY  how often the verdict and dead-letter loops poll Redis (default 2 x 30s = 60s;
+//	                        each poll is 2 Redis commands)
 //	LEETFORCE_LIMIT_AUTH_IP, _LOGIN_ACCOUNT  per-10-minute sign-up/login limits (defaults 20, 10)
 package main
 
@@ -124,7 +126,11 @@ func run() error {
 		ready["storage"] = st
 	}
 
-	q, err := queue.Open(redisURL, queue.Config{Prefix: os.Getenv("LEETFORCE_QUEUE_PREFIX")})
+	reclaimEvery, err := envDuration("LEETFORCE_JOB_RECLAIM_EVERY")
+	if err != nil {
+		return err
+	}
+	q, err := queue.Open(redisURL, queue.Config{Prefix: os.Getenv("LEETFORCE_QUEUE_PREFIX"), ReclaimEvery: reclaimEvery})
 	if err != nil {
 		return err
 	}
@@ -187,7 +193,7 @@ func run() error {
 		return err
 	}
 	if queueEvery == 0 {
-		queueEvery = time.Minute
+		queueEvery = 5 * time.Minute
 	}
 	go metrics.SampleQueue(ctx, q, queueEvery, log)
 	metricsSrv := startMetrics(log)

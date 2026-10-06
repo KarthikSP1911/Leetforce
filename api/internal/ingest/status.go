@@ -24,7 +24,7 @@ type JudgingMarker interface {
 
 // StatusConfig tunes the watcher. Zero values take the defaults noted per field.
 type StatusConfig struct {
-	Block   time.Duration // how long to wait for events per poll (default 5s)
+	Block   time.Duration // how long to wait for events per poll (default 60s)
 	Backoff time.Duration // pause after a failed poll (default 2s)
 }
 
@@ -44,7 +44,7 @@ type StatusWatcher struct {
 // NewStatusWatcher builds a StatusWatcher.
 func NewStatusWatcher(src StatusSource, mk JudgingMarker, log *slog.Logger, cfg StatusConfig) *StatusWatcher {
 	if cfg.Block == 0 {
-		cfg.Block = 5 * time.Second
+		cfg.Block = time.Minute
 	}
 	if cfg.Backoff == 0 {
 		cfg.Backoff = 2 * time.Second

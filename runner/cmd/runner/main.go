@@ -9,6 +9,9 @@
 //	LEETFORCE_QUEUE_PREFIX      key prefix (default "leetforce"; tests use a throwaway one)
 //	LEETFORCE_RUNNER_ID         consumer name (default "<hostname>-<pid>")
 //	LEETFORCE_JOB_MIN_IDLE      idle time before a job is reclaimed (default 30s)
+//	LEETFORCE_JOB_RECLAIM_EVERY how often an idle runner polls Redis and looks for abandoned jobs (default
+//	                        2 x MIN_IDLE; each poll is 2 Redis commands, so mind the hosted plan's budget;
+//	                        a crashed runner's job is picked up within MIN_IDLE + RECLAIM_EVERY)
 //	LEETFORCE_JOB_MAX_ATTEMPTS  deliveries before IE / dead letter (default 3)
 //
 //	LEETFORCE_METRICS_ADDR      Prometheus /metrics listen address (default "127.0.0.1:9101"; "off" disables it)
@@ -63,6 +66,10 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	reclaimEvery, err := envDuration("LEETFORCE_JOB_RECLAIM_EVERY", 2*minIdle)
+	if err != nil {
+		return err
+	}
 	attempts, err := envInt("LEETFORCE_JOB_MAX_ATTEMPTS", 3)
 	if err != nil {
 		return err
@@ -77,7 +84,7 @@ func run() error {
 		problemsDir = "problems"
 	}
 
-	q, err := queue.Open(url, queue.Config{Prefix: os.Getenv("LEETFORCE_QUEUE_PREFIX"), MinIdle: minIdle, MaxDeliveries: int64(attempts)})
+	q, err := queue.Open(url, queue.Config{Prefix: os.Getenv("LEETFORCE_QUEUE_PREFIX"), MinIdle: minIdle, ReclaimEvery: reclaimEvery, MaxDeliveries: int64(attempts)})
 	if err != nil {
 		return err
 	}

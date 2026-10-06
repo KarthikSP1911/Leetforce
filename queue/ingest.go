@@ -47,21 +47,27 @@ func (q *Queue) SetupAPI(ctx context.Context) error {
 
 // nextEntry returns the next entry of stream for the API group: first one
 // another consumer left unacknowledged for MinIdle (a crashed API instance),
-// then a new one, waiting up to block. It returns nil when there is none.
+// then a new one, waiting up to block (at most ReclaimEvery). The first look
+// happens at most once per ReclaimEvery. It returns nil when there is none.
 func (q *Queue) nextEntry(ctx context.Context, stream, consumer string, block time.Duration) (*redis.XMessage, error) {
-	msgs, _, err := q.rdb.XAutoClaim(ctx, &redis.XAutoClaimArgs{
-		Stream: stream, Group: APIGroup, Consumer: consumer,
-		MinIdle: q.cfg.MinIdle, Start: "0-0", Count: 1,
-	}).Result()
-	if err != nil {
-		return nil, fmt.Errorf("autoclaim %s: %w", stream, err)
+	if q.reclaimDue(stream, consumer) {
+		msgs, _, err := q.rdb.XAutoClaim(ctx, &redis.XAutoClaimArgs{
+			Stream: stream, Group: APIGroup, Consumer: consumer,
+			MinIdle: q.cfg.MinIdle, Start: "0-0", Count: 1,
+		}).Result()
+		if err != nil {
+			return nil, fmt.Errorf("autoclaim %s: %w", stream, err)
+		}
+		if len(msgs) > 0 {
+			return &msgs[0], nil
+		}
 	}
-	if len(msgs) > 0 {
-		return &msgs[0], nil
-	}
-	res, err := q.rdb.XReadGroup(ctx, &redis.XReadGroupArgs{
-		Group: APIGroup, Consumer: consumer, Streams: []string{stream, ">"}, Count: 1, Block: block,
-	}).Result()
+	block = q.capBlock(block)
+	res, err := untilDone(ctx, func() ([]redis.XStream, error) {
+		return q.rdb.XReadGroup(ctx, &redis.XReadGroupArgs{
+			Group: APIGroup, Consumer: consumer, Streams: []string{stream, ">"}, Count: 1, Block: block,
+		}).Result()
+	})
 	if errors.Is(err, redis.Nil) {
 		return nil, nil
 	}

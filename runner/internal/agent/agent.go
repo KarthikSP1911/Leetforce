@@ -79,7 +79,7 @@ type Config struct {
 	ID             string          // unique consumer name
 	Problems       problems.Source // where tests come from; defaults to ProblemsDir
 	ProblemsDir    string          // directory holding problems/<slug>, used when Problems is nil
-	PollBlock      time.Duration   // how long Receive waits for a job (default 5s)
+	PollBlock      time.Duration   // how long Receive waits for a job (default 60s; the queue caps it at ReclaimEvery)
 	HeartbeatEvery time.Duration   // claim refresh interval; must be well under the queue's MinIdle (default 10s)
 	MaxAttempts    int64           // deliveries before an IE verdict is reported (default 3)
 	Logger         *slog.Logger
@@ -96,7 +96,7 @@ type Agent struct {
 // New returns an Agent.
 func New(q JobQueue, j Judger, cfg Config) *Agent {
 	if cfg.PollBlock <= 0 {
-		cfg.PollBlock = 5 * time.Second
+		cfg.PollBlock = time.Minute
 	}
 	if cfg.HeartbeatEvery <= 0 {
 		cfg.HeartbeatEvery = 10 * time.Second
