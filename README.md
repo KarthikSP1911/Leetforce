@@ -343,7 +343,7 @@ Infrastructure is Terraform (`infra/bootstrap`, `infra/neon`, `infra/aws`), the 
 
 - The API is stateless apart from Redis, so more API replicas can run behind the same Redis and Postgres.
 - Judging capacity is the number of runners. Adding a runner adds a consumer to the same group with no coordination.
-- The bottlenecks to watch are Redis commands (the Upstash plan limit is unchecked), Neon connections and compute, and runner CPU and memory.
+- The bottlenecks to watch are Redis commands (the Upstash plan limit is unchecked; idle polling is tuned in [ADR 0028](docs/adr/0028-redis-command-budget.md)), Neon connections and compute, and runner CPU and memory.
 - `tools/loadtest` drives sign-up, problem list, Run, Submit and SSE (and a contest mode) with a configurable number of users, so these limits can be measured rather than guessed. See [ADR 0024](docs/adr/0024-load-test-tool.md). No throughput figures are claimed here until a run on the real stack is recorded.
 
 ### Key decisions
@@ -506,7 +506,7 @@ Recurring costs that are billed while the resource exists or runs. Dollar figure
 | Public IPv4 address per new host | Phase 12 | Per hour each while attached | about $3.7 a month each | Code only. Needed because there is no NAT gateway; the control host and every runner has one. |
 | Runner AMI snapshot (Packer) | Phase 12 | Per GB-month of snapshot while the AMI is registered | up to about $0.75 a month for a full 15 GiB at an assumed $0.05 per GB-month | No AMI exists (three build attempts failed: build tooling, a scan timeout, base-image findings; a fourth was not run). A build also bills a `t3.small` builder for about 15 to 18 minutes (a few cents; the failed attempts billed about the same). Deregister old AMIs and delete their snapshots. |
 | Neon Postgres project (`ap-southeast-1`) | Phase 4, adopted by Terraform in Phase 12 | Depends on the Neon plan | UNVERIFIED: plan and limits never checked. `infra/neon` assumes the free plan (6 h restore window, the free maximum) | Exists. Compute wakes on use; the reaper sweeps every 15 minutes and each sweep wakes it. |
-| Upstash Redis | Phase 3 | Depends on the Upstash plan (monthly command budget) | UNVERIFIED: plan and limit never checked. The queue-depth sampler alone is about 216k commands a month at the 60 s default (ADR 0019) | Exists. 10 s sampling would be about 1.3M a month. |
+| Upstash Redis | Phase 3 | Depends on the Upstash plan (monthly command budget) | UNVERIFIED: plan and limit never checked. Idle polling by one API and one runner is about 9k commands a day, about 0.27M a month ([ADR 0028](docs/adr/0028-redis-command-budget.md); it was about 2.7M a month before, which exhausted the free tier) | Exists. Each extra runner adds about 2.8k a day idle; the queue-depth sampler runs every 5 minutes (`LEETFORCE_METRICS_QUEUE_EVERY`). |
 | S3 bucket `leetforce-<account id>-data` (versioned, SSE-S3) | Phase 13 | Per GB-month plus requests | well under $1 a month: a few MB at about $0.025 per GB-month, plus requests | Exists (applied in Phase 13, owner approved). Holds `problems/` bundles (kept for rejudges) and `tfstate/` (old versions expire after 90 days, ADR 0021). |
 | Container images in GHCR (private) | Phase 13 | Free within GitHub's package allowance | UNVERIFIED allowance | Nothing pushed yet. The API image holds the hidden tests, so it must stay private. |
 

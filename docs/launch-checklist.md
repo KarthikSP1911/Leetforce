@@ -20,7 +20,7 @@ Status key: OPEN = needs doing, ASK = needs an owner decision (billable or irrev
 | # | Item | Status |
 |---|---|---|
 | B1 | Pages from Phases 7, 9 and the Phase 11 Grafana dashboard have not been seen in a browser by the owner | OPEN |
-| B2 | Upstash plan limit vs about 216k Redis commands a month from queue sampling (Phase 11 decision B) | OPEN |
+| B2 | Upstash plan limit vs Redis commands: the free tier ran out under idle polling (about 2.7M a month); ADR 0028 cut it to about 0.27M a month for one API and one runner. Check the plan limit and the Upstash usage page after a day | OPEN |
 | B3 | Neon plan limits and PITR window unchecked (also needed for the backup runbook RPO) | OPEN |
 | B4 | AMI Go 1.22 (Ubuntu `golang-go`) vs the newer Go on the dev host | OPEN |
 | B5 | Ansible playbook has never run on a real host | OPEN |
