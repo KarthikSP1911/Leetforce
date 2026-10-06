@@ -70,7 +70,7 @@ func newQueue(t *testing.T, minIdle time.Duration) *queue.Queue {
 	}
 	q, err := queue.Open(url, queue.Config{
 		Prefix:  fmt.Sprintf("lftest-agent-%s-%d", t.Name(), time.Now().UnixNano()),
-		MinIdle: minIdle, MaxDeliveries: 3,
+		MinIdle: minIdle, ReclaimEvery: time.Millisecond, MaxDeliveries: 3,
 	})
 	if err != nil {
 		t.Fatal(err)

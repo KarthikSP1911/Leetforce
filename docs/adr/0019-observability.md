@@ -29,7 +29,7 @@ Constraints found at the start of the session:
 - **Promtail:** end of life; Alloy replaces it.
 
 ## Consequences
-- Queue gauges cost 5 Redis commands per sample: about 216k commands a month at the default 60 seconds, 1.3M at 10 seconds. The e2e test and the demo set 1 to 5 seconds on a throwaway prefix for a few minutes only. Record this against the Upstash plan (unchecked since Phase 4).
+- Queue gauges cost 5 Redis commands per sample: about 216k commands a month at 60 seconds, 1.3M at 10 seconds (the default is now 5 minutes, about 43k a month, ADR 0028). The e2e test and the demo set 1 to 5 seconds on a throwaway prefix for a few minutes only. Record this against the Upstash plan (unchecked since Phase 4).
 - Dashboards need three things running together: the SSH tunnel, `scripts/obs-logs.sh` and the compose stack. Nothing alerts you if you forget the tunnel except `APIDown` and `RunnerDown`, which look the same as a real outage.
 - A second runner on one host cannot bind port 9101; it logs the error and keeps judging, so metrics exist for one runner per host until a per-runner port is configured (Phase 13).
 - Provisioning the metrics ports and log directory with Ansible, and running the stack in the cloud, are deferred to Phase 12 and 13.

@@ -134,7 +134,8 @@ What happens to a job today. There is no API yet, so `lfq` plays the API's part 
       <prefix>:jobs  <prefix>:results  <prefix>:jobs:dead  <prefix>:verdict:<submission id>
         |
         v   runner (sudo bin/runner)   runner/cmd/runner/main.go: env config, must be root, SIGINT/SIGTERM stop the loop
- 1. Receive(consumer, 5 s)  first XAUTOCLAIM jobs idle > MinIdle (a dead runner's job), else XREADGROUP ">"
+ 1. Receive(consumer, 60 s) XAUTOCLAIM jobs idle > MinIdle (a dead runner's job), at most once per ReclaimEvery (default 2 x MinIdle);
+      else XREADGROUP ">" BLOCK up to ReclaimEvery (ADR 0028; was 5 s, 2 commands per 5 s idle, now 2 per ~60 s)
       delivered more than MaxDeliveries times, or undecodable -> <prefix>:jobs:dead, never judged      queue.Receive
  2. Published(id)?          a verdict already exists -> Ack and stop (no second judging)                agent.Process
  3. heartbeat goroutine     Touch every HeartbeatEvery (default 10 s, well under MinIdle, default 30 s) (Lua: only the current owner may reset the idle time)
@@ -163,7 +164,7 @@ The API now plays the part `lfq` played in Phase 3, and verdicts end up in Postg
         v   runner (Phase 3, unchanged): receive, judge in the sandbox, Publish -> XADD <prefix>:results, Ack
         |
         v   API ingest loop (api/internal/ingest, started by api/cmd/api/main.go; consumer group "api")
- 5. ReceiveResult   XAUTOCLAIM entries idle > MinIdle (a crashed API instance's), else XREADGROUP BLOCK 5 s     queue/ingest.go
+ 5. ReceiveResult   XAUTOCLAIM entries idle > MinIdle (a crashed API instance's), else XREADGROUP BLOCK 60 s (capped at ReclaimEvery; XAUTOCLAIM at most once per ReclaimEvery)     queue/ingest.go
  6. RecordVerdict   one statement: INSERT INTO verdicts ... ON CONFLICT (submission_id) DO NOTHING, and
                     UPDATE submissions SET status = 'judged' only for the row just inserted      store/verdicts.go
                     duplicate or unknown submission -> no change (acknowledged); transient DB error -> not acknowledged, redelivered;
@@ -341,7 +342,7 @@ Decision record: [ADR 0019](adr/0019-observability.md). Log: [phase-11-log.md](p
  Metrics (pull)
  1. API         every request is counted by route template (api/internal/server/server.go); submissions, runs, verdicts stored, ingest
                 outcomes, 429s by scope, SSE streams, rejudges and reaper re-queues are counted where they happen (api/internal/metrics)
- 2. queue       a sampler (metrics.SampleQueue, every LEETFORCE_METRICS_QUEUE_EVERY, default 60s) calls queue.Stats (queue/stats.go):
+ 2. queue       a sampler (metrics.SampleQueue, every LEETFORCE_METRICS_QUEUE_EVERY, default 5m since ADR 0028) calls queue.Stats (queue/stats.go):
                 waiting = XLEN - pending, pending, oldest unfinished job age (Redis TIME), dead letters -> leetforce_queue_* gauges
  3. runner      jobs by kind and verdict, judge time by language, in flight, reclaimed, lost, host failures, last queue poll
                 (runner/internal/agent, runner/internal/metrics)

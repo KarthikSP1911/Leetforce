@@ -43,8 +43,8 @@ type Invalidator interface {
 // Config tunes the loop. Zero values take the defaults noted per field.
 type Config struct {
 	Consumer  string        // consumer name in the API group (required)
-	Block     time.Duration // how long to wait for a verdict per poll (default 5s)
-	DeadEvery time.Duration // how often to look at the dead-letter stream (default 30s)
+	Block     time.Duration // how long to wait for a verdict per poll (default 60s; the queue caps it at ReclaimEvery)
+	DeadEvery time.Duration // how often to look at the dead-letter stream (default 5m)
 	Backoff   time.Duration // pause after a failed poll (default 2s)
 }
 
@@ -71,10 +71,10 @@ func (g *Ingester) SetRuns(r RunSetter) { g.runs = r }
 // New builds an Ingester.
 func New(src Source, rec Recorder, log *slog.Logger, cfg Config) *Ingester {
 	if cfg.Block == 0 {
-		cfg.Block = 5 * time.Second
+		cfg.Block = time.Minute
 	}
 	if cfg.DeadEvery == 0 {
-		cfg.DeadEvery = 30 * time.Second
+		cfg.DeadEvery = 5 * time.Minute
 	}
 	if cfg.Backoff == 0 {
 		cfg.Backoff = 2 * time.Second

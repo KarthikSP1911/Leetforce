@@ -24,7 +24,7 @@ Phase 5's exit criterion is to watch Queued, then Judging, then a verdict over S
 ## Consequences
 - Verified: `make test-live-e2e` (44 s): queued, judging and AC 5/5 in order over a real `curl -N` stream; an orphaned row is re-queued after an API restart and judged AC; mutation checks: removing the `status = 'queued'` guard fails `TestMarkJudging`, removing `enqueued_at IS NULL` fails the reaper tests, exposing the test-set version in the JSON fails the end-to-end test.
 - Redaction for Submit: the stream and all responses carry only state and the verdict view. The end-to-end test submits programs that echo the hidden input and a marker to stdout, stderr and the compiler output and finds none of it, nor the source or version, in any response; its detector has a self-test. Run (custom or sample input) is Phase 8; it will be the only path that shows failing-case details.
-- Upstash: the status loop adds one command per 5 s while idle (about 17,000 a day) on top of the Phase 4 loops; not measured against the bill.
+- (Superseded by ADR 0028: the status block is now 60 s.) Upstash: the status loop adds one command per 5 s while idle (about 17,000 a day) on top of the Phase 4 loops; not measured against the bill.
 - Neon: the reaper wakes the database about every 15 minutes; the owner's Neon plan and limits are still unchecked.
 - Per-user stream limits come with authentication (Phase 9); today the cap is per instance.
 - A `judged` submission with no verdict row cannot occur (one statement writes both); if it did, the stream would keep polling until its time limit.

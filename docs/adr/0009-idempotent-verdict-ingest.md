@@ -21,7 +21,7 @@ A runner reports a verdict to the Redis `results` stream (ADR 0008) and never to
 
 ## Consequences
 - Verified: `make test-api-e2e` (API, Upstash, runner with nsjail, Neon; about 51 s) shows AC stored with 5 of 5 tests, a conflicting WA injected into the stream leaving the stored submission byte-identical, and a dead-lettered job becoming `IE`. Mutation check: changing `DO NOTHING` to `DO UPDATE` made `TestRecordVerdictIsIdempotent` fail ("duplicate AC record = true, want false") and the end-to-end test fail (verdict flipped AC to WA).
-- Polling cost on Upstash: the results poll is `XAUTOCLAIM` + `XREADGROUP BLOCK 5s` per 5 s (roughly 35,000 commands a day while idle) plus about 2 commands per 30 s for dead letters. Unmeasured against the bill; `Config.Block` and `Config.DeadEvery` are the knobs.
+- (Superseded by ADR 0028: the block is now 60 s and the dead-letter check every 5 minutes.) Polling cost on Upstash: the results poll is `XAUTOCLAIM` + `XREADGROUP BLOCK 5s` per 5 s (roughly 35,000 commands a day while idle) plus about 2 commands per 30 s for dead letters. Unmeasured against the bill; `Config.Block` and `Config.DeadEvery` are the knobs.
 - The `results` stream grows without bound because entries are kept; a trim policy (for example `XTRIM MINID` after a retention period) is deferred, to be decided with observability (Phase 11).
 - A crash between inserting the submission and enqueueing the job leaves a `queued` row with no job; a reaper for stale queued rows is deferred to Phase 5 with live status.
 - Without authentication (Phase 9) anyone who can reach the API can read any submission by id; ids are random UUIDs and responses carry no source, test data or stderr.

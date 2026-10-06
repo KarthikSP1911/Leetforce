@@ -31,4 +31,4 @@ Jobs must reach a fleet of runners, and a runner can die at any moment (crash, `
 - Delivery is at-least-once, the verdict is exactly-once. A job that crashes the runner every time ends in the dead-letter stream **without a verdict**; the API must watch that stream and mark such submissions `IE` (Phase 4).
 - A killed runner leaves its job directory (`/var/tmp/leetforce-job-*`) behind; nothing sweeps it yet (known issue in the phase report).
 - Running as root widens the blast radius of a runner bug. It is accepted for the dev host and revisited in Phase 6; the runner must not run on a shared machine before then.
-- Upstash bills per command. An idle runner polls with a blocking read (`Block` 5 s) plus an autoclaim per loop, a few commands per 5 s; this should be measured before the fleet grows (Phase 13).
+- (Update, ADR 0028: the block is now 60 s and reclaim runs at most every `ReclaimEvery`.) Upstash bills per command. An idle runner polls with a blocking read (`Block` 5 s) plus an autoclaim per loop, a few commands per 5 s; this should be measured before the fleet grows (Phase 13).

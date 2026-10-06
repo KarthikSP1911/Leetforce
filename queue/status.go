@@ -68,9 +68,11 @@ func (q *Queue) StatusTail(ctx context.Context) (string, error) {
 // whole stream and applies the same idempotent update. Entries that cannot be
 // decoded are skipped.
 func (q *Queue) ReadStatus(ctx context.Context, after string, block time.Duration) ([]StatusEvent, string, error) {
-	res, err := q.rdb.XRead(ctx, &redis.XReadArgs{
-		Streams: []string{q.status(), after}, Count: 100, Block: block,
-	}).Result()
+	res, err := untilDone(ctx, func() ([]redis.XStream, error) {
+		return q.rdb.XRead(ctx, &redis.XReadArgs{
+			Streams: []string{q.status(), after}, Count: 100, Block: block,
+		}).Result()
+	})
 	if errors.Is(err, redis.Nil) {
 		return nil, after, nil
 	}

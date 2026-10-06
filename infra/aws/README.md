@@ -29,5 +29,6 @@ SSM parameters under `/leetforce/runner/` (SecureString; the name is the environ
 | `LEETFORCE_S3_USE_TLS` | yes | `true` |
 | `LEETFORCE_QUEUE_PREFIX` | no | default `leetforce` |
 | `LEETFORCE_JOB_MIN_IDLE`, `LEETFORCE_JOB_MAX_ATTEMPTS` | no | reclaim idle time, delivery limit |
+| `LEETFORCE_JOB_RECLAIM_EVERY` | no | how often an idle runner polls Redis (default 2 x MIN_IDLE; 2 commands per poll, ADR 0028) |
 
 No access keys: S3 uses the instance role. Runners never receive `DATABASE_URL`.

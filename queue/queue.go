@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -30,6 +31,7 @@ var ErrLost = errors.New("queue: job no longer owned by this consumer")
 type Config struct {
 	Prefix        string        // key prefix (default "leetforce"); tests use a unique one
 	MinIdle       time.Duration // a pending job idle this long is reclaimable (default 30s)
+	ReclaimEvery  time.Duration // how often a consumer looks for abandoned jobs, and the longest it waits for new ones (default 2 x MinIdle)
 	MaxDeliveries int64         // deliveries before a job is dead-lettered (default 3)
 	VerdictTTL    time.Duration // how long a verdict marker blocks duplicates (default 7 days)
 }
@@ -86,8 +88,9 @@ type Delivery struct {
 
 // Queue is a handle on the job and result streams.
 type Queue struct {
-	rdb redis.UniversalClient
-	cfg Config
+	rdb         redis.UniversalClient
+	cfg         Config
+	lastReclaim sync.Map // stream|consumer -> *atomic.Int64, unix nanos of the last reclaim check
 }
 
 // Open connects using a redis:// or rediss:// URL.
@@ -106,6 +109,9 @@ func New(rdb redis.UniversalClient, cfg Config) *Queue {
 	}
 	if cfg.MinIdle <= 0 {
 		cfg.MinIdle = 30 * time.Second
+	}
+	if cfg.ReclaimEvery <= 0 {
+		cfg.ReclaimEvery = 2 * cfg.MinIdle
 	}
 	if cfg.MaxDeliveries <= 0 {
 		cfg.MaxDeliveries = 3
@@ -174,12 +180,13 @@ func (j Job) TraceContext(ctx context.Context) context.Context {
 }
 
 // Receive returns the next job for consumer, or nil if none arrived within
-// block. It first reclaims a job abandoned by another consumer, then reads a
-// new one. A job delivered more than MaxDeliveries times is moved to the
-// dead-letter stream instead of being returned, so a job that keeps killing
-// runners cannot loop forever.
+// block (at most ReclaimEvery). It first reclaims a job abandoned by another
+// consumer, unless it already looked within ReclaimEvery, then reads a new one.
+// A job delivered more than MaxDeliveries times is moved to the dead-letter
+// stream instead of being returned, so a job that keeps killing runners cannot
+// loop forever. A cancelled ctx ends a wait at once.
 func (q *Queue) Receive(ctx context.Context, consumer string, block time.Duration) (*Delivery, error) {
-	for {
+	for reclaim := q.reclaimDue(q.jobs(), consumer); reclaim; {
 		msgs, _, err := q.rdb.XAutoClaim(ctx, &redis.XAutoClaimArgs{
 			Stream: q.jobs(), Group: Group, Consumer: consumer,
 			MinIdle: q.cfg.MinIdle, Start: "0-0", Count: 1,
@@ -198,11 +205,14 @@ func (q *Queue) Receive(ctx context.Context, consumer string, block time.Duratio
 			return d, nil
 		}
 	}
+	block = q.capBlock(block)
 	for {
-		res, err := q.rdb.XReadGroup(ctx, &redis.XReadGroupArgs{
-			Group: Group, Consumer: consumer, Streams: []string{q.jobs(), ">"},
-			Count: 1, Block: block,
-		}).Result()
+		res, err := untilDone(ctx, func() ([]redis.XStream, error) {
+			return q.rdb.XReadGroup(ctx, &redis.XReadGroupArgs{
+				Group: Group, Consumer: consumer, Streams: []string{q.jobs(), ">"},
+				Count: 1, Block: block,
+			}).Result()
+		})
 		if errors.Is(err, redis.Nil) {
 			return nil, nil
 		}
