@@ -317,3 +317,17 @@ Caveats: the `*.trycloudflare.com` URL changes on every restart and only works w
 | Claude | `tools/loadtest -users 3 -duration 1m` against the demo URL | 0 submissions: 15 sign-ups got 429 because the tunnel gives every visitor one IP (limit 20 per 10 min). Restarting the API with limits off and a second run were refused by the permission classifier, so dashboard panels are flat |
 
 Open: to fill the panels, submit solutions by hand on the demo site (inside the limits). Stop with `docker compose -f observability/docker-compose.yml down` and close the ssh tunnel.
+
+## Observability evidence: dashboard, logs, traces (2026-10-10)
+
+Owner chose "Claude runs the load tool". To avoid weakening the public demo, the public tunnel was closed while rate limits were off.
+
+| Who | Step | Result |
+|---|---|---|
+| Claude | `pkill cloudflared` on the host; restarted API and runner with `LEETFORCE_OTLP_ENDPOINT=http://127.0.0.1:4318` and all `LEETFORCE_LIMIT_*=-1` (temporary) | Public link closed during the run |
+| Claude | Hidden ssh tunnel `-L 9101 -L 9102 -L 18080:127.0.0.1:8080 -R 4318:127.0.0.1:4318` (local 8080 was taken by other processes on the PC); `tail -F` of the host `api.log` and `runner.log` into `observability/logs/` (git-ignored) for Alloy | Metrics scraped, traces reach Tempo, logs reach Loki |
+| Claude | `LEETFORCE_LOADTEST_BASE_URL=http://127.0.0.1:18080 go run ./tools/loadtest -users 6 -duration 3m -ramp 20s` | 616 submissions, 616 verdicts, 0 errors, 0 rate limited; time to verdict p50 505 ms, p95 1084 ms. The tool's default program is trivial, so every verdict is WA. |
+| Claude | Chrome screenshots (Grafana "Submission flow" dashboard, Loki Explore `{service="runner"}`, Tempo trace `api POST /submissions` > `queue.enqueue` > `runner.process` > `judge`) | Saved under `%TEMP%\claude-chrome-screenshots-*` |
+| Claude | Restarted API and runner without limit overrides and reopened the quick tunnel | Limits back to defaults; the demo URL changed (it changes at every tunnel start) |
+
+Left in the real Neon database: 6 load-test users and about 616 submissions plus Run rows; see "Cleanup of test users" under Load test above before deleting. `scripts/demo-up.sh` does not set `LEETFORCE_OTLP_ENDPOINT`; tracing needs it plus the `-R 4318` tunnel.
