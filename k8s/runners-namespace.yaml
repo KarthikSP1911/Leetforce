@@ -1,0 +1,19 @@
+# Namespace for the KEDA-scaled runner pods (Phase 17, ADR 0029). WRITTEN, NOT APPLIED.
+# Applied with kubectl by scripts/k3s/deploy-runners.sh, outside the chart, like namespace.yaml.
+#
+# Pod Security is `privileged` on purpose and ONLY here: a runner pod adds CAP_SYS_ADMIN (and
+# four more capabilities for its entrypoint) and uses a Localhost AppArmor profile, which
+# neither `baseline` nor `restricted` admits. The enforcement level matches the chart's
+# securityContext (k8s/charts/leetforce-runner); `warn` and `audit` at `baseline` make every
+# admission of such a pod visible in the API server's warnings and audit log. Nothing else
+# may run in this namespace: the pods are pinned to the tainted runner nodes by a node
+# selector, and the NetworkPolicy in the chart blocks the cluster and metadata ranges.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: leetforce-runners
+  labels:
+    app.kubernetes.io/part-of: leetforce
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/warn: baseline
+    pod-security.kubernetes.io/audit: baseline
