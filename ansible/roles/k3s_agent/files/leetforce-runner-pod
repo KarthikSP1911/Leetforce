@@ -1,0 +1,27 @@
+# AppArmor profile for LeetForce runner pods (Phase 17, ADR 0029). WRITTEN, NOT LOADED.
+# Referenced by the chart as appArmorProfile {type: Localhost, localhostProfile: leetforce-runner-pod}.
+# Single source: the Ansible role k3s_agent installs this file, and infra/aws/runner-k3s.tf
+# embeds the same file in the node user data.
+#
+# Why a profile at all: Ubuntu 24.04 sets kernel.apparmor_restrict_unprivileged_userns=1, which
+# strips the capabilities inside a user namespace created by a process whose profile lacks the
+# `userns` permission, so nsjail could not mount anything (ADR 0014). containerd's default
+# container profile has no such permission. This profile allows everything the default one
+# would deny that the runner needs (mounts for nsjail, the cgroup remount, userns) and does not
+# try to be the sandbox: the isolation of judged programs is nsjail's namespaces, cgroups and
+# seccomp filter, and the pod's capabilities are removed by the entrypoint after setup.
+abi <abi/4.0>,
+include <tunables/global>
+
+profile leetforce-runner-pod flags=(attach_disconnected,mediate_deleted) {
+  file,
+  capability,
+  network,
+  mount,
+  umount,
+  pivot_root,
+  ptrace,
+  signal,
+  unix,
+  userns,
+}

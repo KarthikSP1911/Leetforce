@@ -2,7 +2,7 @@
 #   - Packer runs this on the builder instance (ansible-local), so the AMI ships hardened.
 #   - On a live host: ansible-playbook -i inventory/hosts.ini site.yml
 # Roles: hardening (every host), runner_host (hosts in the "runners" group or the Packer build),
-# k3s_server (the "control" group: k3s and the AWS CLI).
+# k3s_server (the "control" group: k3s and the AWS CLI), k3s_agent (the "k3s_agents" group).
 - name: Harden every LeetForce host
   hosts: all
   become: true
@@ -20,3 +20,11 @@
   become: true
   roles:
     - k3s_server
+
+# Phase 17 (ADR 0029, written and never run): k3s agent nodes for the KEDA-scaled runner pods.
+# Needs k3s_agent_server_url (and, for joining, the instance role that reads the token from SSM).
+- name: Prepare k3s agent nodes for runner pods
+  hosts: k3s_agents
+  become: true
+  roles:
+    - k3s_agent
