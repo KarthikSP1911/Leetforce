@@ -53,3 +53,40 @@ variable "ssm_prefix" {
   type        = string
   default     = "/leetforce"
 }
+
+# ---- k3s agent nodes for KEDA-scaled runner pods (Phase 17, ADR 0029; runner-k3s.tf) ----
+
+variable "runner_node_count" {
+  description = "Number of k3s agent EC2 nodes that host the KEDA-scaled runner pods. FIXED: KEDA scales pods, not nodes, and pods beyond the capacity of these nodes stay Pending. 0 (the default) creates nothing from runner-k3s.tf. Independent of runner_count (the standalone runner hosts)."
+  type        = number
+  default     = 0
+
+  validation {
+    condition     = var.runner_node_count >= 0 && var.runner_node_count <= 10 && floor(var.runner_node_count) == var.runner_node_count
+    error_message = "runner_node_count must be a whole number from 0 to 10."
+  }
+}
+
+variable "runner_node_instance_type" {
+  description = "Instance type of the k3s agent nodes. A runner pod requests 768 Mi of memory, so a t3.small (2 GiB) fits one pod; raise it to fit more pods per node."
+  type        = string
+  default     = "t3.small"
+}
+
+variable "runner_node_ami_id" {
+  description = "AMI of the agent nodes. Empty uses stock Ubuntu 24.04 (the user data then installs k3s and the AppArmor profile at first boot); the Ansible hardening role is NOT applied to such nodes."
+  type        = string
+  default     = ""
+}
+
+variable "runner_node_k3s_version" {
+  description = "k3s version of the agents. Keep equal to k3s_server_version in ansible/roles/k3s_server/defaults/main.yml (scripts/check-nsjail-pin.sh compares them)."
+  type        = string
+  default     = "v1.37.1+k3s1"
+}
+
+variable "runner_node_volume_gib" {
+  description = "Root volume of an agent node. Holds the runner image (about 1.5 GiB), job directories and the problem cache."
+  type        = number
+  default     = 20
+}

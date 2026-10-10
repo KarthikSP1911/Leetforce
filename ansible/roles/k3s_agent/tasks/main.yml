@@ -1,0 +1,96 @@
+# k3s agent node for the KEDA-scaled runner pods (Phase 17, ADR 0029). WRITTEN, NEVER RUN.
+# The node joins the control host's k3s as an agent, with the runner label and taint so only
+# runner pods land on it. Hardening (SSH, sysctl, ufw, auditd) comes from the hardening role,
+# which site.yml applies to every host. The k3s installer is downloaded to a file first (not piped
+# into a shell), is pinned to k3s_agent_version and verifies the release checksum itself.
+- name: Install AppArmor tools
+  ansible.builtin.apt:
+    name: apparmor
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Runner pod AppArmor profile (allows userns for nsjail inside pods)
+  ansible.builtin.copy:
+    src: leetforce-runner-pod
+    dest: /etc/apparmor.d/leetforce-runner-pod
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Load the runner pod AppArmor profile
+
+- name: Apply the profile now, before any pod starts
+  ansible.builtin.meta: flush_handlers
+
+- name: Download the k3s installer
+  ansible.builtin.get_url:
+    url: https://get.k3s.io
+    dest: /usr/local/sbin/k3s-install.sh
+    mode: "0700"
+
+- name: Install the AWS CLI (reads the join token from SSM)
+  ansible.builtin.command:
+    cmd: snap install aws-cli --classic
+    creates: /snap/bin/aws
+  when: k3s_agent_join | bool
+
+- name: Refuse to join without a server URL
+  ansible.builtin.assert:
+    that: k3s_agent_server_url | length > 0
+    fail_msg: "set k3s_agent_server_url to https://<control private address>:6443"
+  when: k3s_agent_join | bool
+
+- name: Directory for the k3s agent configuration
+  ansible.builtin.file:
+    path: /etc/rancher/k3s
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Read the join token from SSM
+  ansible.builtin.command:
+    cmd: >-
+      /snap/bin/aws ssm get-parameter --region {{ k3s_agent_region }}
+      --name {{ k3s_agent_token_ssm_param }} --with-decryption
+      --query Parameter.Value --output text
+  register: k3s_agent_token
+  changed_when: false
+  no_log: true
+  when: k3s_agent_join | bool
+
+- name: Write the token file (mode 0600, never in the command line or the log)
+  ansible.builtin.copy:
+    content: "{{ k3s_agent_token.stdout }}\n"
+    dest: /etc/rancher/k3s/agent-token
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  when: k3s_agent_join | bool
+
+- name: k3s agent configuration (server, token file, label and taint)
+  ansible.builtin.copy:
+    dest: /etc/rancher/k3s/config.yaml
+    owner: root
+    group: root
+    mode: "0600"
+    content: |
+      server: "{{ k3s_agent_server_url }}"
+      token-file: /etc/rancher/k3s/agent-token
+      node-label:
+        - "{{ k3s_agent_node_label }}"
+      node-taint:
+        - "{{ k3s_agent_node_taint }}"
+  when: k3s_agent_join | bool
+
+- name: Install k3s as an agent at the pinned version
+  ansible.builtin.command:
+    cmd: /usr/local/sbin/k3s-install.sh
+  environment:
+    INSTALL_K3S_VERSION: "{{ k3s_agent_version }}"
+    INSTALL_K3S_EXEC: agent
+    INSTALL_K3S_SKIP_START: "{{ 'false' if (k3s_agent_join | bool) else 'true' }}"
+    INSTALL_K3S_SKIP_ENABLE: "{{ 'false' if (k3s_agent_join | bool) else 'true' }}"
+  args:
+    creates: /usr/local/bin/k3s

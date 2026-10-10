@@ -1,0 +1,58 @@
+# Scrape config for the KEDA-scaled runner pods (Phase 17, ADR 0029). WRITTEN, NEVER LOADED.
+# NOT wired into prometheus.yml: the compose Prometheus starts fine without it, and a file that
+# points at credentials that do not exist yet would stop it from loading its configuration.
+#
+# Why it looks like this: the pods live on the k3s agent nodes, in a pod network (10.42.0.0/16)
+# that the owner's PC cannot reach. Prometheus therefore asks the k3s API server (port 6443,
+# already open to owner_cidr) to proxy to each pod: discovery lists the pods through the API, and
+# every scrape goes to
+#   https://<control host>:6443/api/v1/namespaces/<ns>/pods/<pod>:9101/proxy/metrics
+# The API server then connects to the pod from the control host, which the pod NetworkPolicy
+# allows (networkPolicy.metricsFrom in the chart). Pods come and go with KEDA, so static
+# targets are not an option.
+#
+# To enable (owner steps, none done):
+#   1. kubectl apply -f observability/prometheus/k3s-runner-pods-rbac.yaml
+#   2. create a token:  kubectl -n leetforce-runners create token prometheus-scraper --duration=720h
+#      and save it as observability/prometheus/k3s/token (git-ignored directory), the cluster
+#      CA as observability/prometheus/k3s/ca.crt, and mount that directory at /etc/prometheus/k3s
+#   3. replace CONTROL_HOST below by the control host address (a name or private address, not committed)
+#   4. add under `global:` in prometheus.yml:
+#        scrape_config_files: [/etc/prometheus/k3s-runner-pods.yml]
+#      and mount this file at that path.
+# The API server certificate must list CONTROL_HOST; k3s includes the host's own addresses by
+# default, and `tls_config.server_name` can name one it does list.
+scrape_configs:
+  - job_name: runner-pods
+    scheme: https
+    authorization:
+      credentials_file: /etc/prometheus/k3s/token
+    tls_config:
+      ca_file: /etc/prometheus/k3s/ca.crt
+    kubernetes_sd_configs:
+      - role: pod
+        api_server: https://CONTROL_HOST:6443
+        authorization:
+          credentials_file: /etc/prometheus/k3s/token
+        tls_config:
+          ca_file: /etc/prometheus/k3s/ca.crt
+        namespaces:
+          names: [leetforce-runners]
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+        regex: runner
+        action: keep
+      # Only pods that can answer; a Pending pod has no address and would be a failed target.
+      - source_labels: [__meta_kubernetes_pod_phase]
+        regex: Running
+        action: keep
+      - target_label: __address__
+        replacement: CONTROL_HOST:6443
+      - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_pod_name]
+        regex: (.+);(.+)
+        target_label: __metrics_path__
+        replacement: /api/v1/namespaces/$1/pods/$2:9101/proxy/metrics
+      - source_labels: [__meta_kubernetes_pod_name]
+        target_label: pod
+      - source_labels: [__meta_kubernetes_pod_node_name]
+        target_label: node

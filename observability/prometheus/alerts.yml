@@ -78,3 +78,21 @@ groups:
         annotations:
           summary: "Submissions ended with IE (internal error), the platform's fault"
           description: 'IE verdicts in the last 15 minutes: {{ $value | printf "%.0f" }}.'
+  # Phase 17 (ADR 0029), WRITTEN AND NEVER LOADED. Needs the runner-pods scrape job
+  # (observability/prometheus/k3s-runner-pods.yml); without it `up{job="runner-pods"}` is empty and
+  # the alert cannot fire. Not covered by observability/tests/alerts_test.yml yet.
+  - name: leetforce-runner-pods
+    rules:
+      # Keep this number equal to keda.maxReplicaCount in k8s/charts/leetforce-runner/values.yaml.
+      # Prometheus cannot read it from the cluster without kube-state-metrics, which is not installed.
+      - record: leetforce:runner_pods_max_replicas
+        expr: vector(4)
+      - alert: RunnerPodsAtMaxQueueDeep
+        expr: |
+          (count(up{job="runner-pods"} == 1) >= on() leetforce:runner_pods_max_replicas)
+            and on() (leetforce_queue_waiting > 20)
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "Runner pods are at the configured maximum and more than 20 jobs are still waiting"
+          description: "KEDA cannot add pods (keda.maxReplicaCount). Raise it, and runner_node_count if the pods no longer fit on the nodes. Pods that stay Pending because the fixed nodes are full are not counted here: check `kubectl -n leetforce-runners get pods`."

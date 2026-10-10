@@ -47,3 +47,19 @@ Status key: OPEN = needs doing, ASK = needs an owner decision (billable or irrev
 5. Read the Neon restore window and plan limits in the console and fill them into the runbook.
 6. Rotate the Neon password that was pasted into chat in Phase 13.
 7. Delete the stale test stack on the dev host that predates this session (an API on port 18085 and a runner, up for hours); it answered a load test on the wrong build and is not mine to stop.
+
+## E. Phase 17 extension: KEDA-scaled runner pods (optional, WRITTEN AND NEVER RUN)
+
+Not part of PLAN.md and not needed for the standalone-runner launch path. Everything is code and documents; nothing was built, applied or run ([ADR 0029](adr/0029-keda-scaled-runner-pods.md), [phase-17-log.md](phases/phase-17-log.md)). Status key as above; the full proof list is "Must be verified before real use" in the log.
+
+| # | Item | Status | Cost / risk | Needs from owner |
+|---|---|---|---|---|
+| E1 | Decide whether to adopt the pod path at all. The runner-up is the existing EC2 ASG with a Terraform scaling policy on queue depth (kept ADR 0014 model, no cluster path from runner hosts) | ASK | Design | Accept or reject ADR 0029 (it is PROPOSED) |
+| E2 | Accept the privilege trade-off in ADR 0029: root entrypoint with five capabilities, a permissive AppArmor profile, nodes inside the cluster network; or the privileged fallback if the least-privilege path fails | ASK | Security | Explicit decision |
+| E3 | Build the image (`make build-runner-image`), then show the FULL `make test-adversarial` suite passes inside a pod on a node | ASK | Billable if on a cloud node | Confirm |
+| E4 | `terraform validate` and `plan` for `infra/aws` with `runner_node_count` set; `ansible-lint` for the `k3s_agent` role; `make lint-runner-chart` | ASK | Free (plan needs credentials) | Credentials in the shell |
+| E5 | `terraform apply` with `runner_node_count >= 1` | ASK | Billable, recurring: about 15 + 2 + 4 USD a month per node (UNVERIFIED) | Explicit "apply" in chat |
+| E6 | Install KEDA and roll the chart (`scripts/k3s/deploy-runners.sh <sha>` on the control host) after `push-agent-token.sh` and `push-ssm.sh` | ASK | Writes to AWS SSM and the cluster | Confirm |
+| E7 | Watch the Upstash usage page for a day with pods up (the budget in ADR 0029 is computed, not measured); decide `pollingInterval` and `maxReplicaCount` | OPEN | Redis plan limit (B2) | Read the plan limit |
+| E8 | Add a default-deny NetworkPolicy for the `leetforce` namespace so a compromised runner node cannot reach the API pod (not written) | OPEN | Security | Decide |
+| E9 | Merging to `main` builds and pushes the runner image (CI job `runner-image`); the branch was only pushed | OPEN | GHCR storage; a Trivy finding can fail the job | Decide when to merge |

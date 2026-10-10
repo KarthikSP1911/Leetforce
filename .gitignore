@@ -61,3 +61,6 @@ infra/backend.hcl
 
 wiki/
 .claude/
+
+# Phase 17: scraped-pod credentials for observability/prometheus/k3s-runner-pods.yml
+observability/prometheus/k3s/

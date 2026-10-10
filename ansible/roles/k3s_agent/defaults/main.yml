@@ -1,0 +1,17 @@
+# Same k3s as the control host. Keep equal to k3s_server_version in ../k3s_server/defaults/main.yml
+# and to runner_node_k3s_version in infra/aws/variables.tf (scripts/check-nsjail-pin.sh compares all three).
+k3s_agent_version: "v1.37.1+k3s1"
+
+# false: only install the AppArmor profile and the k3s binary (for an image build); the node does not join.
+k3s_agent_join: true
+
+# https://<control host private address>:6443 (terraform output control_private_ip). Required when joining.
+k3s_agent_server_url: ""
+
+# The join token is read from SSM with the host's instance role, never passed in the inventory.
+k3s_agent_token_ssm_param: /leetforce/runner/K3S_AGENT_TOKEN
+k3s_agent_region: ap-south-1
+
+# Isolated runner pool: the chart selects this label and tolerates this taint.
+k3s_agent_node_label: "leetforce.dev/pool=runner"
+k3s_agent_node_taint: "leetforce.dev/runner=true:NoSchedule"

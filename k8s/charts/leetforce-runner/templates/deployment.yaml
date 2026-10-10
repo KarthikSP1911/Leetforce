@@ -1,0 +1,101 @@
+# Runner pods (Phase 17, ADR 0029). WRITTEN, NOT RENDERED OR APPLIED.
+# When KEDA is enabled the HorizontalPodAutoscaler it creates owns the replica count, so the
+# Deployment must not set `replicas` (a fixed value would be reset on every helm upgrade).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: runner
+  labels:
+    {{- include "leetforce-runner.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.keda.enabled }}
+  replicas: 1
+  {{- end }}
+  strategy:
+    {{- toYaml .Values.strategy | nindent 4 }}
+  selector:
+    matchLabels:
+      {{- include "leetforce-runner.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "leetforce-runner.labels" . | nindent 8 }}
+      annotations:
+        {{- toYaml .Values.metrics.annotations | nindent 8 }}
+    spec:
+      # The runner never talks to the Kubernetes API, so it gets no token.
+      automountServiceAccountToken: false
+      # SIGTERM -> the runner finishes its in-flight job -> exits. See values.yaml for the number.
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      imagePullSecrets:
+        - name: {{ .Values.pullSecretName }}
+      nodeSelector:
+        {{- toYaml .Values.nodePool.nodeSelector | nindent 8 }}
+      tolerations:
+        {{- toYaml .Values.nodePool.tolerations | nindent 8 }}
+      securityContext:
+        seccompProfile:
+          type: {{ .Values.sandbox.seccompProfile }}
+        {{- if .Values.sandbox.apparmorProfile }}
+        appArmorProfile:
+          type: Localhost
+          localhostProfile: {{ .Values.sandbox.apparmorProfile }}
+        {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: {{ .Values.scratch.sizeLimit }}
+        - name: vartmp
+          emptyDir:
+            sizeLimit: {{ .Values.scratch.sizeLimit }}
+      containers:
+        - name: runner
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.ports.metrics }}
+          env:
+            # One consumer per pod, named after the pod (unique, readable in XINFO CONSUMERS).
+            - name: LEETFORCE_RUNNER_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: LEETFORCE_METRICS_ADDR
+              value: "0.0.0.0:{{ .Values.ports.metrics }}"
+            {{- range $k, $v := .Values.config }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.envSecretName }}
+          # HTTP probes only: the kubelet connects from outside the container. An exec probe would
+          # put a process into the container cgroup, and the runner needs that cgroup free of
+          # processes other than itself to delegate controllers (judge/sandbox/delegate.go).
+          startupProbe:
+            httpGet: {path: /metrics, port: metrics}
+            periodSeconds: 5
+            failureThreshold: 36
+          livenessProbe:
+            httpGet: {path: /metrics, port: metrics}
+            periodSeconds: 30
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+            - {name: vartmp, mountPath: /var/tmp}
+          # Starts as root, then docker-entrypoint.sh drops every capability and runs the runner as
+          # uid 10001. See values.yaml (sandbox) and ADR 0029 for why each setting is here.
+          securityContext:
+            privileged: {{ .Values.sandbox.privileged }}
+            runAsNonRoot: false
+            runAsUser: 0
+            # Must stay true (the default): Kubernetes rejects allowPrivilegeEscalation=false
+            # together with CAP_SYS_ADMIN. The entrypoint sets no_new_privs itself.
+            allowPrivilegeEscalation: true
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+              add:
+                {{- toYaml .Values.sandbox.capabilities | nindent 16 }}

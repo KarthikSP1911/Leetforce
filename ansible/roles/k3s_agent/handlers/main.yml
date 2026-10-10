@@ -1,0 +1,4 @@
+- name: Load the runner pod AppArmor profile
+  ansible.builtin.command:
+    cmd: apparmor_parser -r /etc/apparmor.d/leetforce-runner-pod
+  changed_when: true
