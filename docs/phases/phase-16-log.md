@@ -341,3 +341,7 @@ Left in the real Neon database: 6 load-test users and about 616 submissions plus
 | Claude | `aws ec2 stop-instances` for `leetforce-dev` (stop, not terminate) | State `stopped`; the EBS volume still bills a few cents a month; the public IP is released, so after a start update `HostName` in `~/.ssh/config` and the security group rule if your IP changed |
 
 Still existing (not billed per hour or on hosted free plans, not touched): S3 bucket, Neon database, Upstash Redis, IAM roles. To bring the demo back: start the instance, fix the ssh config IP, run `~/demo/up.sh`.
+
+## README screenshots (2026-10-10)
+
+Claude edited `README.md`: removed stray blank lines under the tagline, added a Screenshots nav link and section (6 website pictures from `docs/images/website/`), a "Tested under load" highlight (numbers from the 2026-10-10 load test above, with the trivial-program caveat), and four observability pictures from `docs/images/observability/` in the Observability section. No other README text was changed.
