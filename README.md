@@ -44,17 +44,18 @@
 
 ## Screenshots
 
+<p align="center">
+  <a href="docs/images/website/03-workspace-dark.jpg"><img src="docs/images/website/03-workspace-dark.jpg" alt="Problem workspace: description, editor, Run and Submit, console" width="900"></a><br>
+  <sub><b>Problem workspace</b>: description, Monaco editor, Run and Submit, console with Testcase and Result tabs.</sub>
+</p>
+
 <table width="100%">
   <tr>
-    <td width="50%"><a href="docs/images/website/03-workspace-dark.jpg"><img src="docs/images/website/03-workspace-dark.jpg" alt="Problem workspace, dark theme: description, editor, Run and Submit, console"></a><br><sub><b>Problem workspace</b> (dark): description, Monaco editor, Run and Submit, console with Testcase and Result tabs.</sub></td>
-    <td width="50%"><a href="docs/images/website/09-workspace-light.jpg"><img src="docs/images/website/09-workspace-light.jpg" alt="Problem workspace, light theme"></a><br><sub><b>Problem workspace</b> (light): the theme follows the system and has a toggle.</sub></td>
-  </tr>
-  <tr>
-    <td width="50%"><a href="docs/images/website/01-home-dark.jpg"><img src="docs/images/website/01-home-dark.jpg" alt="Home page, dark theme"></a><br><sub><b>Home</b></sub></td>
+    <td width="50%"><a href="docs/images/website/01-home-dark.jpg"><img src="docs/images/website/01-home-dark.jpg" alt="Home page"></a><br><sub><b>Home</b></sub></td>
     <td width="50%"><a href="docs/images/website/02-problems-dark.jpg"><img src="docs/images/website/02-problems-dark.jpg" alt="Problem list with search, difficulty and tag filters"></a><br><sub><b>Problem list</b> with search, difficulty and tag filters.</sub></td>
   </tr>
   <tr>
-    <td width="50%"><a href="docs/images/website/11-contest-detail-light.jpg"><img src="docs/images/website/11-contest-detail-light.jpg" alt="Contest page with problems and standings"></a><br><sub><b>Contest</b> with problems and live standings.</sub></td>
+    <td width="50%"><a href="docs/images/website/05-contests-dark.jpg"><img src="docs/images/website/05-contests-dark.jpg" alt="Contest list"></a><br><sub><b>Contests</b></sub></td>
     <td width="50%"><a href="docs/images/website/04-leaderboard-dark.jpg"><img src="docs/images/website/04-leaderboard-dark.jpg" alt="Global leaderboard"></a><br><sub><b>Leaderboard</b>, ranked by solved problems and score.</sub></td>
   </tr>
 </table>

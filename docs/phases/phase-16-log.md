@@ -345,3 +345,5 @@ Still existing (not billed per hour or on hosted free plans, not touched): S3 bu
 ## README screenshots (2026-10-10)
 
 Claude edited `README.md`: removed stray blank lines under the tagline, added a Screenshots nav link and section (6 website pictures from `docs/images/website/`), a "Tested under load" highlight (numbers from the 2026-10-10 load test above, with the trivial-program caveat), and four observability pictures from `docs/images/observability/` in the Observability section. No other README text was changed.
+
+README screenshots: at the owner's request the README shows dark-theme screenshots only; the two light ones were replaced by dark pages (contest list instead of the light contest detail). The light images stay in `docs/images/website/`.
