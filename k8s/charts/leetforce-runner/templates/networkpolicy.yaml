@@ -1,0 +1,61 @@
+{{- if .Values.networkPolicy.enabled }}
+# Egress allow-list for runner pods (Phase 17, ADR 0029). WRITTEN, NOT APPLIED.
+# The judged program is not covered by this: it runs in its own network namespace with no
+# interface (nsjail), so it has no network at all. This policy limits the RUNNER process:
+# DNS, Redis (TLS), HTTPS (S3 for test bundles) and, if allowed, the metadata address for the
+# node's IAM role. Pod, service, VPC and link-local ranges are blocked.
+# k3s enforces NetworkPolicy with its embedded kube-router controller unless it was started
+# with --disable-network-policy; the policy has not been tested here.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: runner
+  labels:
+    {{- include "leetforce-runner.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "leetforce-runner.selectorLabels" . | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    # Metrics only.
+    - from:
+        {{- range .Values.networkPolicy.metricsFrom }}
+        - ipBlock:
+            cidr: {{ . }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.ports.metrics }}
+  egress:
+    # DNS through the cluster resolver.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.dnsNamespace }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.dnsPodLabels | nindent 14 }}
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+    # Redis and HTTPS to public addresses only.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              {{- toYaml .Values.networkPolicy.blockedCIDRs | nindent 14 }}
+      ports:
+        {{- range .Values.networkPolicy.redisPorts }}
+        - {protocol: TCP, port: {{ . }}}
+        {{- end }}
+        - {protocol: TCP, port: {{ .Values.networkPolicy.httpsPort }}}
+    {{- if .Values.networkPolicy.allowMetadata }}
+    # The instance metadata service, for the node role's temporary S3 credentials (IMDSv2).
+    - to:
+        - ipBlock:
+            cidr: {{ .Values.networkPolicy.metadataAddress }}
+      ports:
+        - {protocol: TCP, port: 80}
+    {{- end }}
+{{- end }}

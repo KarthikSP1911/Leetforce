@@ -1,0 +1,6 @@
+apiVersion: v2
+name: leetforce-runner
+description: LeetForce runner pods on isolated k3s agent nodes, scaled by KEDA from the Redis jobs stream (Phase 17, ADR 0029; written, not run)
+type: application
+version: 0.1.0
+appVersion: "latest"

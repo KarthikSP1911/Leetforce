@@ -1,0 +1,151 @@
+# Defaults for the runner release (Phase 17, ADR 0029). WRITTEN, NOT RUN.
+# scripts/k3s/deploy-runners.sh sets image.tag to the commit sha (--set image.tag=<sha>).
+image:
+  repository: ghcr.io/karthiksp1911/leetforce-runner
+  tag: latest
+
+# Names of Secrets that scripts/k3s/sync-secrets.sh builds in the leetforce-runners namespace
+# from SSM. The chart NEVER creates or contains a secret.
+#   envSecretName       every /leetforce/runner/* parameter as one env var (LEETFORCE_REDIS_URL,
+#                       LEETFORCE_S3_BUCKET, ...) plus KEDA_REDIS_ADDRESS (host:port of the Redis
+#                       URL, which KEDA reads through addressFromEnv)
+#   redisAuthSecretName keys `username` and `password` for KEDA's TriggerAuthentication
+#   pullSecretName      GHCR pull credentials (the package is private)
+envSecretName: runner-env
+redisAuthSecretName: keda-redis
+pullSecretName: ghcr-pull
+
+# Non-secret runner settings, set as plain env vars (they win over the Secret on a clash).
+# LEETFORCE_RUNNER_ID is set from the pod name by the template, so each pod is its own consumer.
+config:
+  LEETFORCE_QUEUE_PREFIX: leetforce
+  # A job idle this long is reclaimable (heartbeat every third of it). Keep below the grace period.
+  LEETFORCE_JOB_MIN_IDLE: 30s
+  # How often an idle pod polls Redis: 2 commands per poll (ADR 0028, ADR 0029 has the pod maths).
+  LEETFORCE_JOB_RECLAIM_EVERY: 60s
+  LEETFORCE_JOB_MAX_ATTEMPTS: "3"
+  # No S3 access keys: storage.Open falls back to the node's IAM role through IMDS (ADR 0029).
+  # S3 endpoint and bucket come from the runner-env Secret (SSM /leetforce/runner/*).
+
+ports:
+  metrics: 9101
+
+# Prometheus scrape hints on the pod. The pod address is not reachable from the owner's PC;
+# see observability/prometheus/k3s-runner-pods.yml and ADR 0029.
+metrics:
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9101"
+    prometheus.io/path: /metrics
+
+# The runner nodes (infra/aws/runner-k3s.tf, ansible role k3s_agent) carry this label and taint.
+nodePool:
+  nodeSelector:
+    leetforce.dev/pool: runner
+  tolerations:
+    - key: leetforce.dev/runner
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+
+# A pod that is deleted gets this long to finish its in-flight job before the kubelet sends SIGKILL.
+# On SIGTERM the runner stops taking jobs but finishes the one it has (runner/internal/agent
+# Agent.Run runs Process on a context that ignores the cancellation) and acknowledges it. Slowest
+# job, from the limits in judge/lang/lang.go and problems/*/problem.yaml: Go compile 60 s plus up
+# to about 40 tests at about 5 s each is about 260 s, so 330 s leaves a margin. If a job outlasts
+# it, SIGKILL leaves the job pending and XAUTOCLAIM gives it to another runner after
+# LEETFORCE_JOB_MIN_IDLE plus LEETFORCE_JOB_RECLAIM_EVERY (about 90 s). Nothing is lost, the
+# verdict is only later. The number is an assumption, not measured.
+terminationGracePeriodSeconds: 330
+
+# maxSurge 0: a surged pod would stay Pending when the nodes are full (runner_node_count is fixed).
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 0
+    maxUnavailable: 1
+
+# Sandbox privilege (ADR 0029). Least privilege first:
+#   - the container starts as root with ONLY the capabilities its entrypoint needs
+#     (runner/docker-entrypoint.sh remounts its cgroup read-write, chowns it to uid 10001, then
+#     drops every capability and execs the runner with no_new_privs);
+#   - seccomp stays RuntimeDefault (containerd's default profile admits mount, unshare and clone
+#     with CLONE_NEW* when CAP_SYS_ADMIN was granted at container start; set Unconfined only if
+#     the in-pod adversarial suite shows that is not enough);
+#   - AppArmor is the Localhost profile `leetforce-runner-pod`, installed on the runner nodes by
+#     the k3s_agent role. It is `unconfined` apart from the `userns` permission, the same idea as
+#     scripts/runner/usr.local.bin.nsjail (Ubuntu 24.04 strips capabilities inside user
+#     namespaces created by a process whose profile lacks `userns`);
+#   - NOT privileged.
+# Fallback if the least-privilege path cannot work on the nodes: set privileged to true. That
+# gives the container every capability and a writable cgroup filesystem, and is acceptable ONLY
+# because the pods run on the tainted, isolated runner nodes (recorded in ADR 0029).
+sandbox:
+  privileged: false
+  seccompProfile: RuntimeDefault # RuntimeDefault | Unconfined
+  apparmorProfile: leetforce-runner-pod # Localhost profile name; "" for the container runtime default
+  # Capabilities for the entrypoint only. SYS_ADMIN: remount the cgroup filesystem. CHOWN: delegate
+  # the cgroup. SETUID/SETGID: change to uid 10001. SETPCAP: empty the bounding set.
+  capabilities: [SYS_ADMIN, CHOWN, SETUID, SETGID, SETPCAP]
+
+# Requests only for CPU: a CPU limit would throttle the pod and distort the runtime the sandbox
+# measures (and could turn a fast solution into TLE). The sandbox bounds each job's CPU itself.
+# The memory limit bounds the whole pod including every sandbox cgroup (the job cgroups are
+# children of the pod cgroup); the largest single sandbox is the Java compile at 420 MiB.
+resources:
+  requests: {cpu: 500m, memory: 768Mi, ephemeral-storage: 1Gi}
+  limits: {memory: 1Gi, ephemeral-storage: 3Gi}
+
+# Scratch space for /tmp and /var/tmp (job directories, unpacked problem bundles), on the node's disk.
+scratch:
+  sizeLimit: 1Gi
+
+# KEDA (needs the KEDA operator, installed by scripts/k3s/deploy-runners.sh). KEDA scales PODS only.
+# The number of nodes is fixed by runner_node_count in infra/aws; pods beyond the capacity of the
+# nodes stay Pending until the owner raises it.
+keda:
+  enabled: true
+  minReplicaCount: 1 # owner decision: never zero
+  maxReplicaCount: 4
+  # Seconds between KEDA checks of the jobs stream. With useCachedMetrics (in the ScaledObject)
+  # this is also what sets the Redis command rate: one XLEN per interval (ADR 0029).
+  pollingInterval: 60
+  # KEDA documents that its cooldownPeriod only applies when scaling to zero. With
+  # minReplicaCount 1 it has no effect; scale-down pacing is the stabilization window below.
+  # Kept as a setting because the owner asked for it.
+  cooldownPeriod: 300
+  # Target unfinished jobs per pod. The metric is XLEN of the jobs stream, which counts waiting
+  # AND in-flight jobs (runners XACK + XDEL a job only when it is done). A pod runs one job at a
+  # time, so 2 means one running and at most one queued behind it per pod. 1 would add a pod for
+  # every second job, and a new pod takes a minute or more to start (image pull).
+  streamLength: 2
+  # HPA behaviour. Scale down one pod at a time after the queue has been short for the whole window.
+  scaleDownStabilizationSeconds: 300
+  scaleDownPodsPerPeriod: 1
+  scaleDownPeriodSeconds: 120
+  scaleUpPodsPerPeriod: 2
+  scaleUpPeriodSeconds: 60
+
+# Egress allow-list (ADR 0029). Ingress: only the metrics port, from the ranges below.
+networkPolicy:
+  enabled: true
+  # The scraper reaches the pod through the API server proxy or from inside the cluster: the pod
+  # CIDR of k3s and the VPC range of the default VPC. Both are assumptions to check.
+  metricsFrom: [10.42.0.0/16, 172.31.0.0/16]
+  # Public destinations: Upstash Redis (TLS) and S3 plus the registry over HTTPS. Their addresses
+  # are not fixed and there are no VPC endpoints (cost rule), so the policy allows the ports to
+  # any PUBLIC address and blocks every private, link-local and cluster range below.
+  redisPorts: [6379]
+  httpsPort: 443
+  blockedCIDRs:
+    - 10.0.0.0/8 # includes the k3s pod (10.42/16) and service (10.43/16) ranges
+    - 172.16.0.0/12 # includes the default VPC (172.31/16): other hosts, the control host, the API server
+    - 192.168.0.0/16
+    - 100.64.0.0/10
+    - 169.254.0.0/16 # link-local, includes the metadata service
+  # The instance role (S3 read, ADR 0029) is reached through IMDSv2 at this one address. Set false
+  # and use access keys in the runner-env Secret if that exposure is not acceptable.
+  allowMetadata: true
+  metadataAddress: 169.254.169.254/32
+  dnsNamespace: kube-system
+  dnsPodLabels: {k8s-app: kube-dns}

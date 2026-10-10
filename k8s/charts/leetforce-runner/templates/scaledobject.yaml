@@ -1,0 +1,72 @@
+{{- if .Values.keda.enabled }}
+# KEDA objects for the runner Deployment (Phase 17, ADR 0029). WRITTEN, NOT APPLIED.
+# Needs the KEDA operator and its CRDs (scripts/k3s/deploy-runners.sh installs them first).
+#
+# Trigger choice: redis-streams in streamLength mode (no consumerGroup), i.e. XLEN of the jobs
+# stream. Runners XACK and XDEL a job when it is finished, so XLEN = jobs waiting + jobs being
+# judged = the work that still needs a runner. The other two modes do not fit:
+#   pendingEntriesCount (XPENDING) counts only jobs already delivered to a runner, so a queue of
+#     waiting jobs behind busy runners is invisible and nothing would scale up;
+#   lagCount (XINFO GROUPS lag) counts only undelivered jobs, needs Redis 7 and an INFO call per
+#     poll, and Redis reports the lag as unavailable once entries have been XDELed.
+# useCachedMetrics: without it every HPA sync (15 s by default) makes the KEDA metrics server run
+# a new XLEN, so the command rate would follow the HPA and ignore pollingInterval.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: runner
+  labels:
+    {{- include "leetforce-runner.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    name: runner
+    # addressFromEnv below is read from this container's env (the runner-env Secret via envFrom).
+    envSourceContainerName: runner
+  minReplicaCount: {{ .Values.keda.minReplicaCount }}
+  maxReplicaCount: {{ .Values.keda.maxReplicaCount }}
+  pollingInterval: {{ .Values.keda.pollingInterval }}
+  cooldownPeriod: {{ .Values.keda.cooldownPeriod }}
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: {{ .Values.keda.scaleDownStabilizationSeconds }}
+          policies:
+            - type: Pods
+              value: {{ .Values.keda.scaleDownPodsPerPeriod }}
+              periodSeconds: {{ .Values.keda.scaleDownPeriodSeconds }}
+        scaleUp:
+          policies:
+            - type: Pods
+              value: {{ .Values.keda.scaleUpPodsPerPeriod }}
+              periodSeconds: {{ .Values.keda.scaleUpPeriodSeconds }}
+  triggers:
+    - type: redis-streams
+      useCachedMetrics: true
+      metadata:
+        addressFromEnv: KEDA_REDIS_ADDRESS
+        stream: {{ .Values.config.LEETFORCE_QUEUE_PREFIX }}:jobs
+        streamLength: {{ .Values.keda.streamLength | quote }}
+        # TLS on through the trigger metadata. KEDA does not allow this together with the
+        # TriggerAuthentication tls parameter, so the TriggerAuthentication carries only credentials.
+        enableTLS: "true"
+      authenticationRef:
+        name: runner-redis
+---
+# Credentials for the trigger, read from a Secret that scripts/k3s/sync-secrets.sh builds. The
+# host and port are not secret and come from KEDA_REDIS_ADDRESS in the runner-env Secret.
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: runner-redis
+  labels:
+    {{- include "leetforce-runner.labels" . | nindent 4 }}
+spec:
+  secretTargetRef:
+    - parameter: username
+      name: {{ .Values.redisAuthSecretName }}
+      key: username
+    - parameter: password
+      name: {{ .Values.redisAuthSecretName }}
+      key: password
+{{- end }}
