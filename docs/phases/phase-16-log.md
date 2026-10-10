@@ -276,3 +276,17 @@ The owner reported the Upstash free tier running out and asked for three fixes. 
 - Mistake: my first draft of ADR 0028 said a cloud queue had been rejected "in the ADR 0001 era"; no ADR evaluates one, so the line now says it was not evaluated.
 - Also noted (not caused by this change): `go.work.sum` is modified by `go` commands on the PC; it was reverted rather than committed.
 - Still to do by the owner: after a day of running, compare the Upstash usage page with the ~9k a day estimate.
+
+## Dev host access restored (2026-10-10)
+
+The `leetforce-dev` EC2 host (`t3.micro`, ap-south-1) was already `running` (launched 2026-10-10 08:00 UTC) but SSH timed out.
+
+| Who | Step | Result |
+|---|---|---|
+| Claude | `aws ec2 describe-instances --region ap-south-1 --profile leetforce` | Instance running; its public IPv4 differed from the `HostName` in `~/.ssh/config` (auto-assigned IP changes on stop/start). |
+| Claude | Backed up `~/.ssh/config` to `~/.ssh/config.bak-20261010`, updated the `HostName` line of `Host leetforce-dev` | Config points at the current IP. |
+| Claude | Compared the owner's current public IP with the instance's security group (port 22) | Not allowed: the owner's IP had changed since the rules were set. |
+| Claude (owner asked "fix it") | `aws ec2 authorize-security-group-ingress` on the dev host's security group: tcp/22 from the owner's current IP as a `/32`, description "owner current IP 2026-10-10" | `Return: True`. Existing SSH rules were left in place (2 before, 3 now). |
+| Claude | `ssh -o StrictHostKeyChecking=accept-new leetforce-dev` | Host key of the new IP added to `known_hosts` (IP verified as ours via the AWS API); host up 4 min, root disk 92% used (1.2G free), repo on `phase/16-launch-readiness`. |
+
+Open points: the stale SSH rules for old IPs can be removed; the root disk is nearly full. Recurring fix when the IP changes: rerun the two steps above (consider an Elastic IP, which costs money when unattached, so not done).
