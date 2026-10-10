@@ -2,3 +2,9 @@
 owner_cidr = "203.0.113.7/32"
 key_name   = "leetforce-dev"
 # runner_ami_id = "ami-..."   # after `packer build`
+
+# Phase 17 (ADR 0029): k3s agent nodes for the KEDA-scaled runner pods. 0 creates nothing.
+# Billable per node once set (see the cost table in the root README). Write the join token to SSM first
+# (scripts/k3s/push-agent-token.sh).
+# runner_node_count         = 1
+# runner_node_instance_type = "t3.small"

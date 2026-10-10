@@ -32,3 +32,15 @@ SSM parameters under `/leetforce/runner/` (SecureString; the name is the environ
 | `LEETFORCE_JOB_RECLAIM_EVERY` | no | how often an idle runner polls Redis (default 2 x MIN_IDLE; 2 commands per poll, ADR 0028) |
 
 No access keys: S3 uses the instance role. Runners never receive `DATABASE_URL`.
+
+## k3s agent nodes for KEDA-scaled runner pods (Phase 17, ADR 0029; written, never validated or applied)
+
+`runner-k3s.tf` adds a second runner path: EC2 hosts that join the control host's k3s as **agents**, labelled `leetforce.dev/pool=runner` and tainted `leetforce.dev/runner=true:NoSchedule`, and run the pods of `k8s/charts/leetforce-runner`.
+
+- **Fixed node count.** `runner_node_count` (default `0`) sets desired = min = max of the group. KEDA scales **pods** only; pods that do not fit stay `Pending` until you raise `runner_node_count` and apply. Node autoscaling is out of scope. At `0` nothing from this file is created (every resource has `count = 0`).
+- **Independent of `runner_count`.** The standalone runner hosts (`runner-asg.tf`) keep working; both paths read the same Redis consumer group. Set `runner_count = 0` to run only pods.
+- **Join token.** Write it first with `scripts/k3s/push-agent-token.sh <user@control-host> --apply`; it lands in SSM at `/leetforce/runner/K3S_AGENT_TOKEN`. The node role may read that one parameter and the `problems/` bundles, nothing else. Nodes boot stock Ubuntu (or `runner_node_ami_id`), install k3s at `runner_node_k3s_version` and the AppArmor profile from `ansible/roles/k3s_agent/files/` in `k3s-agent-userdata.sh.tftpl`; the Ansible hardening role is **not** applied to them.
+- **Security groups.** The agent group admits SSH from `owner_cidr` and the cluster ports (VXLAN UDP 8472, kubelet 10250) from the control host only. Matching rules were added to the control group (6443 and 8472 in, 8472 and 10250 out).
+- **IMDS hop limit 2** on the agents (1 on the standalone runners), so pods can use the node role for S3. The reasoning and the residual risk are in the comment on the launch template and in ADR 0029.
+- **No instance refresh.** A changed launch template affects new instances only. Roll nodes by `kubectl drain`, then terminate one at a time, then `kubectl delete node` for the stale object.
+- **Cost** per node: see the cost table in the root README.
