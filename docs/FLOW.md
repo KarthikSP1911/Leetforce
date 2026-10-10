@@ -1,6 +1,6 @@
 # LeetForce flow, phase by phase
 
-This file shows how a submission flows through the system and which phase builds each part. It is updated at the end of every phase. Phases 0 to 16 are **as built** (section 3). Phase 13 is code-complete but only partly applied in the cloud. Phases 14 and 15 were built in parallel and first tested together in Phase 16, whose gate passed. This file was checked against the code and git in the Phase 16 docs pass ([phase-16-log.md](phases/phase-16-log.md)).
+This file shows how a submission flows through the system and which phase builds each part. It is updated at the end of every phase. Phases 0 to 16 are **as built** (section 3). Phase 13 is code-complete but only partly applied in the cloud. Phases 14 and 15 were built in parallel and first tested together in Phase 16, whose gate passed. This file was checked against the code and git in the Phase 16 docs pass ([phase-16-log.md](phases/phase-16-log.md)). Phase 17 (KEDA-scaled runner pods, a post-launch extension outside PLAN.md) is written but unbuilt and unrun: its section is marked UNVERIFIED and is not "as built".
 
 ## 1. The end-to-end flow (the finished system)
 ```
@@ -45,6 +45,7 @@ Rules that shape the flow (from CLAUDE.md): runners never connect to the databas
 | 14 | Contests `[x]` (tested in the Phase 16 gate: mock contest passes) | Contest model, timed windows, contest-only problems, scoring in stages 2 and 9 | a mock contest runs end to end |
 | 15 | Leaderboard `[x]` (tested in the Phase 16 gate: concurrency test passes) | Rankings fed by verdicts, caching, penalty rules | rankings correct under concurrent submissions |
 | 16 | Launch readiness (M5) `[x]` | Load test, security review, backup and restore drill, integration of phases 14 and 15 | findings resolved or accepted in writing |
+| 17 | KEDA-scaled runner pods `[~]` post-launch extension, not in PLAN.md; CODE ONLY, UNVERIFIED (nothing built, applied or run) | A second runner path in stages 4 to 8: runner pods on k3s agent nodes, scaled by KEDA from the length of the jobs stream | `Redis jobs stream -> KEDA (XLEN) -> HPA -> runner pods on isolated nodes -> same runner code -> verdict`; the standalone runner hosts remain |
 
 Notes: the phase names, builds and exits come from `docs/PLAN.md`. In the "Flow after" column, Phases 14 to 16 are my reading of the plan's build lists, not a promise, and will be corrected when each phase is planned (Phases 14 and 15 are built by others or later, so they are not ticked here).
 
@@ -440,6 +441,31 @@ Decision record: [ADR 0024](adr/0024-load-test-tool.md). Log: [phase-16-log.md](
 ```
 
 The submission flow itself is unchanged from Phases 14 and 15; the new pieces check it and protect it (per-IP cap on SSE streams, JSON-only POSTs, no problem list in standings before the start).
+
+### Phase 17: KEDA-scaled runner pods (post-launch extension; code only, UNVERIFIED)
+
+Decision record: [ADR 0029](adr/0029-keda-scaled-runner-pods.md) (PROPOSED). Log: [phase-17-log.md](phases/phase-17-log.md). This is **not** in `docs/PLAN.md` and **nothing below has been built, applied or run**: every step is what the code says should happen. The submission flow (stages 1 to 10) is unchanged; only where stages 4 to 8 run is new. The standalone runner hosts of Phase 13 still work and can run at the same time against the same consumer group.
+```
+ Where the runner runs (new path, stages 4 to 8 unchanged)
+ 1. image       runner/Dockerfile: static runner + nsjail (same pinned commit as ansible/roles/runner_host) + python3, g++, JDK 21, Go
+                at the paths judge/lang/lang.go expects; no problems or tests inside. CI (.github/workflows/deploy.yml, job runner-image):
+                build, Trivy, push to private GHCR on main. Nothing deploys it.
+ 2. nodes       infra/aws/runner-k3s.tf: runner_node_count (default 0, fixed) EC2 hosts join the control host's k3s as agents with
+                label leetforce.dev/pool=runner and taint leetforce.dev/runner=true:NoSchedule; join token from SSM
+                (scripts/k3s/push-agent-token.sh); user data k3s-agent-userdata.sh.tftpl or ansible/roles/k3s_agent
+ 3. secrets     scripts/k3s/sync-runner-secrets.sh (control host): SSM /leetforce/runner/* -> Secret runner-env (+ KEDA_REDIS_ADDRESS),
+                keda-redis, ghcr-pull in namespace leetforce-runners
+ 4. roll out    scripts/k3s/deploy-runners.sh <sha> (by hand): KEDA chart once, k8s/runners-namespace.yaml, helm upgrade --install
+                k8s/charts/leetforce-runner
+ 5. pod start   runner/docker-entrypoint.sh: root with 5 capabilities -> remount own cgroup rw -> chown it to uid 10001 -> setpriv drops
+                every capability, no_new_privs -> runner (judge/sandbox/delegate.go PrepareDelegatedRoot, as ADR 0014)
+ 6. judging     unchanged: Receive (XAUTOCLAIM / XREADGROUP), judge in nsjail, Publish, XACK + XDEL; S3 bundles via the node IAM role (IMDS)
+ 7. scaling     KEDA ScaledObject (redis-streams, XLEN of leetforce:jobs, useCachedMetrics, one poll a minute) -> HPA, 1 to 4 pods, 2 unfinished
+                jobs per pod; pods beyond node capacity stay Pending
+ 8. scale down  HPA deletes a pod -> SIGTERM -> the runner finishes its in-flight job (Agent.Run) within 330 s -> exits; SIGKILL leaves the
+                job pending and XAUTOCLAIM reassigns it (about 90 s)
+ 9. watching    observability/prometheus/k3s-runner-pods.yml (not loaded) + alert RunnerPodsAtMaxQueueDeep in alerts.yml
+```
 
 ## 4. Keeping this file true
 At the end of each phase: tick the phase in section 2, add its "as built" flow to section 3 (the detailed step list with file paths), and correct the "planned" rows if the plan changed.

@@ -1,6 +1,6 @@
 # ADR 0022: k3s for the control host, standalone runner hosts, SSM for secrets, SSM Run Command for deploys
 
-Status: accepted for the code; not yet exercised in the cloud (Phase 13 in progress)
+Status: accepted for the code; not yet exercised in the cloud (Phase 13 in progress). Partly superseded by [ADR 0029](0029-keda-scaled-runner-pods.md) (Phase 17, proposed, unverified): runners may also run as KEDA-scaled pods on k3s agent nodes; the standalone runner hosts below remain.
 
 ## Context
 Phase 13 puts the flow in the cloud and must survive losing a runner. The owner chose GHCR for images, the web app on Vercel later, and testing access restricted to the owner's IP. Runners execute untrusted code in nsjail, which needs namespaces and cgroups that the Phase 6 unprivileged systemd unit already provides.

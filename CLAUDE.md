@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working in this
 
 ## Current state
 
-Phases 0 to 16 are done (the latest are 14 contests, 15 leaderboard and 16 launch readiness); see `docs/PROGRESS.md`. The Phase 13 cloud exit criteria are still unproven and `docs/launch-checklist.md` lists what the owner must decide before a public launch. Parts below describe the planned system and may not exist yet. `docs/PLAN.md` (the 0–16 phase plan) and `docs/PROGRESS.md` (phase tracker and resume point) are the sources of truth. Do not invent build or test commands that no Makefile defines.
+Phases 0 to 16 are done (the latest are 14 contests, 15 leaderboard and 16 launch readiness); see `docs/PROGRESS.md`. A post-launch extension outside the plan, "Phase 17" (KEDA-scaled runner pods, `docs/adr/0029-keda-scaled-runner-pods.md`), is WRITTEN BUT NEVER BUILT OR RUN on branch `feat/17-keda-runners`; treat its files as unverified. The Phase 13 cloud exit criteria are still unproven and `docs/launch-checklist.md` lists what the owner must decide before a public launch. Parts below describe the planned system and may not exist yet. `docs/PLAN.md` (the 0–16 phase plan) and `docs/PROGRESS.md` (phase tracker and resume point) are the sources of truth. Do not invent build or test commands that no Makefile defines.
 
 ## Project
 
@@ -44,6 +44,8 @@ go run ./api/cmd/rejudge [-dry-run] <slug>   # from api/: sync one problem from 
 scripts/scan-staged.sh [full]   # Trivy on the staged tree via the dev host: secrets (every commit) or vuln+secret+misconfig (before merges)
 make dev | make down     # local Redis via docker-compose.yml (S3 is real AWS S3 since Phase 13; the RustFS service is commented out)
 make check-scripts       # fails when a scripts/*.sh file is not executable in git (part of make lint)
+make build-runner-image    # Phase 17 (written, never run): docker build of runner/Dockerfile, the KEDA-scaled pod image
+make lint-runner-chart   # Phase 17 (written, never run): nsjail/k3s pin check, then helm lint and template of k8s/charts/leetforce-runner
 make test-mock-contest   # Phase 14 exit test: a full mock contest through the API, runner and Postgres (deletes what it creates)
 make test-leaderboard-concurrent  # Phase 15 exit test: rankings stay correct under concurrent verdicts (race detector, real schema)
 make test-loadtest-local # Phase 16 exit test: modest mixed and contest load against a local API and runner on a free port
