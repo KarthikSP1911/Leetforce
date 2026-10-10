@@ -58,3 +58,6 @@ backups/
 
 # Bucket name for the S3 backend (ADR 0021)
 infra/backend.hcl
+
+wiki/
+.claude/
