@@ -4,7 +4,7 @@
 
 GO_MODULES := judge queue runner api storage telemetry tools/loadtest
 
-.PHONY: check-scripts loadtest test-loadtest-local test-leaderboard-concurrent test-runner-loss build-runner-linux packer-validate build-ami lint-ansible test-destroy-isolation tf-validate test-alerts test-obs-e2e dev-obs down-obs validate-problems test-rejudge-e2e test-mock-contest test-auth-e2e test-live-e2e test-api-e2e build-api migrate-up migrate-down migrate-status dev down fmt lint test build-judge build-runner test-crash test-matrix test-sandbox test-adversarial bench-sandbox
+.PHONY: build-runner-image lint-runner-chart check-scripts loadtest test-loadtest-local test-leaderboard-concurrent test-runner-loss build-runner-linux packer-validate build-ami lint-ansible test-destroy-isolation tf-validate test-alerts test-obs-e2e dev-obs down-obs validate-problems test-rejudge-e2e test-mock-contest test-auth-e2e test-live-e2e test-api-e2e build-api migrate-up migrate-down migrate-status dev down fmt lint test build-judge build-runner test-crash test-matrix test-sandbox test-adversarial bench-sandbox
 
 # Phase 12: cross-compile the runner for the AMI (static x86_64 Linux binary).
 build-runner-linux:
@@ -22,6 +22,19 @@ build-ami: build-runner-linux
 # Phase 12: syntax-check and lint the Ansible playbook in a throwaway container (needs Docker).
 lint-ansible:
 	docker run --rm -v "$(CURDIR)/ansible:/a" -w /a python:3.12-slim sh -c 'pip install -q ansible ansible-lint && ansible-galaxy collection install -r requirements.yml >/dev/null && ansible-lint site.yml'
+
+# Phase 17 (ADR 0029), DEFINED BUT NEVER RUN: build the runner container image locally (needs Docker; the
+# image is big, about 1.5 GB, and builds nsjail from source). CI builds the same Dockerfile on main.
+build-runner-image:
+	docker build -f runner/Dockerfile -t leetforce-runner:dev .
+
+# Phase 17, DEFINED BUT NEVER RUN: check the pinned versions agree (nsjail commit, k3s version) and
+# lint and render the runner chart in a throwaway Helm container (needs Docker; creates nothing). The
+# ScaledObject is not validated against KEDA's CRDs by this.
+lint-runner-chart:
+	scripts/check-nsjail-pin.sh
+	docker run --rm -v "$(CURDIR)/k8s:/k8s:ro" alpine/helm:3.16.2 lint /k8s/charts/leetforce-runner
+	docker run --rm -v "$(CURDIR)/k8s:/k8s:ro" alpine/helm:3.16.2 template runner /k8s/charts/leetforce-runner --namespace leetforce-runners >/dev/null
 
 # Phase 12 exit check: destroying infra/aws cannot reach infra/neon (static, offline).
 test-destroy-isolation:
