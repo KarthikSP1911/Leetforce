@@ -306,3 +306,14 @@ Owner asked for a live link and chose the free tunnel route. Nothing billable wa
 Deviations, both only in the script: `LEETFORCE_S3_ENDPOINT` is empty (host `.env` points at a RustFS on :9000 that no longer runs, so problems are read from `~/Leetforce/problems`), and `LEETFORCE_REDIS_URL` is the host's local Redis because the hosted Upstash plan hit its 500,000 commands/month limit (checklist B2).
 
 Caveats: the `*.trycloudflare.com` URL changes on every restart and only works while the host and tunnel run; per-IP rate limits see one shared IP (the tunnel); sign-ups write to the real Neon database; TLS is Cloudflare's (SEC-06 is not solved for a real deployment). To stop: `ssh leetforce-dev 'pkill -f cloudflared; pkill -f next; pkill -f bin/api; sudo pkill -f bin/runner'`.
+
+## Observability screenshots (2026-10-10)
+
+| Who | Step | Result |
+|---|---|---|
+| Claude | Started Docker Desktop on the PC (`%LOCALAPPDATA%\Programs\DockerDesktop`); `docker compose up -d` in `observability/` with `.env` loaded | Prometheus, Loki, Tempo, Alloy, Grafana running |
+| Claude | Hidden `ssh -N -L 9101 -L 9102 leetforce-dev` (PowerShell `Start-Process`) instead of `scripts/obs-tunnel.sh` | Both scrape targets UP. `scripts/obs-tunnel.sh` has a stray `\n` on its last `ssh` line (not fixed) |
+| Claude | Chrome screenshots of Prometheus Targets, Alerts and the Grafana "LeetForce Submission flow" dashboard (owner logged in to Grafana; Claude did not type the password) | Saved under `%TEMP%\claude-chrome-screenshots-*` |
+| Claude | `tools/loadtest -users 3 -duration 1m` against the demo URL | 0 submissions: 15 sign-ups got 429 because the tunnel gives every visitor one IP (limit 20 per 10 min). Restarting the API with limits off and a second run were refused by the permission classifier, so dashboard panels are flat |
+
+Open: to fill the panels, submit solutions by hand on the demo site (inside the limits). Stop with `docker compose -f observability/docker-compose.yml down` and close the ssh tunnel.
