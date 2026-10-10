@@ -1,0 +1,24 @@
+# Used by `docker build -f runner/Dockerfile .` (BuildKit reads <Dockerfile>.dockerignore).
+# The runner image must not contain problems or tests: the runner fetches test bundles from S3.
+problems
+**/testdata
+**/*_test.go
+**/node_modules
+**/.git
+.env
+.env.*
+**/*.tfstate*
+**/*.tfvars
+bin
+backups
+web
+docs
+infra
+k8s
+packer
+ansible
+observability
+wiki
+api
+tools
+.claude
