@@ -1,0 +1,37 @@
+# Read-only identity for Prometheus to find and scrape the runner pods (Phase 17, ADR 0029).
+# WRITTEN, NEVER APPLIED. Used by observability/prometheus/k3s-runner-pods.yml.
+# Only the leetforce-runners namespace: listing pods and reading their proxied /metrics.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus-scraper
+  namespace: leetforce-runners
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: prometheus-scraper
+  namespace: leetforce-runners
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list, watch]
+  # The API server proxy to a pod (GET .../pods/<name>:9101/proxy/metrics).
+  - apiGroups: [""]
+    resources: [pods/proxy]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: prometheus-scraper
+  namespace: leetforce-runners
+subjects:
+  - kind: ServiceAccount
+    name: prometheus-scraper
+    namespace: leetforce-runners
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: prometheus-scraper

@@ -18,3 +18,7 @@ scrape_configs:
   - job_name: prometheus
     static_configs:
       - targets: ["localhost:9090"]
+
+# Phase 17 (ADR 0029): the KEDA-scaled runner pods are scraped through the k3s API server by
+# k3s-runner-pods.yml in this folder. It is deliberately not loaded here; the file explains how
+# to enable it (credentials first) and the RunnerPodsAtMaxQueueDeep alert needs it.
