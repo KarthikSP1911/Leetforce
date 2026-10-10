@@ -290,3 +290,19 @@ The `leetforce-dev` EC2 host (`t3.micro`, ap-south-1) was already `running` (lau
 | Claude | `ssh -o StrictHostKeyChecking=accept-new leetforce-dev` | Host key of the new IP added to `known_hosts` (IP verified as ours via the AWS API); host up 4 min, root disk 92% used (1.2G free), repo on `phase/16-launch-readiness`. |
 
 Open points: the stale SSH rules for old IPs can be removed; the root disk is nearly full. Recurring fix when the IP changes: rerun the two steps above (consider an Elastic IP, which costs money when unattached, so not done).
+
+## Public demo through a Cloudflare quick tunnel (2026-10-10)
+
+Owner asked for a live link and chose the free tunnel route. Nothing billable was added (the dev host was already running).
+
+| Who | Step | Result |
+|---|---|---|
+| Claude | Cross-compiled `bin/api` and `bin/runner` (linux/amd64) and ran `npm run build` in `web/` on the PC; shipped them with `scp`/`tar` to `~/demo` on the dev host | Host disk is too small to build there |
+| Claude | Cleared `~/.cache/go-build` (782 MB, regenerable), removed `web/.next/dev`, `~/.npm/_cacache` after the disk hit 100% | 1.2 GB free afterwards |
+| Claude | Installed Node v22.23.3 from nodejs.org into `~/demo/node` (SHA-256 checked); host Node 18 is too old for Next 16 | System Node untouched |
+| Claude | Installed `cloudflared` 2026.10.0 into `~/demo/bin` from the GitHub release (SHA-256 matched the release notes) | |
+| Claude | `scripts/demo-up.sh` (copied to `~/demo/up.sh`): API on 127.0.0.1:8080, `sudo -E` runner, `next start` on 127.0.0.1:3000, `cloudflared tunnel --url`. Logs and pids in `~/demo/logs` | Public URL printed at the end; `/`, `/problems`, `/api/readyz` return 200 (database and redis ok) |
+
+Deviations, both only in the script: `LEETFORCE_S3_ENDPOINT` is empty (host `.env` points at a RustFS on :9000 that no longer runs, so problems are read from `~/Leetforce/problems`), and `LEETFORCE_REDIS_URL` is the host's local Redis because the hosted Upstash plan hit its 500,000 commands/month limit (checklist B2).
+
+Caveats: the `*.trycloudflare.com` URL changes on every restart and only works while the host and tunnel run; per-IP rate limits see one shared IP (the tunnel); sign-ups write to the real Neon database; TLS is Cloudflare's (SEC-06 is not solved for a real deployment). To stop: `ssh leetforce-dev 'pkill -f cloudflared; pkill -f next; pkill -f bin/api; sudo pkill -f bin/runner'`.
