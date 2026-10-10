@@ -331,3 +331,13 @@ Owner chose "Claude runs the load tool". To avoid weakening the public demo, the
 | Claude | Restarted API and runner without limit overrides and reopened the quick tunnel | Limits back to defaults; the demo URL changed (it changes at every tunnel start) |
 
 Left in the real Neon database: 6 load-test users and about 616 submissions plus Run rows; see "Cleanup of test users" under Load test above before deleting. `scripts/demo-up.sh` does not set `LEETFORCE_OTLP_ENDPOINT`; tracing needs it plus the `-R 4318` tunnel.
+
+## Cloud shut down (2026-10-10)
+
+| Who | Step | Result |
+|---|---|---|
+| Claude | Inventory (ap-south-1 plus us-east-1, us-west-2, eu-west-1, eu-central-1, ap-southeast-1): EC2 instances, Elastic IPs, NAT gateways, Auto Scaling groups | Only `leetforce-dev` was running; nothing else billable found |
+| Claude | On the host: stopped cloudflared, Next.js, API and runner. On the PC: `docker compose down` in `observability/` (volumes kept), closed the ssh tunnels | Demo link is dead |
+| Claude | `aws ec2 stop-instances` for `leetforce-dev` (stop, not terminate) | State `stopped`; the EBS volume still bills a few cents a month; the public IP is released, so after a start update `HostName` in `~/.ssh/config` and the security group rule if your IP changed |
+
+Still existing (not billed per hour or on hosted free plans, not touched): S3 bucket, Neon database, Upstash Redis, IAM roles. To bring the demo back: start the instance, fix the ssh config IP, run `~/demo/up.sh`.
