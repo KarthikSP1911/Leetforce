@@ -8,8 +8,6 @@
   A distributed, sandboxed code execution platform. Submit Python, C++, Java, or Go and get a verdict with runtime and memory.
 </p>
 
-
-
 <p align="center">
   <img alt="Go" src="https://img.shields.io/badge/Go-00ADD8?style=for-the-badge&logo=go&logoColor=white">
   <img alt="Next.js" src="https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=nextdotjs&logoColor=white">
@@ -27,6 +25,7 @@
 
 <p align="center">
   <a href="#what-it-is">Overview</a> &middot;
+  <a href="#screenshots">Screenshots</a> &middot;
   <a href="#architecture">Architecture</a> &middot;
   <a href="#system-design-high-level">System design</a> &middot;
   <a href="#observability">Observability</a> &middot;
@@ -42,6 +41,25 @@
 </p>
 
 <p align="center"><sub>The service boxes are modules inside one Go API process, not separate deployments. The database is Neon Postgres, not Amazon RDS. Source of the picture: <a href="docs/images/hld.svg">docs/images/hld.svg</a>.</sub></p>
+
+## Screenshots
+
+<table width="100%">
+  <tr>
+    <td width="50%"><a href="docs/images/website/03-workspace-dark.jpg"><img src="docs/images/website/03-workspace-dark.jpg" alt="Problem workspace, dark theme: description, editor, Run and Submit, console"></a><br><sub><b>Problem workspace</b> (dark): description, Monaco editor, Run and Submit, console with Testcase and Result tabs.</sub></td>
+    <td width="50%"><a href="docs/images/website/09-workspace-light.jpg"><img src="docs/images/website/09-workspace-light.jpg" alt="Problem workspace, light theme"></a><br><sub><b>Problem workspace</b> (light): the theme follows the system and has a toggle.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><a href="docs/images/website/01-home-dark.jpg"><img src="docs/images/website/01-home-dark.jpg" alt="Home page, dark theme"></a><br><sub><b>Home</b></sub></td>
+    <td width="50%"><a href="docs/images/website/02-problems-dark.jpg"><img src="docs/images/website/02-problems-dark.jpg" alt="Problem list with search, difficulty and tag filters"></a><br><sub><b>Problem list</b> with search, difficulty and tag filters.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><a href="docs/images/website/11-contest-detail-light.jpg"><img src="docs/images/website/11-contest-detail-light.jpg" alt="Contest page with problems and standings"></a><br><sub><b>Contest</b> with problems and live standings.</sub></td>
+    <td width="50%"><a href="docs/images/website/04-leaderboard-dark.jpg"><img src="docs/images/website/04-leaderboard-dark.jpg" alt="Global leaderboard"></a><br><sub><b>Leaderboard</b>, ranked by solved problems and score.</sub></td>
+  </tr>
+</table>
+
+<sub>Taken from a temporary public demo (signed out; the signed-in result panel is not shown). No live site is kept running because the host is billed while it runs. All pictures: [docs/images/website/](docs/images/website/), observability pictures under [Observability](#observability).</sub>
 
 ## What it is
 
@@ -60,6 +78,7 @@ Status: Phases 0 to 16 are built (see [docs/PROGRESS.md](docs/PROGRESS.md)), inc
 | **Contests and rankings** | Timed contests with contest-only problems, ICPC-style scoring and a cached global leaderboard. |
 | **Four languages** | Python, C++, Java and Go, each with its own driver and starter code. |
 | **Observable** | Prometheus, Grafana and Loki with alert rules, and Tempo traces that follow one submission from the API through the queue to the runner. |
+| **Tested under load** | 616 submissions from 6 simulated users in 3 minutes on one `t3.micro` host: every one reached a verdict, no errors, 0.5 s median and 1.1 s p95 from submit to verdict. The load tool submits a trivial program, so this measures the queue, runner and sandbox path, not heavy problems ([log](docs/phases/phase-16-log.md)). |
 | **Launch checked** | A security review, a load tester and a restore drill, all written up in `docs/`. |
 
 ## Tech stack
@@ -382,6 +401,17 @@ flowchart LR
 | Are verdicts healthy? | Verdict counts by language. Alert `InternalErrorVerdicts` fires when a submission ends with IE, which is the platform's fault, not the user's |
 | What happened to one submission? | Loki, by `service` and `level`. Submission, user and problem ids are never metric labels; they stay in the logs |
 | Where did the time go for one submission? | Tempo. One trace covers the API request, the queue wait and the runner's judging; search by `submission_id`, then jump to its Loki lines |
+
+<table width="100%">
+  <tr>
+    <td width="50%"><a href="docs/images/observability/04-grafana-dashboard-submission-flow.jpg"><img src="docs/images/observability/04-grafana-dashboard-submission-flow.jpg" alt="Grafana dashboard: submissions and verdicts per minute, judge time"></a><br><sub><b>Grafana</b>: submissions and verdicts per minute and judge time during the load test.</sub></td>
+    <td width="50%"><a href="docs/images/observability/11-tempo-trace-submission.jpg"><img src="docs/images/observability/11-tempo-trace-submission.jpg" alt="Tempo trace: POST /submissions, queue.enqueue, runner.process, judge"></a><br><sub><b>Tempo</b>: one submission from the API request through the queue to the runner and the judge.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><a href="docs/images/observability/06-grafana-dashboard-api-and-alerts.jpg"><img src="docs/images/observability/06-grafana-dashboard-api-and-alerts.jpg" alt="Grafana dashboard: API requests per second and p95 latency by route"></a><br><sub><b>Grafana</b>: API request rate and p95 latency by route.</sub></td>
+    <td width="50%"><a href="docs/images/observability/09-loki-runner-logs.jpg"><img src="docs/images/observability/09-loki-runner-logs.jpg" alt="Loki: runner JSON logs"></a><br><sub><b>Loki</b>: runner JSON logs (judging, verdict reported). More in <a href="docs/images/observability/">docs/images/observability/</a>.</sub></td>
+  </tr>
+</table>
 
 Every metric starts with `leetforce_`, and label values come from small fixed sets, so the metric count stays bounded. The alert rules have unit tests (`make test-alerts`).
 
